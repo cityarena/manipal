@@ -1753,6 +1753,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .festival-emoji { width: 30px; flex: none; text-align: center; font-size: 20px; line-height: 1; }
 .festival-ask { margin-bottom: 12px; color: var(--ink); font-weight: 600; }
 .message-preview { margin: 0; padding: 16px; white-space: pre-wrap; border: 1px solid var(--line); border-radius: var(--r); background: var(--inset); box-shadow: inset 0 1px 2px rgb(var(--tint) / 0.135); color: var(--ink); font: 14px/1.6 var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.message-mono { display: block; margin: 2px 0; font-family: Consolas, "Courier New", ui-monospace, monospace; font-size: 13.5px; white-space: pre; overflow-x: auto; }
 
 /* ---------- Sign in (the owner's pictures, 20 October) ----------
    The owner's photograph of the lounge fills the page and fades into cream on the right; the logo stands on its bright wall,
@@ -2187,7 +2188,10 @@ var ARENA_BRANCH = (function () {
     navIcons: { floor: 'PS5' },
     contact: '',
     venues: [
-      { key: 'turf', name: 'Turf', icon: 'football', open: 6, close: 22, sports: ['Football', 'Cricket'], board: ['left', 'right'],
+      // emoji: beside the venue's name in the availability message; share: the message's columns, each ✅ when any of its
+      // courts is free (owner, 23 October: the turf as Full court and Half court).
+      { key: 'turf', name: 'Turf', icon: 'football', emoji: '⚽', open: 6, close: 22, sports: ['Football', 'Cricket'], board: ['left', 'right'],
+        share: [{ name: 'Full court', courts: ['full'] }, { name: 'Half court', courts: ['left', 'right'] }],
         courts: [
           { id: 'full', name: 'Full court', ratePaise: 260000, takes: ['left', 'right'] },
           { id: 'left', name: 'Court 1', ratePaise: 130000 },
@@ -2197,7 +2201,7 @@ var ARENA_BRANCH = (function () {
           { id: '1v1', name: '1V1', ratePaise: 50000, off: true }
         ] },
       // Rackets and shuttlecocks are rented for the game (owner, 22 October); placeholder prices until the owner sets them.
-      { key: 'badminton', name: 'Badminton', icon: 'badminton', open: 6, close: 24, sports: ['Badminton'], board: ['bad-1', 'bad-2', 'bad-3'],
+      { key: 'badminton', name: 'Badminton', icon: 'badminton', emoji: '🏸', open: 6, close: 24, sports: ['Badminton'], board: ['bad-1', 'bad-2', 'bad-3'],
         // menuNames: a menu item of one of these names, added with Add Items, counts as that rental on a court card.
         // Memberships (owner, 22 October): the same court and hours every chosen day for the period, paid at once. Placeholder
         // prices until the owner sets them in Settings.
@@ -2206,7 +2210,7 @@ var ARENA_BRANCH = (function () {
         rentals: [{ id: 'racket', name: 'Racket', pricePaise: 5000, menuNames: ['racket', 'rackets', 'racquet', 'racquets'] },
           { id: 'shuttle', name: 'Shuttlecock', pricePaise: 3000, menuNames: ['shuttlecock', 'shuttlecocks', 'shuttle', 'shuttles', 'shuttle cock', 'shuttle cocks', 'cock', 'cocks'] }],
         courts: [{ id: 'bad-1', name: 'Court 1', ratePaise: 40000 }, { id: 'bad-2', name: 'Court 2', ratePaise: 40000 }, { id: 'bad-3', name: 'Court 3', ratePaise: 40000 }] },
-      { key: 'pickleball', name: 'Pickleball', icon: 'pickleball', open: 6, close: 24, sports: ['Pickleball'], board: ['pb-1', 'pb-2'],
+      { key: 'pickleball', name: 'Pickleball', icon: 'pickleball', emoji: '🏓', open: 6, close: 24, sports: ['Pickleball'], board: ['pb-1', 'pb-2'],
         courts: [{ id: 'pb-1', name: 'Court 1', ratePaise: 50000 }, { id: 'pb-2', name: 'Court 2', ratePaise: 50000 }] }
     ]
   };
@@ -10191,28 +10195,50 @@ function turfMessage(b, cancelled, wishes, slots) {
   lines.push('', '*#PlayAtCityArena*', '*Team City Arena*', ARENA_BRANCH.place);
   return lines.join('\n');
 }
-// Which hours are still open on each court, for sending to a group.
+// Which hours are still open on each court, for sending to a group. The table is set in WhatsApp's monospace (```), so the
+// columns stand in straight lines on every phone (owner, 23 October). A venue may name its own columns (Branch.gs share:
+// the turf as Full court and Half court), each ✅ when any of its courts is free; otherwise a column per court.
 function turfAvailabilityText(key, list) {
-  const d = new Date(key + 'T00:00:00+05:30'), lines = ['*City Arena - ' + ARENA_BRANCH.place + '*', '', '*' + venueHere().name + '*'];
+  const venue = venueHere(), d = new Date(key + 'T00:00:00+05:30');
+  const columns = venue.share || courtsHere().map(c => ({ name: courtLabel(c), courts: [c] }));
+  const lines = ['*City Arena - ' + ARENA_BRANCH.place + '*', '', (venue.emoji ? venue.emoji + ' ' : '') + '*' + venue.name + '*'];
   lines.push('Slot availability on *' + d.toLocaleDateString('en-IN', { timeZone: IST, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '*', '');
-  lines.push('*Timings' + ' '.repeat(16) + courtsHere().map(c => courtLabel(c)).join(' | ') + '*', '');
   const short = hour => (hour % 12 || 12) + (hour < 12 ? 'am' : 'pm');
-  for (let hour = venueHere().open; hour < venueHere().close; hour++) {
+  const timeWidth = 12, widths = columns.map(c => Math.max(c.name.length, 2));
+  // An emoji takes about two letters' room in monospace; it is centred under its column's name.
+  const cell = (text, width, emoji) => {
+    const room = width - (emoji ? 2 : text.length), left = Math.floor(room / 2);
+    return ' '.repeat(left) + text + ' '.repeat(room - left);
+  };
+  const table = ['Timings'.padEnd(timeWidth) + columns.map((c, i) => cell(c.name, widths[i], false)).join(' | ')];
+  for (let hour = venue.open; hour < venue.close; hour++) {
     if (hourStart(key, hour + 1) <= nowMs()) continue;
-    const mark = court => (bookingAt(list, court, hour) ? '❌' : '✅');
-    lines.push((short(hour) + ' - ' + short(hour + 1)).padEnd(25) + courtsHere().map(mark).join('  |  '));
+    const mark = column => (column.courts.some(court => !bookingAt(list, court, hour)) ? '✅' : '❌');
+    table.push((short(hour) + '-' + short(hour + 1)).padEnd(timeWidth) + columns.map((c, i) => cell(mark(c), widths[i], true)).join(' | '));
   }
-  lines.push('', '✅ : Slot available', '❌ : Not available', '', ...(ARENA_BRANCH.contact ? ['For bookings,', 'Contact 📱: ' + ARENA_BRANCH.contact, ''] : []), '#playatcityarena');
+  if (table.length > 1) lines.push('```', ...table, '```');
+  else lines.push('No hours left on this day.');
+  // What the signs mean; a column of several courts says what its ✅ means.
+  const together = columns.filter(c => c.courts.length > 1).map(c => c.name + ' ✅ : ' + c.courts.map(courtLabel).join(' or ') + ' free');
+  lines.push('', '✅ : Slot available', '❌ : Not available', ...together, '', ...(ARENA_BRANCH.contact ? ['For bookings,', 'Contact 📱: ' + ARENA_BRANCH.contact, ''] : []), '#playatcityarena');
   return lines.join('\n');
 }
 
-// A message as the customer will see it in WhatsApp: *bold* shown bold, the asterisks gone.
+// A message as the customer will see it in WhatsApp: *bold* shown bold, the asterisks gone; lines between ``` fences in
+// WhatsApp's monospace, the fences gone.
 function whatsappPreview(text, key) {
   const box = h('div', { class: 'message-preview', data: { field: key } });
+  let mono = null;
   text.split('\n').forEach((line, i) => {
-    if (i) box.append('\n');
-    line.split(/(\*[^*\n]+\*)/).forEach(part => box.append(/^\*[^*\n]+\*$/.test(part) ? h('b', { text: part.slice(1, -1) }) : part));
+    if (line === '```') {
+      if (mono) { box.append(mono); mono = null; } else mono = h('span', 'message-mono');
+      return;
+    }
+    const into = mono || box;
+    if (i && (!mono || mono.childNodes.length)) into.append('\n');
+    line.split(/(\*[^*\n]+\*)/).forEach(part => into.append(/^\*[^*\n]+\*$/.test(part) ? h('b', { text: part.slice(1, -1) }) : part));
   });
+  if (mono) box.append(mono);
   return box;
 }
 // WhatsApp opens on the tap itself; marking it sent is saved after, once. During Diwali, Eid or Christmas a small
