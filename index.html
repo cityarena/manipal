@@ -1320,6 +1320,13 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 /* Free hours picked to book together: mint, with a tick; the bar under the board books them in one go. */
 .turf-cell.picked { border-style: solid; border-color: var(--primary); background: var(--primary-soft); color: var(--ink); }
 .turf-cell.picked svg { color: var(--primary); }
+/* The whole court in one tap: a small pill on the line between the two halves (owner, 23 October). */
+.turf-whole { display: flex; align-items: center; justify-content: center; z-index: 1; pointer-events: none; }
+.turf-whole-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--raised); color: var(--ink); font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--hi), 0 2px 6px -2px rgba(80, 62, 30, 0.28); cursor: pointer; pointer-events: auto; transition: border-color var(--ease), background var(--ease); }
+.turf-whole-btn svg { width: 14px; height: 14px; color: var(--ink-2); }
+.turf-whole-btn:hover { border-color: var(--primary-line); }
+.turf-whole-btn.picked { border-color: var(--primary); background: var(--primary); color: #ffffff; }
+.turf-whole-btn.picked svg { color: #ffffff; }
 .turf-pick-bar { grid-column: 1 / -1; position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-height: 56px; padding: 8px 10px 8px 16px; border: 1px solid var(--primary-line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-pop); font-weight: 600; }
 .turf-pick-bar > span { margin-right: auto; }
 /* The hour as a span: "6–7" with AM or PM under it. */
@@ -1863,7 +1870,7 @@ var ARENA_BRANCH = (function () {
     ],
     // Bowling is charged per person per game, never by the clock. The clock only estimates when a lane is free:
     // 10 minutes a player and 5 minutes more a game (4 players, one game: 45 minutes).
-    bowling: { perPersonPaise: 15000, minutesPerPlayer: 10, minutesPerGame: 5, maxPlayers: 6, maxGames: 2 },
+    bowling: { perPersonPaise: 15000, minutesPerPlayer: 10, minutesPerGame: 5, maxPlayers: 6, maxGames: 5 },
     // The Reservations page's tabs, in the owner's order (only kinds switched on are shown).
     reservationKinds: ['Bowling', 'Snooker', 'Pool', 'PS5'],
     // Minutes, each one a setting: remind before a booking; ask "No-show?" after; a lane chosen by the app is kept from this
@@ -2029,7 +2036,7 @@ var ArenaCore = (function () {
   function bowlingRates(players, games) {
     var rules = ARENA_BRANCH.bowling;
     check(Number.isInteger(players) && players >= 1 && players <= rules.maxPlayers, 'Choose 1 to ' + rules.maxPlayers + ' players.');
-    check(Number.isInteger(games) && games >= 1 && games <= rules.maxGames, 'Choose 1 or ' + rules.maxGames + ' games.');
+    check(Number.isInteger(games) && games >= 1 && games <= rules.maxGames, 'Choose 1 to ' + rules.maxGames + ' games.');
     return { perPersonPaise: rules.perPersonPaise, players: players, games: games };
   }
   // How long a lane is expected to be busy: 10 minutes a player and 5 minutes more, for each game.
@@ -6418,7 +6425,7 @@ function startSheet(unit) {
       if (bowling) {
         const rules = ARENA_BRANCH.bowling, upTo = n => Array.from({ length: n }, (_, i) => [i + 1, String(i + 1)]);
         players = segmented(upTo(rules.maxPlayers), players ? players.value() : 1, () => {});
-        games = segmented(upTo(rules.maxGames).map(([n]) => [n, n === 1 ? '1 game' : n + ' games']), games ? games.value() : 1, () => {});
+        games = segmented(upTo(rules.maxGames), games ? games.value() : 1, () => {});
         ui.body.append(h('div', { class: 'field', data: { field: 'players' } }, h('span', { text: 'Players' }), players.node),
           h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'Games' }), games.node));
       }
@@ -7519,7 +7526,7 @@ function moveSheet(tab) {
       if (units.some(u => u.category === 'Bowling')) {
         const rules = ARENA_BRANCH.bowling, upTo = n => Array.from({ length: n }, (_, i) => [i + 1, String(i + 1)]);
         players = segmented(upTo(rules.maxPlayers), players ? players.value() : Math.min(movers, rules.maxPlayers), () => {});
-        games = segmented(upTo(rules.maxGames).map(([n]) => [n, n === 1 ? '1 game' : n + ' games']), games ? games.value() : 1, () => {});
+        games = segmented(upTo(rules.maxGames), games ? games.value() : 1, () => {});
         ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'players' } }, h('span', { text: 'Players' }), players.node), h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'Games' }), games.node));
       }
       // A free system chosen here that someone has booked soon: said here, before the move.
@@ -8148,7 +8155,7 @@ function partyFields(kind, r, keep, onChange) {
   if (kind === 'Bowling') {
     const rules = ARENA_BRANCH.bowling;
     keep.players = segmented(upTo(rules.maxPlayers), keep.players ? keep.players.value() : (r && Number(r.players)) || 2, onChange);
-    keep.games = segmented(upTo(rules.maxGames).map(([n]) => [n, n === 1 ? '1 game' : n + ' games']), keep.games ? keep.games.value() : (r && Number(r.games)) || 1, onChange);
+    keep.games = segmented(upTo(rules.maxGames), keep.games ? keep.games.value() : (r && Number(r.games)) || 1, onChange);
     nodes.push(h('div', { class: 'field', data: { field: 'players' } }, h('span', { text: 'Players' }), keep.players.node),
       h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'Games' }), keep.games.node));
   } else if (kind === 'PS5') {
@@ -8282,7 +8289,7 @@ function checkInSheet(r, unitId) {
       if (r.category === 'PS5') { count = segmented(upTo(4), count ? count.value() : resControllers(r) || 1); ui.body.append(h('div', 'field', h('span', { text: 'Controllers' }), count.node)); }
       if (bowling) {
         players = segmented(upTo(ARENA_BRANCH.bowling.maxPlayers), players ? players.value() : Number(r.players) || 1);
-        games = segmented(upTo(ARENA_BRANCH.bowling.maxGames).map(([n]) => [n, n === 1 ? '1 game' : n + ' games']), games ? games.value() : Number(r.games) || 1);
+        games = segmented(upTo(ARENA_BRANCH.bowling.maxGames), games ? games.value() : Number(r.games) || 1);
         ui.body.append(h('div', { class: 'field', data: { field: 'players' } }, h('span', { text: 'Players' }), players.node), h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'Games' }), games.node));
       }
       if (unit && inUse(unit)) { const box = h('input', { type: 'checkbox', checked: join, onchange: () => { join = box.checked; } }); ui.body.append(h('label', 'check', box, h('span', { text: 'Join the players already on this console' }))); }
@@ -11081,17 +11088,12 @@ let turfPicked = { day: '', cells: new Set() };
 const pickKey = (court, hour) => court + '|' + hour;
 // The columns of the board: on the turf its two halves, elsewhere every court.
 const boardCourts = () => (venueHere().board || courtsHere()).filter(c => courtsHere().includes(c));
-// A court that takes several columns (the whole turf) when every one of them is picked at an hour.
+// The court that takes these columns together (the whole turf), offered as its own pick between them.
 const wholeOf = cols => courtsHere().find(c => courtInfo(c).takes.length > 1 && courtInfo(c).takes.every(x => cols.includes(x))) || null;
 function turfPickedSlots() {
-  const slots = [], picked = [...turfPicked.cells].map(k => ({ court: k.split('|')[0], hour: Number(k.split('|')[1]) }));
-  // Both halves of an hour picked are the whole court for that hour.
-  const cells = [];
-  for (const hour of [...new Set(picked.map(p => p.hour))]) {
-    const cols = picked.filter(p => p.hour === hour).map(p => p.court), whole = wholeOf(cols);
-    if (whole) cells.push({ court: whole, hour }, ...cols.filter(c => !courtInfo(whole).takes.includes(c)).map(court => ({ court, hour })));
-    else cells.push(...cols.map(court => ({ court, hour })));
-  }
+  const slots = [];
+  // Each pick as it was made (owner, 23 October): the whole court only from its own pill; both halves tapped stay two halves.
+  const cells = [...turfPicked.cells].map(k => ({ court: k.split('|')[0], hour: Number(k.split('|')[1]) }));
   for (const court of courtsHere()) {
     const hours = cells.filter(c => c.court === court).map(c => c.hour).sort((a, b) => a - b);
     for (const hour of hours) {
@@ -11128,15 +11130,36 @@ function turfBoard(key, all) {
       }
       // A free hour whose time has gone: red, never offered.
       if (over) { board.append(h('div', { class: 'turf-cell over', style: where, data: { missed: '1' } }, h('span', { text: 'Not booked' }))); return; }
-      const picked = turfPicked.cells.has(pickKey(court, hour));
+      const wholeHere = wholeOf(cols), byWhole = !!wholeHere && courtInfo(wholeHere).takes.includes(court) && turfPicked.cells.has(pickKey(wholeHere, hour));
+      const picked = byWhole || turfPicked.cells.has(pickKey(court, hour));
       board.append(h('button', { type: 'button', class: 'turf-cell' + (picked ? ' picked' : ''), style: where, 'aria-pressed': String(picked), 'aria-label': (picked ? 'Picked: ' : 'Pick ') + courtLabel(court) + ' ' + hourLabel(hour), data: { court, hour: String(hour) },
-        onclick: () => { const k = pickKey(court, hour); if (turfPicked.cells.has(k)) turfPicked.cells.delete(k); else turfPicked.cells.add(k); render(); } },
+        onclick: () => {
+          const k = pickKey(court, hour);
+          // A half tapped while the whole court is picked: the whole court goes, the other half stays picked.
+          if (byWhole) { turfPicked.cells.delete(pickKey(wholeHere, hour)); cols.filter(c => c !== court).forEach(c => turfPicked.cells.add(pickKey(c, hour))); }
+          else if (turfPicked.cells.has(k)) turfPicked.cells.delete(k);
+          else turfPicked.cells.add(k);
+          render();
+        } },
       icon(picked ? 'check' : 'plus'), h('span', { text: picked ? 'Picked' : 'Free' })));
     });
+    // The whole court in one tap (owner, 23 October): a pill on the line between the halves, at an hour when both are free;
+    // it picks the whole court for that hour (any half picked there gives way to it), or clears it.
+    const whole = wholeOf(cols);
+    if (whole && !over && cols.every(court => !bookingAt(list, court, hour))) {
+      const both = turfPicked.cells.has(pickKey(whole, hour));
+      board.append(h('div', { class: 'turf-whole', style: 'grid-row:' + row + ';grid-column:2 / span ' + cols.length },
+        h('button', { type: 'button', class: 'turf-whole-btn' + (both ? ' picked' : ''), 'aria-pressed': String(both), 'aria-label': (both ? 'Picked: ' : 'Pick ') + courtLabel(whole) + ' ' + hourLabel(hour), data: { action: 'turf-pick-whole', hour: String(hour) },
+          onclick: () => { cols.forEach(court => turfPicked.cells.delete(pickKey(court, hour))); if (both) turfPicked.cells.delete(pickKey(whole, hour)); else turfPicked.cells.add(pickKey(whole, hour)); render(); } },
+        icon(both ? 'check' : 'plus'), h('span', { text: courtLabel(whole) }))));
+    }
   });
   // What is picked, and one button to book it all.
   const n = turfPicked.cells.size;
-  if (n) board.append(h('div', { class: 'turf-pick-bar', style: 'grid-row:' + (hours.length + 2) }, h('span', { text: n + (n === 1 ? ' hour picked' : ' hours picked') }),
+  // Said as it will be booked: both halves of an hour are the whole court ("Full court · 1 hour"), not two hours.
+  const pickedSlots = turfPickedSlots(), hoursText = k => k + (k === 1 ? ' hour' : ' hours');
+  const pickedText = pickedSlots.length === 1 ? courtLabel(pickedSlots[0].court) + ' · ' + hoursText(pickedSlots[0].hours) : pickedSlots.length + ' slots picked';
+  if (n) board.append(h('div', { class: 'turf-pick-bar', style: 'grid-row:' + (hours.length + 2) }, h('span', { data: { picked: String(pickedSlots.length) }, text: pickedText }),
     btn('Clear', () => { turfPicked.cells.clear(); render(); }, 'quiet', { data: { action: 'turf-pick-clear' } }),
     btn([icon('plus'), turfPickedSlots().length === 1 ? 'Book' : 'Book ' + turfPickedSlots().length + ' slots'], () => turfBookingSheet(null, { dateKey: key, slots: turfPickedSlots() }), 'primary', { data: { action: 'turf-book-picked' } })));
   return board;
