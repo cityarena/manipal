@@ -321,7 +321,7 @@
 :root[data-theme="manipal"] .cat-line b { color: #ff5ce1; }
 :root[data-theme="manipal"] .cat .glyph.lg { border-radius: 26%; color: #f7dcff; background: radial-gradient(circle at 50% 40%, rgba(150, 60, 220, 0.55) 0%, rgba(48, 18, 86, 0.82) 75%); border: 1.5px solid #c66bff; box-shadow: 0 0 12px rgba(200, 90, 255, 0.55), inset 0 0 10px rgba(255, 80, 210, 0.3); }
 :root[data-theme="manipal"] .cat .meter i { background: rgba(255, 255, 255, 0.45); }
-:root[data-theme="manipal"] .cat .meter i.on, :root[data-theme="manipal"] .cat .meter i:first-child { background: #ff3dc8; }
+:root[data-theme="manipal"] .cat .meter i.on { background: #ff3dc8; }
 :root[data-theme="manipal"] .cat-open { border: 1.5px solid rgba(190, 130, 255, 0.85); background: rgba(30, 14, 60, 0.7); color: #ffffff; }
 /* The chosen tab, the switch and every main action: the violet gradient. */
 :root[data-theme="manipal"] .cat-tabs, :root[data-theme="manipal"] .res-switch { gap: 0; padding: 0; background: #efeef3; border-color: rgba(40, 30, 70, 0.08); box-shadow: none; }
@@ -331,12 +331,6 @@
 :root[data-theme="manipal"] .btn.primary:hover, :root[data-theme="manipal"] .station > .btn.go:hover { background: var(--violet); filter: brightness(1.08); }
 /* The station cards: the icon on a violet square. */
 :root[data-theme="manipal"] .station.photo .station-head .glyph { color: #f7dcff; background: radial-gradient(circle at 50% 40%, rgba(150, 60, 220, 0.5) 0%, rgba(48, 18, 86, 0.8) 75%); border: 1.5px solid #c66bff; box-shadow: 0 0 10px rgba(200, 90, 255, 0.5), inset 0 0 8px rgba(255, 80, 210, 0.28); }
-/* The unit pills: white, a coloured dot; green free, red in use. */
-:root[data-theme="manipal"] .unit-pill { color: var(--ink); border-color: var(--line-strong); background: #ffffff; box-shadow: 0 1px 2px rgba(40, 30, 70, 0.06); font-weight: 600; }
-:root[data-theme="manipal"] .unit-pill:hover { filter: none; border-color: #9d5cff; color: #7a2fd0; box-shadow: 0 0 0 1px rgba(157, 92, 255, 0.4); }
-:root[data-theme="manipal"] .unit-pill > i { background: #14a862; }
-:root[data-theme="manipal"] .unit-pill.live { color: var(--ink); border-color: rgba(214, 64, 58, 0.55); background: #ffffff; }
-:root[data-theme="manipal"] .unit-pill.live > i { background: #d6403a; }
 :root[data-theme="manipal"] .court-chip { background: rgba(40, 20, 80, 0.78); }
 /* On a phone: the tab bar violet-navy, the chosen tab lit in pink. */
 :root[data-theme="manipal"] .tabbar { border-top: 0; }
@@ -1227,6 +1221,12 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .games { display: grid; gap: 6px; }
 .game-row { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-soft); }
 .game-row .btn { min-height: 38px; padding: 0 12px; font-size: 14px; }
+.game-row.open { cursor: pointer; }
+.game-row.open:hover { border-color: var(--warn-line); }
+.game-row .game-go { width: 18px; height: 18px; flex: none; color: var(--ink-2); }
+/* A card never stretches its neighbours (owner, 25 October): each keeps its own height; a table's closed games are all shown,
+   the card growing and the cards below moving down (no scrolling inside a card). */
+:root[data-theme="manipal"] .stations { align-items: start; }
 /* Less received than owed: the rest goes pending, to credit, or stays on the system. */
 .rest-box { display: grid; gap: 8px; padding: 10px 12px 12px; border: 1px solid var(--warn-line); border-radius: 12px; background: var(--warn-soft); }
 .rest-box[hidden] { display: none; }
@@ -1815,6 +1815,14 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .login.new-device .device-note { margin-bottom: 10px; padding: 8px 12px; }
 .login.new-device .login-card { padding-top: 26px; padding-bottom: 22px; }
 @media (max-width: 900px) { html .login.new-device .login-stage { display: none; } html .login.new-device .login-panel { padding-top: 16px; } }
+/* A console in a group (compact groups): End Group, small, on the who line. */
+.btn.stop.group-end { margin-left: auto; min-height: 30px; padding: 0 10px; gap: 5px; font-size: 13px; border-radius: 8px; background: linear-gradient(180deg, #d0605a 0%, var(--danger) 55%, #a8362f 100%); border-color: var(--danger); }
+.btn.stop.group-end svg { width: 12px; height: 12px; }
+/* A moment as a time, AM or PM, and a date side by side (Branch.gs splitWhen). */
+.when-input { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.when-input [data-field=when-time] { flex: 0 0 96px; font-size: 16px; font-variant-numeric: tabular-nums; }
+.when-input .when-half { flex: none; }
+.when-input input[type=date] { flex: 1 1 150px; min-width: 0; }
 .device-list { display: grid; gap: 8px; margin-bottom: 14px; }
 [data-panel=devices] { margin-top: 18px; }
 .device-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); }
@@ -2224,6 +2232,12 @@ var ARENA_BRANCH = (function () {
     // On the turf board a booking turns orange once its time is over and it is not paid (Mangalore, 24 October); Manipal
     // keeps its board as it was (the owner's second message for the Manipal chat).
     boardOverOrange: false,
+    // Consoles grouped on one bill keep their card's shape (owner, 24 October): the group is a small tag on the who line and
+    // End Group is in the console's ⋮, instead of a panel on the card.
+    compactGroups: true,
+    // A moment is typed as a time and a date in two boxes, the cursor in the time (owner, 24 October: "when I type the time
+    // the cursor goes to the date").
+    splitWhen: true,
     contact: '9740450857',
     venues: [
       // emoji: beside the venue's name in the availability message; share: the message's columns, each ✅ when any of its
@@ -2638,7 +2652,7 @@ var ArenaApp=(function(){
 
 /* Post-session settlement and physical-table parties. Called inside the existing locked atomic command. */
 var ArenaLifecycle=(function(){
- var types=['END_SELECTION','SPLIT_REVIEW','KEEP_SHARED','MOVE_REVIEW','JOIN_TABLE','SETTLE_REVIEW','TRANSFER_CREDIT_INLINE','COMBINE_TABS','ATTACH_TO_GROUP','COUNTER_SALE','CREDIT_SALE','GROUP_TABS','TABLE_ROUND','TABLE_COLLECT'];
+ var types=['END_SELECTION','SPLIT_REVIEW','KEEP_SHARED','MOVE_REVIEW','JOIN_TABLE','SETTLE_REVIEW','TRANSFER_CREDIT_INLINE','COMBINE_TABS','ATTACH_TO_GROUP','COUNTER_SALE','CREDIT_SALE','GROUP_TABS','TABLE_ROUND','TABLE_COLLECT','TABLE_ITEMS_PAY'];
  function check(v,m){ArenaCore.check(v,m);}
  function row(rows,id){var r=(rows||[]).find(function(x){return x.id===id;});check(!!r,'Record not found.');return r;}
  function tab(s,id){var t=row(s.Tabs,id);check(t.status==='open','This tab is already finalized or moved.');return t;}
@@ -2853,6 +2867,35 @@ var ArenaLifecycle=(function(){
    (s.TableGuests||[]).forEach(function(g){if(g.tableSegmentId===game.id)g.tableSegmentId=next.id;});
    reminders.forEach(function(r){r.status='set';});
    return {tabId:host.id,segmentId:next.id,closedPaise:game.totalPaise,message:unit.name+': game closed. The next game has started.'};
+  }
+  if(c.type==='TABLE_ITEMS_PAY'){
+   // Items on a table paid on their own, before or without the table's time (owner, 24 October: "what if the drinks were for
+   // another", "only the items before the table"): how many of each, paid in full now; they become a bill of their own and
+   // the rest, the time included, stays on the table.
+   var it=tab(s,c.tabId);check(it.status==='open','This tab is already finalized.');
+   check(Array.isArray(c.items)&&c.items.length>=1&&c.items.length<=40,'Choose the items they are paying for.');
+   var onIt=(s.Orders||[]).filter(function(o){return o.tabId===it.id&&o.status==='active'&&o.category!=='Turf'&&o.category!=='Carried';}),taking=[];
+   // Checked first, then taken: a refused payment changes nothing.
+   var chosen=c.items.map(function(item){
+    var o=onIt.find(function(x){return x.id===(item&&item.orderId);});check(!!o,'This item is no longer on the table. Refresh and try again.');
+    check(Number.isInteger(item.quantity)&&item.quantity>=1&&item.quantity<=Number(o.quantity),'Choose how many of each item.');
+    return {order:o,quantity:item.quantity};
+   });
+   check(new Set(chosen.map(function(x){return x.order.id;})).size===chosen.length,'Choose each item once.');
+   var itemsDue=chosen.reduce(function(n,x){return n+x.order.unitPricePaise*x.quantity;},0);
+   check(c.amountPaise===itemsDue,'Collect '+(itemsDue/100)+' for these items.');
+   chosen.forEach(function(x,i){
+    var o=x.order;
+    if(x.quantity===Number(o.quantity)){taking.push(o);return;}
+    o.quantity=Number(o.quantity)-x.quantity;o.totalPaise=o.unitPricePaise*o.quantity;o.revision++;
+    var part=Object.assign({},o,{id:id+'-item-'+i,quantity:x.quantity,totalPaise:o.unitPricePaise*x.quantity,revision:1});s.Orders.push(part);taking.push(part);
+   });
+   var own=newTab(s,id+'-items',it.customer,it.phone,now,'individual');
+   taking.forEach(function(o){o.tabId=own.id;});
+   s.OrderOwners=(s.OrderOwners||[]).filter(function(w){return !taking.some(function(o){return o.id===w.id;});});
+   var paidItems=execute(s,{type:'SETTLE_REVIEW',tabId:own.id,settlement:'pay',discountType:'none',discountValue:0,amountPaise:itemsDue,method:c.method||'cash',payments:c.payments},actor,now,id+'-settle');
+   paidItems.tabId=own.id;paidItems.message='Items paid. The table plays on.';
+   return paidItems;
   }
   if(c.type==='TABLE_COLLECT'){
    // One closed game at a time (owner, 20 October: games are separate, never added together), with the items bought during
@@ -5863,9 +5906,75 @@ function payChoice(store, onchange = () => {}, options = {}) {
 }
 
 // "Starts now · Change time": the time field appears only when it is needed.
+// A moment typed in one box, or (Branch.gs splitWhen) as a time, AM or PM, and a date side by side (owner, 24–25 October: the
+// cursor in the time, AM / PM, easy typing). The time is typed as on a clock: 10:20, 1020, 10.20 or just 9; "pm" typed sets PM.
+// Either way .value reads and writes "YYYY-MM-DDTHH:MM", .focus() puts the cursor in the time, and onchange runs when any part
+// changes.
+function whenInput(value, props = {}) {
+  if (!ARENA_BRANCH.splitWhen) return h('input', { type: 'datetime-local', value, ...props });
+  const label = props['aria-label'] || 'Time';
+  const time = h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: 'hh:mm', maxlength: '8', 'aria-label': label, data: { field: 'when-time' } });
+  const date = h('input', { type: 'date', 'aria-label': label + ', day' });
+  let pm = false;
+  // The two buttons are made once and only marked, so a tap right after typing is never lost to a redraw.
+  const halves = [['AM', false], ['PM', true]].map(([text, on]) => h('button', { type: 'button', data: { half: text }, onmousedown: e => e.preventDefault(), onclick: () => { pm = on; tidy(); changed(); } }, text));
+  const half = h('div', { class: 'seg when-half', role: 'group', 'aria-label': 'AM or PM' }, halves);
+  const paintHalf = () => halves.forEach((button, i) => button.setAttribute('aria-pressed', String(pm === (i === 1))));
+  // "10:20", "1020", "10.20", "9", "9 pm" → hours and minutes on a 12-hour clock, or null.
+  const read = () => {
+    const raw = time.value.trim().toLowerCase();
+    if (/p/.test(raw)) pm = true; else if (/a/.test(raw)) pm = false;
+    const digits = raw.replace(/[^0-9:.\s]/g, '').trim(), parts = digits.split(/[:.\s]+/).filter(Boolean);
+    let hh, mm;
+    if (parts.length >= 2) { hh = Number(parts[0]); mm = Number(parts[1]); }
+    else if (parts.length === 1) { const d = parts[0]; if (d.length <= 2) { hh = Number(d); mm = 0; } else { hh = Number(d.slice(0, d.length - 2)); mm = Number(d.slice(-2)); } }
+    else return null;
+    if (!(hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59)) return null;
+    // 13:00 to 23:59 typed as a 24-hour time is understood too.
+    if (hh > 12) { pm = true; hh -= 12; }
+    if (hh === 0) { hh = 12; pm = false; }
+    return { hh, mm };
+  };
+  const tidy = () => { const at = read(); if (at) time.value = at.hh + ':' + String(at.mm).padStart(2, '0'); paintHalf(); };
+  const wrap = h('div', { class: 'when-input', data: props.data }, time, half, date);
+  Object.defineProperty(wrap, 'value', {
+    get: () => {
+      const at = read();
+      if (!at || !date.value) return '';
+      const h24 = (at.hh % 12) + (pm ? 12 : 0);
+      return date.value + 'T' + String(h24).padStart(2, '0') + ':' + String(at.mm).padStart(2, '0');
+    },
+    set: v => {
+      const [day, clockPart] = String(v || '').split('T');
+      date.value = day || '';
+      const [h24, m] = (clockPart || '').split(':').map(Number);
+      if (Number.isInteger(h24) && Number.isInteger(m)) { pm = h24 >= 12; time.value = ((h24 % 12) || 12) + ':' + String(m).padStart(2, '0'); }
+      else time.value = '';
+      paintHalf();
+    }
+  });
+  wrap.value = value;
+  wrap.focus = () => { time.focus(); time.select(); };
+  wrap.onchange = props.onchange || null;
+  const changed = () => { if (wrap.onchange) wrap.onchange(); };
+  // Everything typed is selected on entering the box, so a new time is just typed over the old.
+  time.onfocus = () => time.select();
+  // The colon comes by itself as the digits are typed (10 → 1:02 → 10:20); "a" or "p" chooses AM or PM.
+  time.oninput = () => {
+    const raw = time.value.toLowerCase();
+    if (/p/.test(raw)) pm = true; else if (/a/.test(raw)) pm = false;
+    paintHalf();
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 4);
+    time.value = digits.length <= 2 ? digits : digits.slice(0, -2) + ':' + digits.slice(-2);
+  };
+  time.onblur = () => { tidy(); changed(); };
+  time.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); tidy(); changed(); } };
+  date.onchange = changed;
+  return wrap;
+}
 function timeChoice(label, initialMs) {
   let custom = false;
-  const input = h('input', { type: 'datetime-local', value: istInput(initialMs || nowMs()), 'aria-label': label + ' time' });
+  const input = whenInput(istInput(initialMs || nowMs()), { 'aria-label': label + ' time' });
   const summary = h('span', { text: label + ' now' });
   const lead = h('span', 'time-lead', icon('clock'), summary);
   const toggle = btn('Change time', () => { custom = !custom; input.hidden = !custom; toggle.textContent = custom ? 'Use now' : 'Change time'; summary.textContent = custom ? label + ' at' : label + ' now'; if (custom) input.focus(); }, 'quiet');
@@ -6537,11 +6646,25 @@ const unitsOfTab = tabId => [...new Set(state.Segments.filter(g => g.tabId === t
 // A console whose bill also plays on other consoles: "Group · PS5 2 + PS5 3" and one button to end them all.
 function groupStrip(unit) {
   const tab = billOn(unit), units = tab ? unitsOfTab(tab.id) : [];
-  if (units.length < 2) return null;
+  if (units.length < 2 || ARENA_BRANCH.compactGroups) return null;
   const names = [unit.id, ...units.filter(id => id !== unit.id)].map(id => (unitOf(id) || {}).name || id);
   const everyone = state.Segments.filter(g => g.tabId === tab.id && g.status === 'active');
   return h('div', { class: 'group-strip', data: { group: tab.id } }, icon('users'), h('span', 'group-strip-text', h('b', { text: 'Group' }), h('span', { text: names.join(' + ') })),
     btn([icon('stop'), 'End Group'], () => endSheet(everyone), 'tonal', { data: { action: 'end-group' } }));
+}
+// Compact groups (Manipal, owner 24–25 October): the card keeps its shape and its buttons (Add Items, Pick to end, End all);
+// End Group is a small red button on the who line and the other consoles are named on the time line.
+function compactGroupOf(unit) {
+  const tab = billOn(unit), units = tab ? unitsOfTab(tab.id) : [];
+  return units.length >= 2 && ARENA_BRANCH.compactGroups ? { tab, others: units.filter(id => id !== unit.id).map(id => (unitOf(id) || {}).name || id) } : null;
+}
+function markCompactGroup(card, unit) {
+  const group = compactGroupOf(unit);
+  if (!group) return;
+  const who = card.querySelector('.card-who, .who-row'), since = card.querySelector('.card-since');
+  const everyone = state.Segments.filter(g => g.tabId === group.tab.id && g.status === 'active');
+  if (who) who.append(btn([icon('stop'), 'End Group'], e => { e.stopPropagation(); endSheet(everyone); }, 'stop group-end', { title: 'End every console of the group: ' + [unit.name, ...group.others].join(' + '), data: { action: 'end-group' } }));
+  if (since) since.textContent = 'With ' + group.others.join(', ');
 }
 // Other consoles in use whose bill can join this one.
 const groupable = unit => state.Equipment.filter(u => u.category === 'PS5' && u.id !== unit.id && activeOn(u.id).length && billOn(u) && billOn(unit) && billOn(u).id !== billOn(unit).id);
@@ -6575,16 +6698,26 @@ function gameOwed(tabId, game) {
   return { items, total, paid, owed: Math.max(0, total - paid) };
 }
 // Each game closed with Close & Open, one under another, each with its own Collect. A game paid in full becomes its own bill.
+// The table and the items are said apart (owner, 24 October), and items on the game playing now can be paid on their own
+// (Pay items) before or without the table.
 function closedGamesList(unit, tab) {
   const games = closedGames(tab.id).sort((a, b) => a.startMs - b.startMs);
-  if (!games.length) return null;
-  return h('div', { class: 'games', data: { games: String(games.length) } }, games.map((g, i) => {
-    const sum = gameOwed(tab.id, g);
-    return h('div', { class: 'game-row', data: { game: g.id } },
-      h('div', 'games-main', h('b', { text: 'Game ' + (i + 1) + ' · ' + period(g.startMs, g.endMs) }),
-        h('span', { class: 'small muted', text: [sum.items.length ? sum.items.length + (sum.items.length === 1 ? ' item' : ' items') : '', sum.paid ? money(sum.paid) + ' paid' : ''].filter(Boolean).join(' · ') || 'Closed' })),
-      btn([icon('wallet'), 'Collect ' + money(sum.owed)], () => tableCollectSheet(unit, tab, g), 'go', { data: { action: 'collect-game' } }));
-  }));
+  const owned = new Set(ArenaLifecycle.gameOrders(state, tab.id, games).map(o => o.id));
+  const now = ordersOf(tab.id).filter(o => o.category !== 'Turf' && o.category !== 'Carried' && !owned.has(o.id));
+  if (!games.length && !now.length) return null;
+  // No amounts here (owner, 25 October: an item may not be that game's): the game and its time; a tap opens it to be paid,
+  // where what it pays is counted.
+  const rows = games.map((g, i) => {
+    const paid = gameOwed(tab.id, g).paid;
+    return h('div', { class: 'game-row open', role: 'button', tabindex: '0', 'aria-label': 'Pay game ' + (i + 1), data: { game: g.id, action: 'collect-game' }, onclick: e => { e.stopPropagation(); tableCollectSheet(unit, tab, g); }, onkeydown: e => { if (e.key === 'Enter') { e.stopPropagation(); tableCollectSheet(unit, tab, g); } } },
+      h('div', 'games-main', h('b', { text: 'Game ' + (i + 1) + ' · ' + period(g.startMs, g.endMs) }), h('span', { class: 'small muted', text: paid ? money(paid) + ' paid' : 'Closed' })),
+      icon('right', 'game-go'));
+  });
+  // Items paid on their own, before or without the table (owner, 24 October).
+  if (now.length) rows.push(h('div', { class: 'game-row', data: { game: 'now' } },
+    h('div', 'games-main', h('b', { text: 'Items' }), h('span', { class: 'small muted', text: 'Pay for them without the table' })),
+    btn([icon('wallet'), 'Pay items'], () => tableItemsSheet(unit, tab, now), 'go', { data: { action: 'pay-items' } })));
+  return h('div', { class: 'games', data: { games: String(games.length) } }, rows);
 }
 
 // Corrections for one timer. The same two entries are offered on the floor and on the bill.
@@ -6696,6 +6829,7 @@ function stationCardBody(unit) {
     }
     if (!small) card.append(h('div', { class: 'slots-head', 'aria-hidden': 'true' }, h('span', { text: 'Controllers' }), h('span', { text: 'Session time' })), list);
     card.append(...[groupStrip(unit)].filter(Boolean), actions);
+    markCompactGroup(card, unit);
     return card;
   }
 
@@ -7212,6 +7346,46 @@ function pickedLines(rows, picks) {
   const chosen = rows.map(row => [row, picks.get(row.key) || 0]).filter(([, n]) => n > 0);
   return chosen.length ? { ids: chosen.filter(([row]) => row.timers).flatMap(([row, n]) => row.timers.slice(0, n).map(g => g.id)), items: chosen.filter(([row]) => row.order).map(([row, n]) => ({ orderId: row.order.id, quantity: n })) } : undefined;
 }
+// Items on a table paid on their own (owner, 24 October): how many of each, paid in full now; the table plays on and the rest
+// stays on it.
+function tableItemsSheet(unit, tab, orders) {
+  const picks = new Map(orders.map(o => [o.id, Number(o.quantity)])), store = { method: 'cash' };
+  let rows = [], how = null;
+  const due = () => rows.reduce((n, row) => n + row.worth(picks.get(row.key) || 0), 0);
+  openSheet({
+    title: 'Pay items · ' + unit.name,
+    sub: tab.customer,
+    icon: 'sales',
+    tone: 'jade',
+    focus: false,
+    build(ui) {
+      rows = pickRows(orders);
+      ui.body.append(h('p', { class: 'small muted', style: 'margin-bottom:10px', text: 'The table’s time stays on the table.' }),
+        h('div', { class: 'lines end-pick', data: { field: 'items-pick' } }, pickLines(rows, picks, () => ui.redraw())));
+      how = payChoice(store, () => paint(), { due });
+      ui.foot.append(h('div', 'foot-row', h('div', { class: 'foot-label', text: 'To collect' }), h('div', { class: 'foot-total', text: money(due()) })), how.node);
+      ui.primary('');
+      const paint = () => {
+        const owed = due(), split = how.paid(), b = current.primaryButton;
+        const label = !owed ? 'Choose the items' : split != null && split !== owed ? 'Cash and UPI must make ' + money(owed) : 'Collect ' + money(owed) + ' · ' + how.text();
+        b.dataset.label = label;
+        b.textContent = label;
+        b.disabled = !owed || (split != null && split !== owed);
+      };
+      paint();
+    },
+    command() {
+      const owed = due(), picked = pickedLines(rows, picks);
+      if (!owed || !picked) throw new Error('Choose the items they are paying for.');
+      return { type: 'TABLE_ITEMS_PAY', tabId: tab.id, items: picked.items, amountPaise: owed, ...how.value() };
+    },
+    then(result, command) {
+      closeSheet();
+      render();
+      return { text: 'Items paid · ' + [money(command.amountPaise), methodText(result.method || command.method), result.receiptNumber].filter(Boolean).join(' · ') + '. ' + unit.name + ' plays on.' };
+    }
+  });
+}
 function tableCollectSheet(unit, tab, game) {
   const draft = { received: '', edited: false, pay: {}, rest: '', pendingName: tab.customer === 'Walk-in' ? '' : tab.customer, pendingPhone: tab.phone || '', account: newAccountStore() };
   const number = closedGames(tab.id).sort((a, b) => a.startMs - b.startMs).findIndex(g => g.id === game.id) + 1;
@@ -7220,7 +7394,10 @@ function tableCollectSheet(unit, tab, game) {
   const picks = new Map();
   for (const o of gameOwed(tab.id, game).items) picks.set(o.id, Number(o.quantity));
   let picker = null, extras = [];
-  const due = () => Math.max(0, game.totalPaise - gameOwed(tab.id, game).paid + extras.reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0));
+  // The table's time unticked: only the items counted are paid now, in full, and the game stays to be paid (owner, 24 October).
+  let tableOff = false;
+  const itemsDue = () => extras.filter(row => row.order).reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0);
+  const due = () => (tableOff ? itemsDue() : Math.max(0, game.totalPaise - gameOwed(tab.id, game).paid + extras.reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0)));
   openSheet({
     title: 'Game ' + number + ' · ' + unit.name,
     sub: tab.customer,
@@ -7229,7 +7406,7 @@ function tableCollectSheet(unit, tab, game) {
     focus: false,
     build(ui) {
       const { paid: before } = gameOwed(tab.id, game);
-      drawLines(ui.body, { segments: [game], orders: [], customer: tab.customer, editable: false });
+      drawLines(ui.body, { segments: [game], orders: [], customer: tab.customer, editable: false, ticks: { off: new Set(tableOff ? [game.id] : []), toggle: () => { tableOff = !tableOff; draft.edited = false; ui.redraw(); }, count: () => 0, setCount: () => {} } });
       if (before) ui.body.append(h('div', 'summary', h('div', 'kv good', h('span', { text: 'Paid already' }), h('b', { text: '−' + money(before) }))));
       // Each item says which game it was added during, or that it is for the table.
       const games = closedGames(tab.id).concat(segmentsOf(tab.id).filter(g => g.status === 'active')).sort((x, y) => x.startMs - y.startMs);
@@ -7244,11 +7421,19 @@ function tableCollectSheet(unit, tab, game) {
       const paint = () => {
         const paid = paidNow(), left = owed - paid, sound = Number.isSafeInteger(paid) && paid >= 0 && paid <= owed, blank = !!draft.how && draft.how.blank();
         restBox.replaceChildren();
-        if (sound && left > 0 && !blank) {
+        if (sound && left > 0 && !blank && !tableOff) {
           // Choosing credit or pending puts the cursor where the account or the name is typed.
           restBox.append(h('div', 'group-title', icon('clock'), 'The other ' + money(left)), restChoice(draft, 'Keep on ' + unit.name, () => { ui.redraw(); focusRest(ui); }).node);
           if (draft.rest === 'credit') { picker = accountPicker(draft.account); restBox.append(picker.node); }
           if (draft.rest === 'pending') restBox.append(pendingFields(draft).node);
+        }
+        if (tableOff) {
+          // Items alone are paid in full; nothing to choose for a rest.
+          const b = current.primaryButton, label = !owed ? 'Count the items they are paying for' : blank ? 'Enter cash and UPI' : paid !== owed ? 'Collect the full ' + money(owed) : 'Collect ' + money(owed) + ' · items';
+          b.dataset.label = label;
+          b.textContent = label;
+          b.disabled = !owed || blank || paid !== owed;
+          return;
         }
         const b = current.primaryButton, label = blank ? 'Enter cash and UPI' : !sound ? 'Up to ' + money(owed) : left > 0 && !draft.rest ? 'Choose for the other ' + money(left) : paid > 0 ? 'Collect ' + money(paid) : draft.rest === 'credit' ? 'Move ' + money(left) + ' to Credit' : 'Keep ' + money(left) + ' pending';
         b.dataset.label = label;
@@ -7267,13 +7452,18 @@ function tableCollectSheet(unit, tab, game) {
       // becomes a bill of its own and opens there; the table plays on.
       const apart = then => runCommand({ type: 'TABLE_COLLECT', tabId: tab.id, segmentId: game.id, extra: pickedLines(extras, picks) || { ids: [], items: [] }, apart: true, amountPaise: 0, method: 'cash' }, result => { render(); then(result.tabId); return null; });
       const action = (key, glyph, label, run) => h('button', { type: 'button', class: 'action', data: { action: key }, onclick: run }, icon(glyph), h('span', { text: label }));
-      ui.foot.append(h('div', 'actions',
+      if (!tableOff) ui.foot.append(h('div', 'actions',
         action('credit', 'credits', 'Move to Credit', () => apart(id => settleSheet(id, 'credit'))),
         action('pending', 'clock', 'Pending', () => apart(id => settleSheet(id, 'pending'))),
         action('move', 'transfer', 'Move', () => apart(id => moveSheet(tabOf(id))))));
     },
     command() {
       const owed = due(), split = draft.how.paid(), paid = split != null ? split : draft.edited ? toPaise(draft.received || 0) : owed;
+      if (tableOff) {
+        const items = (pickedLines(extras.filter(row => row.order), picks) || { items: [] }).items;
+        if (!items.length || paid !== owed) throw new Error('Collect ' + money(owed) + ' for the items.');
+        return { type: 'TABLE_ITEMS_PAY', tabId: tab.id, items, amountPaise: owed, ...draft.how.value(owed) };
+      }
       if (!(paid >= 0) || paid > owed) throw new Error('Enter up to ' + money(owed) + '.');
       const rest = paid < owed ? draft.rest : undefined;
       if (paid < owed && !rest) throw new Error('Choose what happens to the rest.');
@@ -7284,6 +7474,7 @@ function tableCollectSheet(unit, tab, game) {
       closeSheet();
       render();
       const how = methodText(result.method || command.method);
+      if (command.type === 'TABLE_ITEMS_PAY') return { text: 'Items paid · ' + [money(command.amountPaise), how, result.receiptNumber].filter(Boolean).join(' · ') + '. Game ' + number + ' stays to be paid.' };
       return { text: 'Game ' + number + ': ' + (command.amountPaise ? 'Paid ' + [money(command.amountPaise), how, result.receiptNumber].filter(Boolean).join(' · ') + '.' : '') + (command.rest === 'keep' ? ' The rest stays on ' + unit.name + '.' : command.rest === 'credit' ? ' The rest is on credit.' : command.rest === 'pending' ? ' The rest is pending.' : '') };
     }
   });
@@ -8014,9 +8205,9 @@ function correctTimeSheet(segment) {
   reasonSheet({
     title: 'Correct time', sub: (unit ? unit.name : '') + ' · ' + segment.player, action: 'Save correction', icon: 'clock',
     extra(ui) {
-      start = start || h('input', { type: 'datetime-local', value: startText, 'aria-label': 'Start time', data: { field: 'start' } });
+      start = start || whenInput(startText, { 'aria-label': 'Start time', data: { field: 'start' } });
       ui.body.append(field('Started', start));
-      if (ended) { end = end || h('input', { type: 'datetime-local', value: endText, 'aria-label': 'End time', data: { field: 'end' } }); ui.body.append(field('Ended', end)); }
+      if (ended) { end = end || whenInput(endText, { 'aria-label': 'End time', data: { field: 'end' } }); ui.body.append(field('Ended', end)); }
     },
     command(reason) {
       const command = { type: 'EDIT_SEGMENT_TIME', segmentId: segment.id, reason };
@@ -8622,7 +8813,7 @@ function reservationSheet(r, kind) {
     icon: 'reservations',
     build(ui) {
       who = who || customerFields(r ? r.customer : '', r ? r.phone : '');
-      at = at || h('input', { type: 'datetime-local', value: istInput(r ? r.arrivalMs : nowMs() + 3600000), 'aria-label': 'Arrival time', data: { field: 'arrival' }, onchange: () => ui.redraw() });
+      at = at || whenInput(istInput(r ? r.arrivalMs : nowMs() + 3600000), { 'aria-label': 'Arrival time', data: { field: 'arrival' }, onchange: () => ui.redraw() });
       notes = notes || textInput({ value: r ? r.notes : '', 'aria-label': 'Notes' });
       const chosen = category ? category.value() : r ? r.category : kind || RES_KINDS[0];
       category = segmented(RES_KINDS.map(c => [c, catName(c), c]), chosen, () => ui.redraw());
@@ -8781,7 +8972,7 @@ function cancelSheet(r) {
         ui.body.append(h('div', { class: 'field', data: { field: 'cancel-reason' } }, h('span', { text: 'Reason (optional)' }), reason.node));
       }
       if (canMove) {
-        own = own || h('input', { type: 'datetime-local', value: istInput(freeAt), 'aria-label': 'New time for ' + next.customer, data: { field: 'move-time' } });
+        own = own || whenInput(istInput(freeAt), { 'aria-label': 'New time for ' + next.customer, data: { field: 'move-time' } });
         const pick = (value, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(move === value), data: { move: value }, onclick: () => { move = value; ui.redraw(); } }, label);
         ui.body.append(h('div', { class: 'field', data: { field: 'move-next' } }, h('span', { text: 'Next booking · ' + next.customer + ' ' + clock(next.arrivalMs) + ' (' + (Number(next.players) || 1) + ')' }),
           h('div', 'chips', pick('keep', 'Keep ' + clock(next.arrivalMs)), pick('free', 'Move to ' + clock(freeAt)), pick('own', 'Own time'))));
