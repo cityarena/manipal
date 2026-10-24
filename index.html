@@ -366,6 +366,7 @@
 :root[data-theme="manipal"] .input-wrap:focus-within .input-icon, :root[data-theme="manipal"] .input-toggle[aria-pressed=true] { color: #b77bff; }
 :root[data-theme="manipal"] .input-toggle:hover { color: #ffffff; background: rgba(255, 255, 255, 0.06); }
 :root[data-theme="manipal"] .login-submit { border-color: transparent; background: linear-gradient(90deg, #e2477e 0%, #a23fc8 50%, #5f45ee 100%); box-shadow: 0 14px 30px -14px rgba(160, 60, 220, 0.8); }
+:root[data-theme="manipal"] .device-note { border-color: rgba(190, 120, 255, 0.5); background: rgba(150, 80, 255, 0.14); color: #ece6ff; }
 :root[data-theme="manipal"] .login-foot { color: #a9a4ba; }
 :root[data-theme="manipal"] .login-foot::before, :root[data-theme="manipal"] .login-foot::after { background: rgba(255, 255, 255, 0.16); }
 /* On a phone the photograph above the card, its sign in view. */
@@ -1802,6 +1803,24 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .login-arrow svg { width: 24px; height: 24px; stroke-width: 1.8; }
 .login-submit:hover:not(:disabled) .login-arrow { transform: translateX(4px); }
 .login-submit.loading .login-arrow { display: none; }
+/* A new device: the owner's PIN once, and its name. */
+/* The new-device step keeps Approve & Sign In on screen: the subtitle and foot step aside, the boxes slimmer; on a phone the
+   photograph too. */
+.login.new-device .login-sub, .login.new-device .login-foot { display: none; }
+.login.new-device .login-title { margin-bottom: 12px; }
+.login.new-device .login-field { margin-bottom: 10px; gap: 6px; }
+.login.new-device .input-wrap input { min-height: 44px; }
+.login.new-device .login-submit { min-height: 48px; }
+.login.new-device .device-note { margin-bottom: 10px; padding: 8px 12px; }
+.login.new-device .login-card { padding-top: 26px; padding-bottom: 22px; }
+@media (max-width: 900px) { html .login.new-device .login-stage { display: none; } html .login.new-device .login-panel { padding-top: 16px; } }
+.device-list { display: grid; gap: 8px; margin-bottom: 14px; }
+[data-panel=devices] { margin-top: 18px; }
+.device-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); }
+.device-main { display: grid; gap: 3px; min-width: 0; flex: 1 1 200px; }
+.device-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.device-tools { display: flex; align-items: center; gap: 6px; }
+.device-note { margin: 0 0 clamp(12px, 2.4vh, 20px); padding: 10px 14px; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-soft); font-size: 14px; line-height: 1.45; color: var(--ink); }
 .login-error { min-height: 20px; margin-top: 14px; font-size: 14px; line-height: 1.5; color: var(--danger); }
 .login-error:empty { margin-top: 0; min-height: 0; }
 .login.refused .input-wrap input { border-color: var(--danger-line); }
@@ -2067,6 +2086,18 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
             <label for="password">Password</label>
             <div class="input-wrap"><span class="input-icon" data-icon="lock"></span><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required><button id="passwordToggle" class="input-toggle" type="button" aria-label="Show password" aria-pressed="false" aria-controls="password"></button></div>
           </div>
+          <!-- A device not yet approved: the owner's PIN once, and a name for it (owner, 24 October). -->
+          <div id="deviceStep" class="device-step" hidden>
+            <p class="device-note">This device is new. Your owner PIN approves it, once.</p>
+            <div class="field login-field">
+              <label for="deviceName">Name this device</label>
+              <div class="input-wrap"><span class="input-icon" data-icon="PC"></span><input id="deviceName" type="text" placeholder="For example, Reception PC" maxlength="40" autocomplete="off"></div>
+            </div>
+            <div class="field login-field">
+              <label for="devicePin">Owner PIN</label>
+              <div class="input-wrap"><span class="input-icon" data-icon="lock"></span><input id="devicePin" type="password" inputmode="numeric" placeholder="Enter your PIN" autocomplete="off" maxlength="12"></div>
+            </div>
+          </div>
           <button id="loginSubmit" class="login-submit" type="submit"><span class="login-submit-text">Sign In</span><span class="login-arrow" data-icon="arrowRight"></span></button>
         </form>
         <p id="loginError" class="login-error" role="alert"></p>
@@ -2186,6 +2217,9 @@ var ARENA_BRANCH = (function () {
     theme: 'manipal',
     // Menu icons drawn differently from the section's own (owner's picture, 23 October: the Gaming floor as a controller).
     navIcons: { floor: 'PS5' },
+    // Approved devices (owner, 24 October: staff phones kept out): a device signs in for the first time only with the owner's
+    // PIN, and is listed in Settings → Devices to be named or removed; limit 0 means no limit until the owner sets one there.
+    devices: { limit: 0 },
     contact: '',
     venues: [
       // emoji: beside the venue's name in the availability message; share: the message's columns, each ✅ when any of its
@@ -9467,7 +9501,9 @@ function reportRange() {
 // Vercel checks the PIN and gives a pass; the server checks the pass on every report. A device ticked "Remember" keeps its
 // pass (a year) and is not asked again; otherwise the pass lasts twelve hours in this window only.
 const REPORT_PASS_KEY = 'arenaReportPass', REPORT_PASS_URL = ARENA_BRANCH.web.reportPin;
-let reportPass = (() => { try { return (storage && storage.getItem(REPORT_PASS_KEY)) || ''; } catch (e) { return ''; } })();
+// With approved devices kept in Reports, the PIN is asked every time Reports opens (owner, 24 October): nothing is remembered,
+// and a pass remembered before is forgotten.
+let reportPass = (() => { try { if (ARENA_BRANCH.devices) { if (storage) storage.removeItem(REPORT_PASS_KEY); return ''; } return (storage && storage.getItem(REPORT_PASS_KEY)) || ''; } catch (e) { return ''; } })();
 // Why Reports is locked: the server's or Vercel's words, or '' when it is open.
 let reportLocked = '';
 const PIN_REFUSED = /^(Reports PIN needed|That PIN is not right|The Reports PIN is not set up)/;
@@ -9488,7 +9524,7 @@ async function askReportPass(pin, remember) {
 }
 function reportLock(target) {
   const pin = h('input', { type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: '12', 'aria-label': 'Reports PIN', data: { field: 'report-pin' } });
-  const remember = h('input', { type: 'checkbox', data: { field: 'report-remember' } });
+  const remember = h('input', { type: 'checkbox', data: { field: 'report-remember' } }), rememberable = !ARENA_BRANCH.devices;
   const say = h('p', { class: 'warn-text small', data: { lockSays: '1' }, text: reportLocked === 'Reports PIN needed.' ? '' : reportLocked });
   const open = btn([icon('lock'), 'Open Reports'], async () => {
     if (!pin.value) return;
@@ -9504,7 +9540,7 @@ function reportLock(target) {
   target.append(h('section', { class: 'panel report-lock', data: { lock: 'reports' } },
     h('div', 'panel-head', glyph('lock', 'gold'), h('h2', { text: 'Reports are locked' })),
     say, field('PIN', pin),
-    h('label', 'check', remember, h('span', { text: 'Remember on this device' })),
+    rememberable ? h('label', 'check', remember, h('span', { text: 'Remember on this device' })) : null,
     open));
   setTimeout(() => pin.focus(), 0);
 }
@@ -9679,7 +9715,8 @@ const reportsPage = {
       h('div', 'rep-top', lead, received, creditCard),
       h('div', 'rep-main', floorPanel, counterPanel),
       h('div', 'rep-charts', donut('Floor usage', floorParts, played, 'played', 'By time played', 'reports'), donut('Earnings mix', earnParts, best.label, best.value ? 'earns most' : 'nothing yet', 'Without turf', 'cash')),
-      closeBox);
+      closeBox,
+      ARENA_BRANCH.devices ? devicesPanel() : '');
   }
 };
 
@@ -9776,6 +9813,62 @@ const setupPage = {
         h('section', 'panel', head('lock', 'Sign-in'), h('p', { class: 'small muted', style: 'margin-bottom:12px', text: ARENA_BRANCH.web.login ? 'One login for the reception PC and phones, kept on Vercel. Change it in the Vercel project’s settings; every device signs in again.' : 'One login for the reception PC and phones. A device stays signed in for 30 days.' }), ARENA_BRANCH.web.login ? '' : btn([icon('lock'), 'Change password'], passwordSheet))));
   }
 };
+// Approved devices (owner, 24 October: staff phones kept out): each with its name and when it last signed in, renamed or
+// removed (removing signs it out at once), and the most allowed. Kept with Reports, behind the owner's PIN (owner, 24
+// October: "keep it separate, with Reports"); removing and the limit send the pass that opened Reports, which the server
+// checks again. Fetched when Reports opens.
+let deviceInfo = { key: '', data: null }, deviceRenaming = '', deviceRemoving = '';
+async function loadDevices(key) {
+  try { deviceInfo = { key, data: await rpc('rpcDevices', token) }; }
+  catch (e) { deviceInfo = { key, data: null, error: e.message }; }
+  if (page === 'settings' && settingsMode === 'reports') render();
+}
+async function changeDevice(change, said) {
+  try {
+    if (change.remove || change.limit != null) change.pinPass = reportPass;
+    await rpc('rpcDeviceUpdate', token, change);
+    deviceRenaming = '';
+    deviceRemoving = '';
+    deviceInfo.key = '';
+    notify('success', said);
+    render();
+  } catch (e) {
+    // The pass has run out: Reports locks and asks for the PIN again.
+    if (/PIN/.test(e.message)) { reportLocked = 'Reports PIN needed.'; keepReportPass('', false); render(); return; }
+    notify('error', e.message);
+  }
+}
+function devicesPanel() {
+  if (deviceInfo.key !== token) loadDevices(token);
+  const info = deviceInfo.data, panel = h('section', { class: 'panel', data: { panel: 'devices' } }, h('div', 'panel-head', glyph('PC'), h('h2', { text: 'Devices' })));
+  panel.append(h('p', { class: 'small muted', style: 'margin-bottom:12px', text: 'Only these can open City Arena. A new phone or computer signs in once with your owner PIN.' }));
+  if (!info) { panel.append(h('p', { class: 'small muted', text: deviceInfo.error || 'Checking…' })); return panel; }
+  const rows = info.devices.map(d => {
+    const tools = h('div', 'device-tools');
+    let name = h('b', { text: d.name });
+    if (deviceRenaming === d.id) {
+      const box = textInput({ value: d.name, maxlength: '40', 'aria-label': 'Device name', data: { field: 'device-name' } });
+      box.onkeydown = e => { if (e.key === 'Enter') changeDevice({ id: d.id, name: box.value }, 'Renamed.'); };
+      name = box;
+      tools.append(btn('Save', () => changeDevice({ id: d.id, name: box.value }, 'Renamed.'), 'primary', { data: { action: 'device-save' } }), btn('Cancel', () => { deviceRenaming = ''; render(); }, 'quiet'));
+      setTimeout(() => { box.focus(); box.select(); }, 0);
+    } else if (deviceRemoving === d.id) {
+      tools.append(btn([icon('trash'), d.current ? 'Remove and sign out' : 'Remove ' + d.name], () => changeDevice({ id: d.id, remove: true }, d.name + ' removed. It needs your PIN to sign in again.'), 'danger', { data: { action: 'device-remove-yes' } }),
+        btn('Cancel', () => { deviceRemoving = ''; render(); }, 'quiet'));
+    } else {
+      tools.append(iconButton('pencil', 'Rename ' + d.name, () => { deviceRenaming = d.id; deviceRemoving = ''; render(); }, { data: { action: 'device-rename' } }),
+        btn([icon('trash'), 'Remove'], () => { deviceRemoving = d.id; deviceRenaming = ''; render(); }, 'outline', { data: { action: 'device-remove' } }));
+    }
+    return h('div', { class: 'device-row', data: { device: d.name } },
+      h('div', 'device-main', h('div', 'device-name', name, d.current ? h('span', { class: 'badge good', text: 'This device' }) : null),
+        h('span', { class: 'small muted', text: 'Added ' + when(d.addedMs) + ' · last signed in ' + when(d.lastMs) })),
+      tools);
+  });
+  const limit = h('select', { 'aria-label': 'Most devices allowed', data: { field: 'device-limit' }, onchange: () => changeDevice({ limit: Number(limit.value) }, Number(limit.value) ? 'At most ' + limit.value + ' devices.' : 'No limit on devices.') },
+    [0, 1, 2, 3, 4, 5, 6, 8, 10].map(n => h('option', { value: String(n), selected: n === info.limit }, n ? String(n) : 'No limit')));
+  panel.append(h('div', 'device-list', rows.length ? rows : h('p', { class: 'small muted', text: 'No devices yet.' })), field('Most devices allowed', limit));
+  return panel;
+}
 // How full the live Sheet is, and the monthly archive: fetched when Settings opens, kept until the data changes.
 let storageInfo = { key: '', data: null };
 async function loadStorage(key) {
@@ -12060,6 +12153,12 @@ function titleParts(title, accent) {
 }
 // Draws the current section from the snapshot. Called when the data really changed, not on every poll.
 function render() {
+  // With approved devices kept in Reports, leaving Reports locks it again: the PIN every time (owner, 24 October).
+  if (ARENA_BRANCH.devices && reportPass && !(page === 'settings' && settingsMode === 'reports')) {
+    keepReportPass('', false);
+    reportLocked = 'Reports PIN needed.';
+    reportCache = { key: '', data: null };
+  }
   if (!state) return;
   const section = PAGES[page] || floorPage, scroll = $('main').scrollTop;
   $('pageTitle').replaceChildren(...titleParts(section.title, sectionText(section.accent)));
@@ -12238,6 +12337,21 @@ paintPasswordToggle(false);
 // The sign-in card names the branch (Manipal said Mangalore).
 $('loginPlace').textContent = 'City Arena · ' + ARENA_BRANCH.place;
 $('passwordToggle').onclick = () => { paintPasswordToggle($('password').type === 'password'); $('password').focus(); };
+// This browser's own device key (approved devices, owner 24 October): made once, kept on the device; the server keeps only
+// its hash. Without storage (a private window) the server refuses, and says so.
+function deviceKey() {
+  try {
+    let key = storage && storage.getItem('arenaDevice');
+    if (!key) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      key = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      if (storage) storage.setItem('arenaDevice', key);
+    }
+    return key;
+  } catch (e) { return ''; }
+}
+const deviceStepShown = () => !$('deviceStep').hidden;
+const loginButtonText = () => (deviceStepShown() ? 'Approve & Sign In' : 'Sign In');
 $('loginForm').onsubmit = async e => {
   e.preventDefault();
   const button = $('loginSubmit'), password = $('password').value;
@@ -12248,10 +12362,30 @@ $('loginForm').onsubmit = async e => {
   button.querySelector('.login-submit-text').textContent = 'Signing in…';
   $('loginError').textContent = '';
   $('login').classList.remove('refused');
-  $('password').value = '';
   paintPasswordToggle(false);
   try {
-    const data = ARENA_BRANCH.web.login && typeof previewMode === 'undefined' ? await rpc('rpcLoginPass', await askLoginPass($('username').value.trim().toLowerCase(), password)) : await rpc('rpcLogin', $('username').value.trim().toLowerCase(), password);
+    // A new device sends the owner's PIN (as a pass from Vercel's PIN check) and its name with the sign-in.
+    const device = ARENA_BRANCH.devices ? { key: deviceKey() } : undefined;
+    if (device && deviceStepShown()) {
+      if (!$('devicePin').value) throw new Error('Enter your owner PIN to approve this device.');
+      device.pinPass = await askReportPass($('devicePin').value, false);
+      device.name = $('deviceName').value.trim();
+    }
+    const username = $('username').value.trim().toLowerCase();
+    const data = ARENA_BRANCH.web.login && typeof previewMode === 'undefined' ? await rpc('rpcLoginPass', await askLoginPass(username, password), device) : await rpc('rpcLogin', username, password, device);
+    if (data.device === 'new') {
+      $('deviceStep').hidden = false;
+      $('login').classList.add('new-device');
+      if (data.limit && data.count >= data.limit) $('loginError').textContent = 'City Arena is already on ' + data.count + ' devices, the most allowed. Remove one in Settings → Devices on an approved device first.';
+      $('deviceName').focus();
+      return;
+    }
+    $('password').value = '';
+    $('devicePin').value = '';
+    $('deviceStep').hidden = true;
+    $('login').classList.remove('new-device');
+    // Settings → Devices asks afresh after each sign-in.
+    deviceInfo.key = '';
     token = data.token;
     if (storage) storage.setItem('arenaToken', token);
     markAlive();
@@ -12260,11 +12394,14 @@ $('loginForm').onsubmit = async e => {
   } catch (error) {
     $('loginError').textContent = error.message;
     $('login').classList.add('refused');
-    $('password').focus();
+    // A refused PIN keeps the password for another try; a refused password is typed again.
+    if (deviceStepShown() && $('password').value) $('devicePin').focus();
+    else { $('password').value = ''; $('password').focus(); }
   } finally {
     button.disabled = false;
     button.classList.remove('loading');
-    button.querySelector('.login-submit-text').textContent = 'Sign In';
+    button.querySelector('.login-submit-text').textContent = loginButtonText();
+    $('devicePin').value = '';
   }
 };
 
