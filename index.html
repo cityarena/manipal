@@ -2071,233 +2071,98 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 /* Cash, UPI and CA side by side, the same width. */
 .turf-pay.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
 
-/* Manipal, dark (owner's picture and the "City Arena UI Designer" brief, 25 October): one graphite-plum room from the
-   menu to the page, the menu a shade darker; neon pink kept for the open entry, one word of each title, the counts, the
-   meters and the main actions; thin light edges on the cards; green still free, amber still in use, gold still money. */
+/* Manipal, balanced (owner's picture and the "Balanced Premium Gaming" brief, 25 October): the menu dark black-plum with
+   magenta and violet light trails; the page a bright pearl lilac, never white or cream, with faint angled light across
+   it; magenta for one word of each title, the counts and the meters; the main actions magenta to violet; green still
+   free, red still in use, gold still money. Every rule is limited to the Manipal theme. */
 :root[data-theme="manipal"] {
-  color-scheme: dark;
-  --bg: #17141c;
-  --bg-2: #1b1821;
-  --inset: #15121a;
-  --surface: #1e1a24;
-  --raised: #24202b;
-  --hover: #2a2531;
-  --side-bg: #121015;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.11);
-  --line-bold: rgba(255, 255, 255, 0.2);
-  --ink: #f4f1f8;
-  --ink-2: #b8b1c4;
-  --ink-3: #857e92;
-  --accent: #35c27f;
-  --accent-bright: #45d690;
-  --accent-ink: #5ad79a;
-  --accent-soft: rgba(53, 194, 127, 0.12);
-  --accent-line: rgba(53, 194, 127, 0.38);
-  --accent-glow: rgba(53, 194, 127, 0.2);
-  --primary: #e0409f;
-  --primary-top: #ec55ad;
-  --primary-deep: #b32a80;
-  --primary-soft: rgba(224, 64, 159, 0.14);
-  --primary-line: rgba(236, 82, 172, 0.55);
-  --on-accent: #ffffff;
-  --busy: #f2a65e;
-  --busy-soft: rgba(242, 166, 94, 0.14);
-  --busy-dot: #f2a65e;
-  --caramel: #c9824a;
-  --caramel-deep: #b06f3b;
-  --caramel-top: #d9955d;
-  --caramel-line: rgba(217, 149, 93, 0.6);
-  --free-soft: rgba(53, 194, 127, 0.13);
-  --free-dot: #3fcf8e;
-  --gold: #e7b65c;
-  --gold-soft: rgba(231, 182, 92, 0.12);
-  --gold-line: rgba(231, 182, 92, 0.45);
-  --warn: #f0a356;
-  --warn-soft: rgba(240, 163, 86, 0.13);
-  --warn-line: rgba(240, 163, 86, 0.45);
-  --danger: #ff6f78;
-  --danger-soft: rgba(255, 111, 120, 0.12);
-  --danger-line: rgba(255, 111, 120, 0.45);
-  --card: #1f1b25;
-  --card-live: #1f1b25;
-  --hi: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 16px 34px -20px rgba(0, 0, 0, 0.8);
-  --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.4), 0 30px 60px -20px rgba(0, 0, 0, 0.85);
-  --glow-live: 0 0 0 1px rgba(53, 194, 127, 0.35);
-  --tint: 196 180 228;
-  --tint-deep: 0 0 0;
-  --avatar-top: #e0409f;
-  --avatar-bottom: #8c2fc0;
-  --nav-on-mark: #ff3fae;
-  --violet: linear-gradient(180deg, #e0409f 0%, #ad2b82 100%);
-  --pink: #ff4fb8;
-  --paper: 40 35 47;
-  --k-15171a: 246 243 250;
-  --k-15191c: 246 243 250;
-  --k-1d3a26: 210 255 228;
-  --k-1f2428: 240 237 246;
-  --k-2c5249: 140 230 190;
-  --k-4d4f52: 190 184 202;
-  --w-262119: 240 236 248;
-  --w-2a2620: 236 232 244;
-  --w-4c4a44: 200 196 208;
-  --w-55524b: 192 188 200;
-  --w-6b665d: 172 168 180;
-  --w-6d6b66: 167 163 175;
-  --w-77746e: 158 154 166;
-  --w-8f8b84: 135 131 143;
-  --w-968c76: 137 133 145;
-  --w-b3ada3: 121 117 127;
-  --w-bdb8ad: 109 105 115;
-  --w-cbc5b9: 94 90 100;
-  --w-cdc7bb: 92 88 98;
-  --w-d5cdbe: 85 81 91;
-  --w-ddd8ce: 72 68 78;
-  --w-dfe1d3: 66 62 72;
-  --w-e0dacd: 70 66 76;
-  --w-e3ddd0: 67 63 73;
-  --w-e6e0d4: 63 59 69;
-  --w-e9e3d7: 59 55 65;
-  --w-ebe5d9: 57 53 63;
-  --w-efebe3: 50 46 56;
-  --w-f1ece2: 49 45 55;
-  --w-f2ece1: 49 45 55;
-  --w-f3eee4: 46 42 52;
-  --w-f5f0e6: 44 40 50;
-  --w-f6f1e7: 43 39 49;
-  --w-f6f2ea: 41 37 47;
-  --w-f7f3eb: 40 36 46;
-  --w-f8f4ec: 39 35 45;
-  --w-f8f5ee: 38 34 44;
-  --w-f8f5f0: 37 33 43;
-  --w-f9f6f0: 37 33 43;
-  --w-f9f6f1: 36 32 42;
-  --w-faf7ef: 36 32 42;
-  --w-faf7f0: 36 32 42;
-  --w-faf8f4: 34 30 40;
-  --w-fbf7f1: 35 31 41;
-  --w-fbf8f2: 34 30 40;
-  --w-fbf9f4: 33 29 39;
-  --w-fbf9f5: 33 29 39;
-  --w-fcfaf6: 32 28 38;
-  --w-fcfbf8: 30 26 36;
-  --w-fdf6ec: 37 33 43;
-  --w-fdfbf7: 30 26 36;
-  --w-fffaf2: 32 28 38;
-  --w-fffdf9: 28 24 34;
-
+  --bg: #ebe9f2;
+  --bg-2: #e4e1ec;
+  --inset: #fdfcff;
+  --surface: #f6f5fa;
+  --raised: #fbfafd;
+  --hover: #efedf5;
+  --card: #f9f8fc;
+  --card-live: #f9f8fc;
+  --line: rgba(70, 50, 110, 0.09);
+  --line-strong: rgba(70, 50, 110, 0.15);
+  --line-bold: rgba(70, 50, 110, 0.28);
+  --ink: #171520;
+  --ink-2: #646075;
+  --ink-3: #8d889c;
+  --accent: #0d9f6f;
+  --accent-ink: #0a8459;
+  --accent-soft: rgba(13, 159, 111, 0.1);
+  --accent-line: rgba(13, 159, 111, 0.34);
+  --primary: #9a2fcf;
+  --primary-top: #b136d4;
+  --primary-deep: #7332c8;
+  --primary-soft: rgba(154, 47, 207, 0.1);
+  --primary-line: rgba(154, 47, 207, 0.42);
+  --violet: linear-gradient(135deg, #cf2fd4 0%, #9a2fcf 48%, #7332c8 100%);
+  --pink: #d52ad8;
+  --shadow: 0 1px 2px rgba(50, 30, 90, 0.06), 0 14px 30px -18px rgba(50, 30, 90, 0.38);
+  --shadow-pop: 0 2px 8px rgba(50, 30, 90, 0.1), 0 28px 56px -20px rgba(50, 30, 90, 0.42);
+  --tint: 70 50 110;
+  --tint-deep: 50 30 90;
+  --avatar-top: #cf2fd4;
+  --avatar-bottom: #7332c8;
 }
-/* The page: graphite with a faint plum haze from the top right, the menu a shade darker in the same family. */
-:root[data-theme="manipal"] .app { background: radial-gradient(1100px 600px at 100% 0%, rgba(150, 50, 140, 0.13) 0%, rgba(150, 50, 140, 0) 70%), radial-gradient(900px 700px at 30% 110%, rgba(90, 40, 120, 0.12) 0%, rgba(90, 40, 120, 0) 70%), linear-gradient(180deg, #1a1720 0%, #16131b 100%); }
-:root[data-theme="manipal"] main { background: transparent; }
-/* The menu: near black-violet, a soft edge of light where it meets the page, thin neon lines at its top-right corner and,
-   lower down, two angled pink lines in the bottom-left corner (owner's picture). */
-:root[data-theme="manipal"] .side { border-right: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 1px 0 0 rgba(0, 0, 0, 0.4), 18px 0 40px -30px rgba(0, 0, 0, 0.9); background:
-  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 140'%3E%3Cpath d='M190 0L300 86' stroke='%23ff3fae' stroke-width='1.4' stroke-opacity='0.55' fill='none'/%3E%3Cpath d='M236 0L300 50' stroke='%23b04be8' stroke-width='1' stroke-opacity='0.35' fill='none'/%3E%3C/svg%3E") right top / 100% auto no-repeat,
-  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 340'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23ff3fae' stop-opacity='0.15'/%3E%3Cstop offset='0.4' stop-color='%23ff3fae'/%3E%3Cstop offset='1' stop-color='%23ff3fae' stop-opacity='0.2'/%3E%3C/linearGradient%3E%3Cfilter id='b' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeGaussianBlur stdDeviation='4'/%3E%3C/filter%3E%3C/defs%3E%3Cpath d='M0 172H96L250 340' fill='none' stroke='%23ff3fae' stroke-width='6' stroke-opacity='0.35' filter='url(%23b)'/%3E%3Cpath d='M0 172H96L250 340' fill='none' stroke='url(%23g)' stroke-width='2'/%3E%3Cpath d='M0 236H44L140 340' fill='none' stroke='%23c04be8' stroke-width='1.3' stroke-opacity='0.55'/%3E%3Cpath d='M300 0V40L200 150' fill='none' stroke='%23ff3fae' stroke-width='1' stroke-opacity='0.18'/%3E%3C/svg%3E") left bottom / 100% auto no-repeat,
-  radial-gradient(420px 320px at 0% 100%, rgba(255, 63, 174, 0.12) 0%, rgba(255, 63, 174, 0) 70%),
-  linear-gradient(180deg, #141217 0%, #121015 60%, #141118 100%); }
-:root[data-theme="manipal"] .brand { position: relative; padding-bottom: 30px; }
-:root[data-theme="manipal"] .brand::after { content: ""; position: absolute; left: 50%; bottom: 12px; width: 40px; height: 2px; margin-left: -20px; border-radius: 2px; background: #ff3fae; box-shadow: 0 0 8px rgba(255, 63, 174, 0.7); }
-:root[data-theme="manipal"] .nav-item { color: #d9d4e2; }
-:root[data-theme="manipal"] .nav-item svg { color: #b9b2c7; }
-:root[data-theme="manipal"] .nav-item:hover { color: #ffffff; background: rgba(255, 255, 255, 0.045); }
-/* The open entry: a plum plate with a pink edge, lit from its left. */
-:root[data-theme="manipal"] .nav-item.on { color: #ffffff; font-weight: 600; border: 1px solid transparent; background: radial-gradient(ellipse 34% 140% at 0% 50%, rgba(255, 63, 174, 0.32) 0%, rgba(255, 63, 174, 0) 100%) padding-box, linear-gradient(90deg, #3b1a3d 0%, #2c1830 55%, #241629 100%) padding-box, linear-gradient(90deg, rgba(255, 79, 184, 0.95) 0%, rgba(220, 80, 200, 0.55) 45%, rgba(170, 90, 220, 0.35) 100%) border-box; box-shadow: 0 0 22px -8px rgba(255, 63, 174, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
-:root[data-theme="manipal"] .nav-item.on::before { left: -14px; top: 4px; bottom: 4px; width: 4px; border-radius: 0 4px 4px 0; background: #ff3fae; box-shadow: 0 0 12px rgba(255, 63, 174, 0.9); }
-:root[data-theme="manipal"] .count { border-color: rgba(231, 182, 92, 0.6); background: rgba(231, 182, 92, 0.08); color: #e7b65c; }
-:root[data-theme="manipal"] .nav-item.on .count { border-color: rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.08); color: #ffffff; }
-:root[data-theme="manipal"] .side-foot { border-top-color: rgba(255, 255, 255, 0.07); }
-/* The heading: white with one word in pink; a short pink stroke under it on a faint hairline; at the right the neon line
-   comes down from the top and runs along the heading's foot to the edge. */
-:root[data-theme="manipal"] .top { background: linear-gradient(90deg, #ff3fae, #e040a0) left bottom / 80px 3px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='66' viewBox='0 0 420 66'%3E%3Cdefs%3E%3ClinearGradient id='p' gradientUnits='userSpaceOnUse' x1='175' y1='0' x2='420' y2='0'%3E%3Cstop offset='0' stop-color='%23ff3fae'/%3E%3Cstop offset='0.6' stop-color='%23ff3fae' stop-opacity='0.5'/%3E%3Cstop offset='1' stop-color='%23ff3fae' stop-opacity='0.02'/%3E%3C/linearGradient%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='2.5'/%3E%3C/filter%3E%3C/defs%3E%3Cpath d='M30 0L64 38H150' fill='none' stroke='%23ffffff' stroke-opacity='0.12' stroke-width='1.2'/%3E%3Cpath d='M108 0L174 65H420' fill='none' stroke='%23ff3fae' stroke-opacity='0.5' stroke-width='5' filter='url(%23b)'/%3E%3Cpath d='M108 0L174 65' fill='none' stroke='%23ff3fae' stroke-width='1.8'/%3E%3Cpath d='M174 65H420' fill='none' stroke='url(%23p)' stroke-width='1.8'/%3E%3C/svg%3E") right top / 420px 66px no-repeat, linear-gradient(90deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.06) 70%, rgba(255, 255, 255, 0) 100%) left calc(100% - 1px) / calc(100% - 260px) 1px no-repeat; }
-@media (max-width: 900px) { :root[data-theme="manipal"] .top { background: linear-gradient(90deg, #ff3fae, #e040a0) left bottom / 60px 3px no-repeat, linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)) left calc(100% - 1px) / 100% 1px no-repeat; } }
-:root[data-theme="manipal"] .top h1 { color: #ffffff; }
-:root[data-theme="manipal"] .top h1 .accent { color: #ff4fb8; }
-:root[data-theme="manipal"] .sync { border-color: rgba(255, 255, 255, 0.09); background: rgba(30, 26, 36, 0.85); color: #ece8f2; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 20px -14px rgba(0, 0, 0, 0.9); }
-:root[data-theme="manipal"] .sync i { background: #35c27f; box-shadow: 0 0 8px rgba(53, 194, 127, 0.7); }
-:root[data-theme="manipal"] .top-tools .icon-btn { border-color: rgba(255, 255, 255, 0.09); background: rgba(30, 26, 36, 0.85); color: #ece8f2; }
-:root[data-theme="manipal"] .top-tools .icon-btn:hover { border-color: rgba(255, 79, 184, 0.5); color: #ffffff; }
-/* The home tiles: the photograph edge to edge under a thin light rim, darkened at the left under white lettering. */
-:root[data-theme="manipal"] .cat { border: 1px solid rgba(255, 255, 255, 0.16); background: #16131b; box-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.95), inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
-:root[data-theme="manipal"] .cat:hover { border-color: rgba(255, 79, 184, 0.55); box-shadow: 0 0 0 1px rgba(255, 79, 184, 0.18), 0 0 28px -10px rgba(255, 63, 174, 0.55), 0 22px 44px -24px rgba(0, 0, 0, 0.95); }
-:root[data-theme="manipal"] .cat-art, :root[data-theme="manipal"] .cat::after { inset: 0; border-radius: inherit; }
-:root[data-theme="manipal"] .cat::after, :root[data-theme="manipal"] .cats .cat.big::after, :root[data-theme="manipal"] .cats .cat.wide::after { background: linear-gradient(90deg, rgba(14, 10, 18, 0.66) 0%, rgba(14, 10, 18, 0.32) 30%, rgba(14, 10, 18, 0) 52%), linear-gradient(0deg, rgba(14, 10, 18, 0.55) 0%, rgba(14, 10, 18, 0) 42%); }
-:root[data-theme="manipal"] .cat-line b { color: #ff4fb8; }
-:root[data-theme="manipal"] .cat .glyph.lg { color: #ffffff; background: linear-gradient(160deg, rgba(90, 26, 80, 0.85) 0%, rgba(40, 14, 44, 0.85) 100%); border: 1.5px solid rgba(255, 79, 184, 0.8); box-shadow: 0 0 14px -2px rgba(255, 63, 174, 0.5), inset 0 0 10px rgba(255, 63, 174, 0.2); }
-:root[data-theme="manipal"] .cat .meter i { background: rgba(255, 255, 255, 0.32); }
-:root[data-theme="manipal"] .cat .meter i.on { background: #ff3fae; box-shadow: 0 0 8px rgba(255, 63, 174, 0.6); }
-:root[data-theme="manipal"] .cat-open { border: 1.5px solid rgba(255, 255, 255, 0.75); background: rgba(14, 10, 18, 0.45); color: #ffffff; }
-/* The tabs and switches: a dark bar; the chosen one a plum plate with a pink edge, as the menu's open entry. */
-:root[data-theme="manipal"] .cat-tabs, :root[data-theme="manipal"] .res-switch { background: rgba(30, 26, 36, 0.8); border-color: rgba(255, 255, 255, 0.08); }
-:root[data-theme="manipal"] .cat-tabs .chip { border-right-color: rgba(255, 255, 255, 0.06); color: #cfc9da; }
-:root[data-theme="manipal"] .cat-tabs .chip[aria-pressed=true], :root[data-theme="manipal"] .res-switch button[aria-pressed=true] { color: #ffffff; border-color: rgba(255, 79, 184, 0.8); background: linear-gradient(180deg, #5a1d52 0%, #3e1640 100%); box-shadow: 0 0 18px -6px rgba(255, 63, 174, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
-/* Main actions: pink to deep magenta, a soft glow. */
-:root[data-theme="manipal"] .btn.primary, :root[data-theme="manipal"] .station > .btn.go { color: #ffffff; border-color: transparent; background: var(--violet); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 22px -12px rgba(224, 64, 159, 0.9); }
-:root[data-theme="manipal"] .btn.primary:hover, :root[data-theme="manipal"] .station > .btn.go:hover { background: var(--violet); filter: brightness(1.08); }
-:root[data-theme="manipal"] .btn:hover { background: rgba(255, 255, 255, 0.06); }
-:root[data-theme="manipal"] .station.photo .station-head .glyph { color: #ffffff; background: linear-gradient(160deg, rgba(90, 26, 80, 0.85) 0%, rgba(40, 14, 44, 0.85) 100%); border: 1.5px solid rgba(255, 79, 184, 0.8); box-shadow: 0 0 10px -2px rgba(255, 63, 174, 0.5); }
-:root[data-theme="manipal"] .court-chip { background: rgba(20, 14, 26, 0.8); }
-/* The phone's tab bar: the menu's own near black. */
-:root[data-theme="manipal"] .tabbar { background: rgba(18, 16, 21, 0.96); border-top: 1px solid rgba(255, 255, 255, 0.06); }
-:root[data-theme="manipal"] .tabbar button.on svg { color: #ff4fb8; }
-:root[data-theme="manipal"] .tabbar button.on::before { background: #ff3fae; }
-/* The few colours the light page names outright, in the dark room's own shades. */
-:root[data-theme="manipal"] .glyph.jade { background: rgba(53, 194, 127, 0.12); border-color: rgba(53, 194, 127, 0.3); }
-:root[data-theme="manipal"] .btn.outline { border-color: rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.035); }
-:root[data-theme="manipal"] .btn.outline:hover { border-color: rgba(255, 79, 184, 0.5); background: rgba(255, 255, 255, 0.06); }
-:root[data-theme="manipal"] .notice { background: #1d2a24; }
-:root[data-theme="manipal"] .notice.error { background: #2e1c21; }
-:root[data-theme="manipal"] .notice.pending { background: #2e2419; }
-:root[data-theme="manipal"] .arrival { background: #2a2419; }
-:root[data-theme="manipal"] .rep-lead { background: linear-gradient(180deg, rgba(53, 194, 127, 0.1) 0%, var(--card) 60%); border-color: rgba(53, 194, 127, 0.3); }
-:root[data-theme="manipal"] .sheet-head > .glyph { color: #ff4fb8; background: rgba(255, 79, 184, 0.1); border-color: rgba(255, 79, 184, 0.45); }
-:root[data-theme="manipal"] .station.photo .station-meta.booked { color: #ffd28a; }
-/* Court cards and the turf board: paid green, owing amber, missed red, booked plum, each a tint on the dark card. */
-:root[data-theme="manipal"] .court-card { border-color: rgba(255, 255, 255, 0.12); background: var(--card); box-shadow: 0 18px 40px -26px rgba(0, 0, 0, 0.95); }
-:root[data-theme="manipal"] .court-body { background: var(--card); }
-:root[data-theme="manipal"] .court-card.paid, :root[data-theme="manipal"] .court-card.paid .court-body { border-color: rgba(53, 194, 127, 0.5); background: #1a2621; }
-:root[data-theme="manipal"] .court-card.paid .court-nav, :root[data-theme="manipal"] .court-card.paid .court-items { border-color: rgba(53, 194, 127, 0.22); background: #1e2d26; }
-:root[data-theme="manipal"] .court-card.owing, :root[data-theme="manipal"] .court-card.owing .court-body { border-color: rgba(240, 163, 86, 0.5); background: #2a2119; }
-:root[data-theme="manipal"] .court-card.owing .court-nav, :root[data-theme="manipal"] .court-card.owing .court-items { border-color: rgba(240, 163, 86, 0.25); background: #31271c; }
-:root[data-theme="manipal"] .court-card.missed, :root[data-theme="manipal"] .court-card.missed .court-body { border-color: rgba(255, 111, 120, 0.45); background: #2a1a1f; }
-:root[data-theme="manipal"] .court-card.missed .court-nav { border-color: rgba(255, 111, 120, 0.22); background: #321e24; }
-:root[data-theme="manipal"] .court-actions .btn.paid { border-color: rgba(53, 194, 127, 0.45); background: rgba(53, 194, 127, 0.12); }
-:root[data-theme="manipal"] .court-all, :root[data-theme="manipal"] .court-photo-foot .badge { background-color: rgba(20, 16, 26, 0.85); color: #ffffff; }
-:root[data-theme="manipal"] .court-all:hover { background: rgba(20, 16, 26, 0.95); }
-:root[data-theme="manipal"] .turf-block { border-color: rgba(255, 79, 184, 0.45); background: linear-gradient(180deg, #34203a 0%, #2a1a30 100%); }
-:root[data-theme="manipal"] .turf-block.paid { border-color: rgba(53, 194, 127, 0.5); background: linear-gradient(180deg, #1f3329 0%, #1a2b23 100%); }
-:root[data-theme="manipal"] .turf-block.owing { border-color: rgba(240, 163, 86, 0.55); background: linear-gradient(180deg, #382a1c 0%, #2f2318 100%); }
-:root[data-theme="manipal"] .turf-block.hold { border-color: var(--warn); background: linear-gradient(180deg, #382a1c 0%, #2f2318 100%); }
-:root[data-theme="manipal"] .turf-key.booked i { background: #34203a; }
-:root[data-theme="manipal"] .turf-key.paid i { background: #1f3329; }
-:root[data-theme="manipal"] .turf-key.owing i { background: #382a1c; }
-:root[data-theme="manipal"] .turf-key.missed i { background: #321e24; }
-/* The console pills: dark glass with a coloured edge and a lit dot, instead of solid green and red slabs. */
-:root[data-theme="manipal"] .unit-pill { color: #e9fbf1; border-color: rgba(53, 194, 127, 0.55); background: linear-gradient(180deg, rgba(53, 194, 127, 0.2) 0%, rgba(53, 194, 127, 0.1) 100%); }
-:root[data-theme="manipal"] .unit-pill > i { background: #45d690; box-shadow: 0 0 6px rgba(69, 214, 144, 0.8); }
-:root[data-theme="manipal"] .unit-pill.live { color: #ffecee; border-color: rgba(255, 111, 120, 0.6); background: linear-gradient(180deg, rgba(255, 92, 104, 0.24) 0%, rgba(255, 92, 104, 0.12) 100%); }
-:root[data-theme="manipal"] .unit-pill.live > i { background: #ff6f78; box-shadow: 0 0 6px rgba(255, 111, 120, 0.8); }
-:root[data-theme="manipal"] .unit-pill.held { color: #fff3e6; border-color: rgba(240, 163, 86, 0.6); background: linear-gradient(180deg, rgba(240, 163, 86, 0.24) 0%, rgba(240, 163, 86, 0.12) 100%); }
-:root[data-theme="manipal"] .unit-pill.held > i { background: #f0a356; box-shadow: 0 0 6px rgba(240, 163, 86, 0.8); }
-/* The station cards: a fine coloured rim with a faint glow, so the photograph stays the picture. */
-:root[data-theme="manipal"] .station.photo:not(.live) { border: 1.5px solid rgba(53, 194, 127, 0.55); box-shadow: 0 0 18px -8px rgba(53, 194, 127, 0.5), var(--shadow); }
-:root[data-theme="manipal"] .station.photo.live { border: 1.5px solid rgba(255, 111, 120, 0.7); box-shadow: 0 0 20px -8px rgba(255, 92, 104, 0.6), var(--shadow); }
-:root[data-theme="manipal"] .station.photo.live.held { border-color: rgba(240, 163, 86, 0.75); box-shadow: 0 0 20px -8px rgba(240, 163, 86, 0.55), var(--shadow); }
-:root[data-theme="manipal"] .station.live .station-tools > .menu > .icon-btn, :root[data-theme="manipal"] .station.live .station-tools > .collapse { border-color: rgba(255, 255, 255, 0.4); background: rgba(20, 16, 26, 0.75); color: #ffffff; }
-/* The sign-in keeps its lounge photograph; its accents move from violet to the same neon pink. */
-:root[data-theme="manipal"] .login-card { border-color: rgba(255, 79, 184, 0.4); box-shadow: 0 0 34px -10px rgba(255, 63, 174, 0.45), 0 40px 80px -30px rgba(0, 0, 0, 0.85); }
-:root[data-theme="manipal"] .login-title span { color: #ff4fb8; }
-:root[data-theme="manipal"] .input-wrap input:focus-visible { border-color: rgba(255, 79, 184, 0.75); box-shadow: 0 0 0 4px rgba(255, 63, 174, 0.16); }
-:root[data-theme="manipal"] .input-wrap:focus-within .input-icon, :root[data-theme="manipal"] .input-toggle[aria-pressed=true] { color: #ff4fb8; }
-:root[data-theme="manipal"] .login-submit { background: linear-gradient(90deg, #ff4fb8 0%, #e0409f 45%, #a92f9a 100%); box-shadow: 0 14px 30px -14px rgba(224, 64, 159, 0.85); }
-:root[data-theme="manipal"] .device-note { border-color: rgba(255, 79, 184, 0.45); background: rgba(255, 79, 184, 0.1); }
-/* Reservations' lane tiles: the bowling photograph at the right, fading in from the lettering, instead of the light page's
-   drawing (its multiply blend turns black on the dark card); the lane in use ringed amber, a free one green. */
-:root[data-theme="manipal"] .lane-tile { border-color: rgba(255, 255, 255, 0.13); background: linear-gradient(90deg, #1f1b25 0%, #1f1b25 40%, rgba(31, 27, 37, 0) 75%), #1f1b25; box-shadow: 0 16px 34px -24px rgba(0, 0, 0, 0.95); }
-:root[data-theme="manipal"] .lane-tile-art { top: 0; bottom: 0; width: 58%; background: linear-gradient(90deg, rgba(31, 27, 37, 0.55) 0%, rgba(31, 27, 37, 0.15) 60%, rgba(31, 27, 37, 0.35) 100%), var(--card-bowling) center 42% / cover no-repeat; mix-blend-mode: normal; opacity: 0.9; -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%); mask-image: linear-gradient(90deg, transparent 0%, #000 45%); }
-:root[data-theme="manipal"] .lane-tile > .state { background: rgba(20, 16, 26, 0.82); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+/* The page: pearl lilac, lighter towards the top, a violet haze rising from the bottom left by the menu, and thin angled
+   light across the top right and the bottom (owner's picture). It stays still while the page scrolls. */
+:root[data-theme="manipal"] main { background:
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 600' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='0.5'/%3E%3Cstop offset='0.45' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='0.8' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23fff' stop-opacity='0.35'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M560 0L900 330' stroke='url(%23f)' stroke-width='70' fill='none'/%3E%3Cpath d='M700 0L900 190' stroke='url(%23f)' stroke-width='24' fill='none'/%3E%3Cpath d='M380 600L620 380' stroke='%23ffffff' stroke-opacity='0.22' stroke-width='40' fill='none'/%3E%3Cpath d='M640 0L900 420' stroke='%23d52ad8' stroke-opacity='0.08' stroke-width='2' fill='none'/%3E%3C/svg%3E") center / 100% 100% no-repeat,
+  radial-gradient(700px 420px at 0% 100%, rgba(170, 70, 220, 0.2) 0%, rgba(170, 70, 220, 0) 70%),
+  radial-gradient(900px 380px at 70% 100%, rgba(200, 120, 240, 0.14) 0%, rgba(200, 120, 240, 0) 70%),
+  radial-gradient(800px 360px at 100% 0%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 70%),
+  linear-gradient(180deg, #f1eff6 0%, #ebe9f2 55%, #e7e3ef 100%); }
+/* The menu: black-plum, lit violet along its edge with the page so the two meet softly; the owner's neon lines kept. */
+:root[data-theme="manipal"] .side { box-shadow: inset -1px 0 0 rgba(213, 42, 216, 0.22), inset -50px 0 60px -50px rgba(180, 60, 230, 0.35), 8px 0 28px -16px rgba(40, 20, 70, 0.45); }
+/* "MANIPAL" spaced out under the lettering, as in the picture; the mark itself unchanged. */
+:root[data-theme="manipal"] .brand { position: relative; padding-bottom: 34px; }
+:root[data-theme="manipal"] .brand::after { content: "MANIPAL"; position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 10.5px; font-weight: 600; letter-spacing: 0.5em; text-indent: 0.5em; color: #a8a2bd; }
+:root[data-theme="manipal"] .nav-item { color: #ebe8f3; }
+:root[data-theme="manipal"] .nav-item svg { color: #cfc9e2; }
+/* The open entry: a plum pill with a magenta rim and a soft glow, its label obvious, a chevron at its end. */
+:root[data-theme="manipal"] .nav-item.on { color: #ffffff; font-weight: 600; border: 1.5px solid transparent; background: radial-gradient(ellipse 40% 140% at 0% 50%, rgba(213, 42, 216, 0.38) 0%, rgba(213, 42, 216, 0) 100%) padding-box, linear-gradient(90deg, #4d2373 0%, #3a1d5e 55%, #33194f 100%) padding-box, linear-gradient(90deg, #e04ae0 0%, #b04be8 50%, #8a5cf0 100%) border-box; box-shadow: 0 0 18px -6px rgba(213, 42, 216, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+:root[data-theme="manipal"] .nav-item.on::before { background: #7a5cf5; box-shadow: 0 0 10px rgba(122, 92, 245, 0.85); }
+:root[data-theme="manipal"] .nav-item.on::after { content: ""; flex: none; width: 16px; height: 16px; margin-left: auto; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat; opacity: 0.85; }
+:root[data-theme="manipal"] .nav-item.on:has(.count)::after { margin-left: 10px; }
+/* The heading: near black, one word in magenta, a short magenta-violet stroke; the neon lines at the right in magenta. */
+:root[data-theme="manipal"] .top h1 { color: #171520; }
+:root[data-theme="manipal"] .top h1 .accent { color: #b52ad6; background: linear-gradient(90deg, #c02ad6 0%, #9a2fcf 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+:root[data-theme="manipal"] .sync { border: 1px solid rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.55); box-shadow: 0 6px 18px -12px rgba(50, 30, 90, 0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+:root[data-theme="manipal"] .sync i { background: #0d9f6f; box-shadow: 0 0 6px rgba(13, 159, 111, 0.55); }
+:root[data-theme="manipal"] .top-tools .icon-btn { border-color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.55); color: #3a3550; box-shadow: 0 6px 18px -12px rgba(50, 30, 90, 0.45); }
+:root[data-theme="manipal"] .top-tools .icon-btn:hover { border-color: rgba(154, 47, 207, 0.4); color: #7332c8; }
+/* The home tiles: the photograph in a slim pearl frame, a soft shadow, magenta counts and meters, a plum icon square. */
+:root[data-theme="manipal"] .cat { border: 1px solid rgba(255, 255, 255, 0.95); background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 1px rgba(120, 90, 170, 0.12), 0 18px 36px -22px rgba(60, 30, 110, 0.55); }
+:root[data-theme="manipal"] .cat:hover { box-shadow: 0 0 0 1px rgba(213, 42, 216, 0.35), 0 0 24px -10px rgba(213, 42, 216, 0.5), 0 22px 40px -22px rgba(60, 30, 110, 0.6); }
+:root[data-theme="manipal"] .cat-line b { color: #ff4fd8; }
+:root[data-theme="manipal"] .cat .glyph.lg { color: #ffffff; background: linear-gradient(160deg, rgba(120, 40, 170, 0.78) 0%, rgba(60, 20, 100, 0.82) 100%); border: 1.5px solid rgba(230, 110, 255, 0.85); box-shadow: 0 0 12px -2px rgba(213, 42, 216, 0.5), inset 0 0 10px rgba(255, 80, 220, 0.22); }
+:root[data-theme="manipal"] .cat .meter i { background: rgba(255, 255, 255, 0.6); }
+:root[data-theme="manipal"] .cat .meter i.on { background: #ff3fd0; box-shadow: 0 0 6px rgba(255, 63, 208, 0.55); }
+:root[data-theme="manipal"] .cat-open { border: 1.5px solid rgba(255, 255, 255, 0.7); background: rgba(40, 18, 60, 0.6); }
+/* Tabs and switches: a frosted pearl bar, the chosen one in the magenta-violet of the main actions. */
+:root[data-theme="manipal"] .cat-tabs, :root[data-theme="manipal"] .res-switch { background: rgba(255, 255, 255, 0.55); border-color: rgba(120, 90, 170, 0.14); }
+:root[data-theme="manipal"] .cat-tabs .chip { border-right-color: rgba(120, 90, 170, 0.1); }
+:root[data-theme="manipal"] .cat-tabs .chip[aria-pressed=true], :root[data-theme="manipal"] .res-switch button[aria-pressed=true] { color: #ffffff; border-color: transparent; background: var(--violet); box-shadow: 0 6px 16px -8px rgba(154, 47, 207, 0.85); }
+:root[data-theme="manipal"] .btn.primary, :root[data-theme="manipal"] .station > .btn.go { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px -10px rgba(154, 47, 207, 0.85); }
+:root[data-theme="manipal"] .station.photo .station-head .glyph { color: #ffffff; background: linear-gradient(160deg, rgba(120, 40, 170, 0.72) 0%, rgba(60, 20, 100, 0.78) 100%); border: 1.5px solid rgba(230, 110, 255, 0.85); box-shadow: 0 0 10px -2px rgba(213, 42, 216, 0.5); }
+/* Cards, panels and tables on the pearl page: a near-white surface with a slim lilac edge. */
+:root[data-theme="manipal"] .court-card { border-color: #dcd6e6; }
+:root[data-theme="manipal"] .tabbar button.on svg { color: #e04ae0; }
+:root[data-theme="manipal"] .tabbar button.on::before { background: #d52ad8; }
+/* The sign-in: the same magenta for "back" and Sign In. */
+:root[data-theme="manipal"] .login-title span { color: #d24ae6; }
+:root[data-theme="manipal"] .login-submit { background: linear-gradient(90deg, #d52ad8 0%, #9a2fcf 50%, #7332c8 100%); }
+/* The console pills: frosted pearl with a coloured edge, dot and lettering (free green, in use red, paused amber). */
+:root[data-theme="manipal"] .unit-pill { color: #0a7d57; border: 1px solid rgba(13, 159, 111, 0.45); background: rgba(255, 255, 255, 0.72); box-shadow: 0 4px 12px -8px rgba(50, 30, 90, 0.4); }
+:root[data-theme="manipal"] .unit-pill > i { background: #0d9f6f; }
+:root[data-theme="manipal"] .unit-pill.live { color: #b8322c; border-color: rgba(200, 55, 48, 0.5); background: rgba(255, 244, 244, 0.85); }
+:root[data-theme="manipal"] .unit-pill.live > i { background: #d0413a; }
+:root[data-theme="manipal"] .unit-pill.held { color: #a35a12; border-color: rgba(205, 125, 40, 0.55); background: rgba(255, 247, 236, 0.85); }
+:root[data-theme="manipal"] .unit-pill.held > i { background: #d0852f; }
 </style>
 </head>
 <body>
