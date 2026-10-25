@@ -6046,8 +6046,9 @@ function openBridge() {
   if (bridge) return bridge.ready;
   const pending = new Map(), frame = document.createElement('iframe');
   let seq = 0, target = null, opened;
-  // Calls wait a few seconds for the bridge; if it has not started by then they go the direct way, and the bridge is
-  // used again from the moment it does start.
+  // Calls go the direct way until the bridge has started (it takes about seven seconds), never waiting for it; the bridge
+  // is used from the moment it does start (owner, 25 October: Refresh took five seconds and more while every call waited
+  // seven seconds for a bridge that had not started).
   const ready = new Promise(resolve => { opened = resolve; });
   const listen = ev => {
     const m = ev.data;
@@ -6061,15 +6062,15 @@ function openBridge() {
   bridge = {
     pending,
     ready,
-    call: (fn, args) => Promise.race([ready, pause(7000).then(() => false)]).then(() => (target ? new Promise((resolve, reject) => {
+    call: (fn, args) => (target ? new Promise((resolve, reject) => {
       const id = ++seq;
       pending.set(id, { resolve, reject });
       target.postMessage({ arena: 'call', id, fn, args }, '*');
     }) : directCall(fn, args).catch(error => {
-      // The bridge never started and the direct way failed too: counted, so the bridge is rebuilt instead of waiting forever.
+      // The bridge has not started and the direct way failed too: counted, so the bridge is rebuilt instead of waiting forever.
       bridgeTrouble();
       throw error;
-    }))),
+    })),
     close: () => { window.removeEventListener('message', listen); frame.remove(); pending.forEach(w => w.reject(new Error('Connection interrupted.'))); pending.clear(); }
   };
   setTimeout(() => { if (!target) console.warn('[City Arena] the hidden connection has not started yet; using the direct connection meanwhile'); }, 7000);
