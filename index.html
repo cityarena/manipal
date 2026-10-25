@@ -5592,7 +5592,8 @@ function createSaveFlow(storage, send, notify) {
   async function run(command) {
     if (saving) return false;
     if (pending) { notify('pending', 'Resolve the previous request before saving another.', pending.id); return false; }
-    const next = { id: crypto.randomUUID(), command };
+    // Kept exactly as it is sent (empty fields dropped), so the same request after a reload is the same request.
+    const next = { id: crypto.randomUUID(), command: JSON.parse(JSON.stringify(command)) };
     try { storage.setItem('arenaPending', JSON.stringify(next)); }
     catch (e) { notify('error', 'Browser storage is unavailable. Nothing was submitted.'); return false; }
     pending = next;
@@ -12344,7 +12345,8 @@ function setConfirmed(serverState, serverVersion) {
 // not hold what the save needs and the server must decide.
 function trySaveHere(command) {
   if (!confirmed || !state || typeof ArenaCore === 'undefined') return null;
-  const item = { id: crypto.randomUUID(), command, at: nowMs() };
+  // Kept exactly as it is sent (empty fields dropped), so the same request after a reload is the same request.
+  const item = { id: crypto.randomUUID(), command: JSON.parse(JSON.stringify(command)), at: nowMs() };
   let out;
   try { out = predict(state, item); }
   catch (e) {
@@ -12366,6 +12368,16 @@ async function pumpOutbox() {
   try {
     while (outbox.length && token) {
       const item = outbox[0];
+      // Already on the server (its answer was lost on the way): off the list, never sent again (owner, 25 October: a
+      // settlement the server held since 4:37 PM kept "Not saved yet · retrying" on the screen).
+      if (confirmed && (confirmed.Applied || []).includes(item.id)) {
+        outbox.shift();
+        keepOutbox();
+        outboxTrouble = '';
+        state = outbox.length ? overlay(confirmed) : confirmed;
+        render();
+        continue;
+      }
       let reply;
       try { reply = await rpc('rpcCommand', token, { id: item.id, command: item.command }); }
       catch (e) {
