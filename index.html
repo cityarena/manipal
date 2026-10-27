@@ -1203,6 +1203,9 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .foot-row.end { align-items: flex-end; }
 .foot-row .field { margin: 0; flex: 1; }
 .foot-row > .seg { align-self: flex-end; }
+/* "So far": Add Items, Pay Items and End side by side, wrapping on a phone (End then takes a line of its own). */
+.cost-actions { flex-wrap: wrap; gap: 10px; }
+.cost-actions .btn { flex: 1 1 140px; min-width: 0; }
 .foot-label { font-size: 14px; font-weight: 500; color: var(--ink-2); letter-spacing: 0.01em; }
 /* An academy's slot: Turf ₹X + Items ₹Y on a line of its own under the state. */
 .foot-label [data-account-parts], .foot-label [data-account-apart] { display: block; margin-top: 4px; }
@@ -1408,6 +1411,8 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .group-title .small { margin-left: auto; font-family: var(--text); font-weight: 500; }
 /* A section's own total, at the right of its heading. */
 .group-title .group-sum { margin-left: auto; font-variant-numeric: tabular-nums; }
+/* "So far" with more than one bill on a station: each customer, their total and their Pay Items on one line. */
+.cost-who { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .bill-group { margin-bottom: 12px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 16px; background: linear-gradient(180deg, rgb(var(--tint) / 0.032) 0%, rgb(var(--tint) / 0.013) 100%); box-shadow: var(--hi); }
 .bill-group > .group-title { margin: 2px 2px 10px; font-size: 16.5px; font-weight: 700; letter-spacing: -0.01em; }
 .bill-group > .group-title > svg { width: 20px; height: 20px; color: var(--accent); }
@@ -9732,6 +9737,17 @@ function closedEarlier(segments) {
   const left = new Set(state.Endings.filter(e => e.status === 'shared' && tabs.has(e.originalTabId)).map(e => e.segmentId));
   return state.Segments.filter(g => left.has(g.id) && tabs.has(g.tabId) && g.status === 'ended');
 }
+// What each running timer on these units would bill if it stopped now, worked out here with the server's rules.
+function quoteNow(unitIds) {
+  const out = {};
+  for (const unitId of unitIds) {
+    let quote;
+    try { quote = viewHere(view => ArenaViews.runningCost(view, unitId, nowMs())) || ArenaViews.runningCost(state, unitId, nowMs()); }
+    catch (e) { quote = null; }
+    if (quote) Object.assign(out, quote.quotes);
+  }
+  return out;
+}
 // memory: the ticks as they were, when the bill after End goes Back to it.
 function endSheet(segments, memory = null) {
   if (!segments.length) return;
@@ -9751,6 +9767,8 @@ function endSheet(segments, memory = null) {
   const others = () => state.Segments.filter(g => g.status === 'active' && tabs.has(g.tabId) && !ids.has(g.id));
   const shared = () => pickedLines(rows, picks);
   const controllerLabel = g => ps5 ? controllerNode(g) : (tabOf(g.tabId) || {}).customer || g.player;
+  // Each one's cost so far beside its time (owner, 27 October: "let it show their cost as well").
+  const cost = g => { const quote = quoteNow([g.unitId])[g.id]; return h('span', { class: 'line-amount', data: { cost: g.id }, text: quote ? money(quote.totalPaise) : '' }); };
   openSheet({
     title,
     sub: ps5 ? groupNames(segments) : '',
@@ -9762,7 +9780,7 @@ function endSheet(segments, memory = null) {
         // Everyone stops: the same cards as on the bill, each unit on top, then who is stopping there.
         for (const unitId of units) {
           const card = h('div', 'lines'), here = unitOf(unitId);
-          for (const g of segments.filter(x => x.unitId === unitId)) card.append(h('div', 'line', ps5 ? h('span', { class: 'seat', 'aria-hidden': 'true', text: String(g.controller) }) : null, h('div', 'line-main', h('b', null, ps5 ? controllerNode(g) : (tabOf(g.tabId) || {}).customer || g.player), h('span', { class: 'small muted', text: 'since ' + when(g.startMs) })), timer(g, true)));
+          for (const g of segments.filter(x => x.unitId === unitId)) card.append(h('div', 'line', ps5 ? h('span', { class: 'seat', 'aria-hidden': 'true', text: String(g.controller) }) : null, h('div', 'line-main', h('b', null, ps5 ? controllerNode(g) : (tabOf(g.tabId) || {}).customer || g.player), h('span', { class: 'small muted', text: 'since ' + when(g.startMs) })), timer(g, true), cost(g)));
           ui.body.append(h('section', 'bill-group', h('div', 'group-title', icon(here.category), here.name), card));
         }
         ui.body.append(h('div', { style: 'margin-top:16px' }, time.node));
@@ -9778,7 +9796,7 @@ function endSheet(segments, memory = null) {
       // Stopping now: a tick each for the ones who pay their own time now.
       section(unit.category, 'Stopping now', segments.map(g => h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(own.has(g.id)), data: { segment: g.id }, onclick: () => { if (own.has(g.id)) own.delete(g.id); else own.add(g.id); ui.redraw(); } },
         h('input', { type: 'checkbox', checked: own.has(g.id), tabindex: '-1', 'aria-hidden': 'true' }),
-        h('div', 'line-main', h('b', null, controllerLabel(g)), h('span', { class: 'small muted', text: (units.length > 1 ? (unitOf(g.unitId) || {}).name + ' · ' : '') + 'since ' + when(g.startMs) })), timer(g, true))), 'end-pick');
+        h('div', 'line-main', h('b', null, controllerLabel(g)), h('span', { class: 'small muted', text: (units.length > 1 ? (unitOf(g.unitId) || {}).name + ' · ' : '') + 'since ' + when(g.startMs) })), timer(g, true), cost(g))), 'end-pick');
       section('history', 'Closed earlier', pickLines(closed, picks, redraw), 'end-closed');
       section('transfer', 'Moved here', pickLines(rows.filter(row => row.timers && !row.key.startsWith('seg:')), picks, redraw), 'end-moved');
       section('snack', 'Items', pickLines(rows.filter(row => row.order), picks, redraw, bin), 'end-items');
@@ -10169,8 +10187,10 @@ function drawLines(body, lines) {
   }
   for (const [key, list] of byUnit) {
     const unitId = list[0].unitId, closedEarlierHere = key.endsWith(':earlier'), unit = unitOf(unitId), card = h('div', 'lines');
-    const part = closedEarlierHere ? ' · Closed earlier' : byUnit.has(unitId + ':earlier') ? ' · Ended now' : '';
-    const partTotal = part && list.every(g => g.status !== 'active') ? h('span', { class: 'group-sum', text: money(list.reduce((total, g) => total + Number(g.totalPaise || 0), 0)) }) : null;
+    // On "so far" the ones still playing are a section of their own beside those closed earlier (owner, 27 October).
+    const playing = list.some(g => g.status === 'active'), part = closedEarlierHere ? ' · Closed earlier' : byUnit.has(unitId + ':earlier') ? (playing ? ' · Playing' : ' · Ended now') : '';
+    const worth = g => (g.status !== 'active' ? Number(g.totalPaise || 0) : lines.quotes && lines.quotes[g.id] ? lines.quotes[g.id].totalPaise : null);
+    const partTotal = part && list.every(g => worth(g) !== null) ? h('span', { class: 'group-sum', text: money(list.reduce((total, g) => total + worth(g), 0)) }) : null;
     for (const g of list) {
       const running = g.status === 'active', quote = running && lines.quotes ? lines.quotes[g.id] : null;
       // Started, paused, ended and charged, in words (owner, 24 October), so a question about the time is answered here.
@@ -10607,6 +10627,9 @@ async function costSheet(unit) {
   if (!quote) try { quote = await rpc('rpcQuote', token, unit.id); }
   catch (e) { notify('error', e.message); return; }
   const tabs = [...new Set(players.map(g => g.tabId))].map(tabOf).filter(Boolean);
+  // Controllers that stopped earlier and left their time for the others: a section of their own (owner, 27 October).
+  const earlier = new Set(closedEarlier(players).map(g => g.id)), back = () => costSheet(unit);
+  const payable = tabs.filter(t => payableItems(t).length);
   openSheet({
     title: unit.name + ' · so far',
     icon: unit.category,
@@ -10615,16 +10638,70 @@ async function costSheet(unit) {
     focus: false,
     build(ui) {
       for (const t of tabs) {
-        if (tabs.length > 1) ui.body.append(h('p', { class: 'muted', style: 'margin:16px 0 -8px', text: t.customer + ' · ' + money(quote.tabTotals[t.id] || 0) }));
-        drawLines(ui.body, { segments: segmentsOf(t.id), orders: ordersOf(t.id), customer: t.customer, editable: false, quotes: quote.quotes, after: () => { costSheet(unit); } });
+        if (tabs.length > 1) ui.body.append(h('div', { class: 'cost-who', style: 'margin:16px 0 -8px' }, h('span', { class: 'muted', text: t.customer + ' · ' + money(quote.tabTotals[t.id] || 0) }),
+          payable.length > 1 && payable.includes(t) ? btn([icon('wallet'), 'Pay Items'], () => payItemsSheet(t, back), 'quiet', { data: { action: 'pay-items' } }) : null));
+        drawLines(ui.body, { segments: segmentsOf(t.id), orders: ordersOf(t.id), customer: t.customer, editable: false, quotes: quote.quotes, earlier, after: back });
       }
       // The controllers chosen on the card, or, with none chosen, the whole console.
       const chosen = chosenOn(players).length ? chosenOn(players) : players;
       ui.foot.append(
         h('div', 'foot-row', h('div', { class: 'foot-label', text: 'So far' }), h('div', { class: 'foot-total', text: money(quote.totalPaise), data: { soFar: '1' } })),
-        h('div', 'foot-row',
+        h('div', 'foot-row cost-actions',
           btn([icon('sales'), 'Add Items'], () => addItemsFor(unit), 'block', { data: { action: 'items' } }),
+          // The items paid on their own while the time plays on (owner, 27 October), on every system.
+          payable.length === 1 ? btn([icon('wallet'), 'Pay Items'], () => payItemsSheet(payable[0], back), 'block', { data: { action: 'pay-items' } }) : null,
           btn(unit.category === 'PS5' ? endLabel(chosen.length, players.length) : 'End Session', () => endSheet(unit.category === 'PS5' ? chosen : [players[0]]), 'primary block', { disabled: !chosen.length, data: { action: 'end' } })));
+    }
+  });
+}
+
+// Items on a bill, apart from the turf and what was carried from earlier.
+const payableItems = tab => ordersOf(tab.id).filter(o => o.category !== 'Turf' && o.category !== 'Carried');
+// Pay Items (owner, 27 October: "i should be allowed to pay for the items without closing any controllers ... for pool and
+// all"): from "so far" on any system, the items they pay for now, ticked or counted, paid in full; they become a bill of their
+// own (TABLE_ITEMS_PAY) and the time and every other item stay on the system.
+function payItemsSheet(tab, back) {
+  const picks = new Map(), pay = { method: 'cash' };
+  let rows = [], how = null;
+  const owed = () => rows.reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0);
+  openSheet({
+    title: 'Pay Items',
+    sub: tab.customer,
+    icon: 'wallet',
+    focus: false,
+    onClose: back,
+    build(ui) {
+      rows = pickRows(payableItems(tab), true);
+      for (const row of rows) if ((picks.get(row.key) || 0) > row.most) picks.set(row.key, row.most);
+      if (!rows.length) {
+        ui.body.append(h('p', { class: 'muted', text: 'No items on this bill.' }));
+        return;
+      }
+      ui.body.append(h('div', 'group-title', icon('snack'), 'Items'), h('div', { class: 'lines end-pick', data: { field: 'pay-items' } }, pickLines(rows, picks, () => ui.redraw(), o => removeOne(o, () => { ui.redraw(); return null; }))));
+      const due = owed();
+      const paint = () => {
+        const button = current.primaryButton, split = how.paid(), blank = how.blank();
+        const label = !due ? 'Choose the items they pay for' : blank ? 'Enter cash and UPI' : split !== null && split !== due ? 'Collect the full ' + money(due) : 'Collect ' + money(due);
+        button.dataset.label = label;
+        button.textContent = label;
+        button.disabled = !due || blank || (split !== null && split !== due);
+      };
+      how = payChoice(pay, () => paint(), { due: () => due });
+      ui.foot.append(h('div', 'foot-row', h('div', { class: 'foot-label', text: 'To collect' }), h('div', { class: 'foot-total', text: money(due) })), h('div', 'foot-row pay-foot', how.node));
+      ui.primary('');
+      paint();
+    },
+    command() {
+      const items = (pickedLines(rows, picks) || { items: [] }).items;
+      if (!items.length) throw new Error('Choose the items they pay for.');
+      return { type: 'TABLE_ITEMS_PAY', tabId: tab.id, items, amountPaise: owed(), ...how.value() };
+    },
+    then(result, command) {
+      render();
+      back();
+      // Said on "so far", which opens again over the board.
+      sheetStatus('success', 'Items paid · ' + [money(command.amountPaise), methodText(result.method || command.method), result.receiptNumber].filter(Boolean).join(' · ') + '. The time plays on.');
+      return null;
     }
   });
 }
@@ -13400,18 +13477,28 @@ function turfAvailabilityText(key, list) {
   // The half of the day is the hour's end: 11-12pm at noon, 11-12am at midnight (badminton and pickleball close at 12).
   const slot = hour => two(hour) + '-' + two(hour + 1) + ((hour + 1) % 24 < 12 ? 'am' : 'pm');
   // In WhatsApp's monospace between ``` fences, each sign centred under its column's name. An emoji takes about two
-  // letters' room in monospace.
-  const timeWidth = 10, widths = columns.map(c => Math.max(c.name.length, 2));
+  // letters' room in monospace. The padding is no-break spaces: WhatsApp on a phone draws a plain space far narrower than a
+  // letter, so a column of signs drifted left of its name, more with each column (owner's picture, 27 October: Court 3 not
+  // lined up); a no-break space keeps a letter's room there (Mangalore, 27 October).
+  const pad = count => '\u00a0'.repeat(Math.max(0, count)), bar = '\u00a0|\u00a0', timeWidth = 10;
+  // A row fits a phone's line (about 30 letters): when the full names would not, each court is headed by its number alone
+  // ("Court 3" → "C3", badminton's three courts).
+  const fits = names => timeWidth + names.reduce((n, name) => n + Math.max(name.length, 2), 0) + 3 * (names.length - 1) <= 30;
+  const names = fits(columns.map(c => c.name)) ? columns.map(c => c.name) : columns.map(c => c.name.replace(/^Court\s*/, 'C'));
+  const widths = names.map(name => Math.max(name.length, 2));
   const cell = (text, width, emoji) => {
     const room = width - (emoji ? 2 : text.length), left = Math.floor(room / 2);
-    return ' '.repeat(left) + text + ' '.repeat(room - left);
+    return pad(left) + text.replace(/ /g, '\u00a0') + pad(room - left);
   };
-  const table = ['Timings'.padEnd(timeWidth) + columns.map((c, i) => cell(c.name, widths[i], false)).join(' | ')];
+  // The heading: two more spaces after Timings, as a row's hour (digits) is wider on a phone than Timings (letters); after
+  // that, every name has exactly the room of its column's sign, and the bars stand where the rows' bars stand (WhatsApp's
+  // table is fixed-width: every letter and no-break space takes the same room). Badminton: "Timings     C1 | C2 | C3".
+  const table = ['Timings' + pad(timeWidth - 7 + 2) + names.map((name, i) => cell(name, widths[i], false)).join(bar)];
   for (let hour = venue.open; hour < venue.close; hour++) {
     // An hour is left out from one minute past its start (Mangalore, 25 October: "once its 2:01 pm do not send 2-3").
     if (hourStart(key, hour) + 60000 <= nowMs()) continue;
     const mark = column => (column.courts.some(court => !bookingAt(list, court, hour)) ? '✅' : '❌');
-    table.push(slot(hour).padEnd(timeWidth) + columns.map((c, i) => cell(mark(c), widths[i], true)).join(' | '));
+    table.push(slot(hour) + pad(timeWidth - 7) + columns.map((c, i) => cell(mark(c), widths[i], true)).join(bar));
   }
   if (table.length > 1) lines.push('```', ...table, '```');
   else lines.push('No hours left on this day.');
