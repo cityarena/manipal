@@ -64,6 +64,13 @@
   --danger: #bf433d;
   --danger-soft: rgba(208, 80, 70, 0.1);
   --danger-line: rgba(191, 67, 61, 0.42);
+  /* A turf slot held, Hold (Pay) or Hold: a light plum, solid, outlined in dark plum, unlike booked (teal-grey), paid
+     (green), pending (orange) and gone by (red) (owner, 27 October: the dark fill "became too dark. revert it back to how
+     it was colours, but outline with dark"; "both holds let it be same colour"). */
+  --hold: #5c2a50;
+  --hold-top: #f1e3ec;
+  --hold-bottom: #e8d4e2;
+  --hold-pale: #f6edf3;
   --card: #fcfaf5;
   --card-live: #fcfaf5;
   --hi: inset 0 1px 0 rgba(255, 255, 255, 0.85);
@@ -710,7 +717,9 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 
 /* ---------- Station cards: the name and its state, the photograph, then what is happening (the owner's picture, 20 October) ---------- */
 /* A set number to a row (owner, 20 October): consoles four; PCs, pool, snooker and racing seats three, as on the live cards. */
-.stations { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-flow: dense; gap: 16px; align-items: stretch; }
+.stations { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-flow: dense; gap: 16px; align-items: start; }
+/* Each card keeps its own shape (owner, 25 October, as on Manipal): a table with closed games grows downwards and the cards
+   beside it are not stretched. */
 .stations[data-category=PS5] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .stations[data-category=PC] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stations[data-category=Pool], .stations[data-category=Snooker], .stations[data-category=RC], .stations[data-category=Table] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -731,6 +740,8 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
    its state on the top of the picture, a soft shade there and at the foot. A free card has Start Session on its foot; a card
    in use has its panel there. The band between only keeps the length. */
 .station.photo { isolation: isolate; overflow: hidden; border-color: rgb(var(--tint-deep) / 0.22); }
+/* A card's ⋮ menu is never cut off by the card (owner, 25 October): while it is open the card lets it out, above its neighbours. */
+.station.photo:has(.menu-list:not([hidden])) { overflow: visible; z-index: 10; }
 /* At a glance (owner, 20 October): a card in use is ringed in red, a free one in green; a fine ring with a soft glow of
    its colour, so the photograph stays clean. Paused keeps amber. */
 .station.photo:not(.live) { border: 2px solid rgba(46, 158, 98, 0.85); box-shadow: 0 0 0 3px rgba(46, 158, 98, 0.14), var(--shadow); }
@@ -994,6 +1005,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.95; }
 .badge.good { color: var(--accent); border-color: var(--accent-line); background: rgba(31, 125, 74, 0.085); }
 .badge.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-soft); }
+.badge.hold { color: var(--ink); border-color: var(--hold); background: #ffffff; }
 .badge.gold { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
 .badge.bad { color: var(--danger); border-color: var(--danger-line); background: var(--danger-soft); }
 .kv { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 10px 0; border-top: 1px solid var(--line); }
@@ -1114,10 +1126,17 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .tile .step { display: flex; justify-content: space-between; width: 100%; }
 /* An item on an open bill: one fewer, how many, one more, and remove, beside its amount. */
 .item-tools { display: inline-flex; align-items: center; gap: 6px; flex: none; }
-.item-tools .step button { width: 30px; height: 30px; }
+/* An item to pay for: a tick takes all of it, then − pays for fewer (owner, 27 October). */
+.line.pick-count { display: flex; align-items: center; gap: 10px; }
+.line.pick-count > input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+/* Who pays the time of those stopping who do not pay it now. */
+.end-rest { display: grid; gap: 6px; }
+.end-rest .seg { width: 100%; }
+.end-rest .seg button { flex: 1; min-height: 36px; }
+.item-tools .step button { width: 28px; height: 28px; }
 .item-tools .step b { min-width: 22px; font-size: 15px; }
 .item-tools .step button:disabled { opacity: 0.35; cursor: default; }
-.item-remove { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--danger-line); border-radius: 8px; background: var(--danger-soft); color: var(--danger); cursor: pointer; }
+.item-remove { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--danger-line); border-radius: 8px; background: var(--danger-soft); color: var(--danger); cursor: pointer; }
 .item-remove svg { width: 15px; height: 15px; }
 .basket-line .item-tools { margin-left: auto; }
 .step { display: inline-flex; align-items: center; gap: 6px; }
@@ -1172,11 +1191,11 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .sheet-status.error { border-color: var(--danger-line); background: var(--danger-soft); }
 .sheet-status.pending { border-color: var(--warn-line); background: var(--warn-soft); }
 .sheet-status .btn { margin-top: 8px; min-height: 38px; }
-.sheet-foot { flex: none; display: grid; gap: 12px; padding: 14px 20px 16px; border-top: 1px solid var(--line-strong); background: rgb(var(--w-f5f0e6)); }
+.sheet-foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px 20px 14px; border-top: 1px solid var(--line-strong); background: rgb(var(--w-f5f0e6)); }
 .sheet-foot:empty { display: none; }
-.sheet-foot .btn.block { min-height: 44px; border-radius: 11px; }
+.sheet-foot .btn.block { min-height: 40px; border-radius: 10px; }
 /* The main button of a sheet: tall, in slate teal; an arrow in a soft circle at its end. */
-.sheet-foot .btn.primary.block { min-height: 50px; border-radius: 12px; font-size: 16px; letter-spacing: 0.005em; }
+.sheet-foot .btn.primary.block { min-height: 42px; border-radius: 11px; font-size: 15px; letter-spacing: 0.005em; }
 .sheet-foot .btn.primary.block svg { width: 19px; height: 19px; }
 .go-arrow { position: absolute; right: 9px; top: 50%; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; border-radius: 50%; background: rgb(var(--paper) / 0.16); }
 .go-arrow svg { width: 16px; height: 16px; }
@@ -1187,18 +1206,18 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .foot-label { font-size: 14px; font-weight: 500; color: var(--ink-2); letter-spacing: 0.01em; }
 /* An academy's slot: Turf ₹X + Items ₹Y on a line of its own under the state. */
 .foot-label [data-account-parts], .foot-label [data-account-apart] { display: block; margin-top: 4px; }
-.foot-total { font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -0.025em; }
+.foot-total { font-size: 28px; font-weight: 700; line-height: 1; letter-spacing: -0.025em; }
 .foot-total.clear { color: var(--accent); }
 .foot-links { display: flex; flex-wrap: wrap; gap: 4px; margin: -4px -10px; }
 /* Money received: a tall box with a clear button inside it, and Cash and UPI as two separate buttons beside it. */
 .sheet-foot .field > span { font-size: 13px; }
-.sheet-foot input[type=number] { min-height: 46px; padding: 0 14px; border-radius: 10px; font-size: 18px; }
+.sheet-foot input[type=number] { min-height: 38px; padding: 0 12px; border-radius: 10px; font-size: 17px; }
 .input-clear { position: relative; display: flex; }
 .input-clear input { padding-right: 46px !important; }
 .input-clear .icon-btn { position: absolute; right: 9px; top: 50%; width: 28px; height: 28px; margin-top: -14px; border: 1px solid var(--line-bold); border-radius: 50%; background: rgb(var(--tint) / 0.045); }
 .input-clear .icon-btn svg { width: 13px; height: 13px; }
 .sheet-foot .seg.method { padding: 0; border: 0; background: none; box-shadow: none; gap: 8px; flex-wrap: nowrap; }
-.sheet-foot .seg.method button { min-height: 46px; min-width: 92px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: rgb(var(--w-fdfbf7)); }
+.sheet-foot .seg.method button { min-height: 38px; min-width: 84px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: rgb(var(--w-fdfbf7)); }
 .sheet-foot .seg.method button svg { width: 18px; height: 18px; }
 .sheet-foot .seg.method button[aria-pressed=true] { border-color: var(--primary); background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary-line); }
 /* Figure rows: subtotal, discount, total, already paid. The large number beneath is what is still outstanding. */
@@ -1221,9 +1240,13 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .games { display: grid; gap: 6px; }
 .game-row { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-soft); }
 .game-row .btn { min-height: 38px; padding: 0 12px; font-size: 14px; }
+/* A closed game is a row tapped to pay it, no amount on the card (owner, 25 October, as on Manipal). */
 .game-row.open { cursor: pointer; }
 .game-row.open:hover { border-color: var(--warn-line); }
 .game-row .game-go { width: 18px; height: 18px; flex: none; color: var(--ink-2); }
+/* A console in a group: End Group, small and red, on the who line (as on Manipal). */
+.btn.stop.group-end { margin-left: auto; min-height: 30px; padding: 0 10px; gap: 5px; font-size: 13px; border-radius: 8px; background: linear-gradient(180deg, #d0605a 0%, var(--danger) 55%, #a8362f 100%); border-color: var(--danger); }
+.btn.stop.group-end svg { width: 12px; height: 12px; }
 /* A card never stretches its neighbours (owner, 25 October): each keeps its own height; a table's closed games are all shown,
    the card growing and the cards below moving down (no scrolling inside a card). */
 :root[data-theme="manipal"] .stations { align-items: start; }
@@ -1250,8 +1273,24 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .action svg { width: 19px; height: 19px; color: var(--ink); transition: color var(--ease); }
 /* At a sheet's foot the other ways to close it sit on one low row under the main button (owner, 22 October). */
 .sheet-foot .actions { display: flex; flex-wrap: wrap; }
-.sheet-foot .action { flex: 1 1 auto; flex-direction: row; gap: 8px; min-height: 50px; padding: 8px 12px; font-size: 15px; white-space: nowrap; }
+.sheet-foot .action { flex: 1 1 auto; flex-direction: row; gap: 8px; min-height: 36px; padding: 4px 10px; font-size: 14px; white-space: nowrap; }
 .sheet-foot .action svg { width: 19px; height: 19px; flex: none; }
+/* A payment sheet's foot stays low, so what is being paid for stays in view above it (owner, 25 October: on a laptop the
+   foot took half the sheet and the items could not be seen). A short screen gets it lower still. */
+@media (max-height: 820px) {
+  .sheet-head { padding: 12px 14px 8px 20px; }
+  .sheet-head > .glyph { width: 40px; height: 40px; }
+  .sheet-foot { gap: 8px; padding: 10px 20px 12px; }
+  .foot-label { font-size: 13px; }
+  .foot-total { font-size: 24px; }
+  .sheet-foot .field > span { font-size: 13px; }
+  .sheet-foot input[type=number] { min-height: 38px; font-size: 17px; }
+  .sheet-foot .seg.method button { min-height: 38px; min-width: 84px; }
+  .sheet-foot .btn.block { min-height: 40px; }
+  .sheet-foot .btn.primary.block { min-height: 42px; font-size: 15px; }
+  .sheet-foot .action { min-height: 38px; padding: 4px 10px; }
+  .sheet-foot .action svg { width: 17px; height: 17px; }
+}
 .action:hover svg { color: var(--primary); }
 
 /* A bill reads as a ledger: a panel per system with its name, one framed row per charge, amounts in one right-hand column. */
@@ -1282,6 +1321,10 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 /* UPI on the turf asks which scanner: ours or the CA scanner (23 October). */
 .turf-scanner { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; font-size: 14px; color: var(--ink-2); }
 .turf-scanner .seg { flex: 1; }
+/* The payment QR as it will be sent: centred, scaled to the sheet (owner, 25 October). */
+.qr-picture { display: grid; place-items: center; margin-top: 12px; }
+.qr-picture canvas { width: min(100%, 220px); height: auto; border: 1px solid var(--line); border-radius: 12px; }
+#payQr { min-height: 40px; }
 .res-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .res-col { display: grid; gap: 8px; min-width: 0; }
 .res-col > .res-kind { margin: 0 2px 2px; font-size: 16px; }
@@ -1363,6 +1406,8 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .group-title .glyph { width: 30px; height: 30px; border-radius: 9px; }
 .group-title .glyph svg { width: 16px; height: 16px; }
 .group-title .small { margin-left: auto; font-family: var(--text); font-weight: 500; }
+/* A section's own total, at the right of its heading. */
+.group-title .group-sum { margin-left: auto; font-variant-numeric: tabular-nums; }
 .bill-group { margin-bottom: 12px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 16px; background: linear-gradient(180deg, rgb(var(--tint) / 0.032) 0%, rgb(var(--tint) / 0.013) 100%); box-shadow: var(--hi); }
 .bill-group > .group-title { margin: 2px 2px 10px; font-size: 16.5px; font-weight: 700; letter-spacing: -0.01em; }
 .bill-group > .group-title > svg { width: 20px; height: 20px; color: var(--accent); }
@@ -1614,17 +1659,32 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .chip.warn { border-color: var(--warn-line); color: var(--warn); }
 .academy-note { display: flex; align-items: center; gap: 8px; margin: -6px 0 14px; color: var(--gold); font-size: 14px; }
 .academy-note svg { width: 16px; height: 16px; flex: none; }
-/* A slot on hold until an advance is paid: amber on the board and in its sheet. */
 /* A booking on the board: a coloured edge on its left, as in the owner's pictures (22 October). */
 .turf-board .turf-block { border-left: 4px solid var(--primary); }
 .turf-board .turf-block.paid { border-left-color: var(--accent); }
 .turf-board .turf-block.owing { border-left-color: var(--warn); }
-.turf-block.hold { border-style: dashed; border-color: var(--warn); background: linear-gradient(180deg, #fbebd5 0%, #f7e2c4 100%); box-shadow: none; }
-.turf-hold-tag { flex: none; padding: 0 6px; border: 1px solid var(--warn-line); border-radius: 6px; color: var(--warn); font-weight: 700; line-height: 20px; }
-.turf-hold { display: flex; align-items: center; gap: 10px; margin: -4px 0 14px; padding: 8px 8px 8px 12px; border: 1px solid var(--warn-line); border-radius: 12px; background: var(--warn-soft); }
-.turf-hold > svg { width: 18px; height: 18px; color: var(--warn); flex: none; }
-.turf-hold-text { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
-.turf-hold-text b { color: var(--warn); }
+/* A slot held, Hold (Pay) or Hold: light plum outlined in dark plum, on the board and in its sheet; its tag says which
+   (owner, 27 October). */
+.turf-block.hold, .turf-block.maybe { border: 2px solid var(--hold); background: linear-gradient(180deg, var(--hold-top) 0%, var(--hold-bottom) 100%); box-shadow: none; }
+.turf-block.hold:hover, .turf-block.maybe:hover { border-color: var(--hold); }
+/* Hold and Hold (Pay) in black, in a white chip like Football and Cricket (owner, 27 October). */
+.turf-hold-tag { flex: none; height: 20px; padding: 0 8px; border: 1px solid var(--primary-line); border-radius: 999px; background: #ffffff; color: var(--ink); font: inherit; font-weight: 600; line-height: 18px; cursor: pointer; }
+.turf-hold-tag:hover { border-color: var(--hold); }
+.turf-key.hold i { border: 2px solid var(--hold); background: var(--hold-bottom); }
+.turf-hold-tag svg { display: none; }
+/* A small box beside what was tapped (owner, 25 October: "ask there only"). */
+.popover { position: fixed; z-index: 60; width: min(300px, calc(100vw - 16px)); display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--raised); box-shadow: 0 14px 34px -12px rgb(var(--tint) / 0.35); color: var(--ink); animation: pop-in var(--ease); }
+.popover-title { font-size: 15px; }
+.popover .field { margin: 0; }
+.popover .seg { width: 100%; }
+/* Buttons too wide for one line take a line each, never past the box (owner, 27 October: Cancel booking stood out of it). */
+.popover-foot { display: flex; flex-wrap: wrap; gap: 8px; }
+.popover-foot .btn { flex: 1 1 auto; min-width: 0; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } }
+.turf-hold { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -4px 0 14px; padding: 8px 8px 8px 12px; border: 2px solid var(--hold); border-radius: 12px; background: var(--hold-pale); }
+.turf-hold > svg { width: 18px; height: 18px; color: var(--hold); flex: none; }
+.turf-hold-text { flex: 1 1 150px; min-width: 0; display: grid; line-height: 1.35; }
+.turf-hold-text b { color: var(--ink); }
 .turf-hold .btn { min-height: 38px; padding: 0 12px; }
 /* A booking made on another screen: at the top until this screen closes it. */
 /* Floats at the top right of the screen, over the page, wherever it is scrolled to. */
@@ -1654,7 +1714,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .turf-block-sub { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--ink-2); font-size: 13px; line-height: 1.3; font-variant-numeric: tabular-nums; }
 .turf-sport { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px 0 6px; border: 1px solid var(--primary-line); border-radius: 999px; background: rgb(var(--paper)); color: var(--ink); font-weight: 600; }
 .turf-sport svg { width: 14px; height: 14px; color: var(--accent); }
-.turf-sport.cricket { border-color: var(--gold-line); background: var(--gold-soft); }
+/* Cricket in the same white chip as Football (owner, 27 October); only its bat keeps its colour. */
 .turf-sport.cricket svg { color: var(--gold); }
 .turf-block.ended .turf-sport { border-color: var(--line-strong); background: rgb(var(--tint) / 0.045); color: var(--ink-2); }
 .turf-block.ended .turf-sport svg { color: var(--ink-3); }
@@ -1724,9 +1784,11 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .turf-pay .btn svg { color: var(--accent); }
 .sheet-foot .turf-pay { display: grid; grid-template-columns: 1fr 1fr auto; }
 /* A one-payer booking's foot: the amount, then Cash, UPI and CA, each one tap. */
-.turf-collect { display: grid; gap: 8px; }
+.turf-collect { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.turf-collect > .btn.primary { white-space: normal; text-align: center; line-height: 1.25; }
 .turf-collect-label { font-family: var(--display); font-size: 20px; font-weight: 700; }
-.turf-collect .turf-pay { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.turf-collect .turf-pay { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.turf-collect .turf-pay .btn { min-width: 0; padding: 0 8px; }
 /* Cash, UPI or CA chosen (not yet saved): marked until End Session or Collect is pressed. */
 .turf-pay .btn[aria-pressed=true] { border-color: var(--primary); background: var(--primary); color: #ffffff; }
 .turf-pay .btn[aria-pressed=true] svg { color: #ffffff; }
@@ -1815,9 +1877,6 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .login.new-device .device-note { margin-bottom: 10px; padding: 8px 12px; }
 .login.new-device .login-card { padding-top: 26px; padding-bottom: 22px; }
 @media (max-width: 900px) { html .login.new-device .login-stage { display: none; } html .login.new-device .login-panel { padding-top: 16px; } }
-/* A console in a group (compact groups): End Group, small, on the who line. */
-.btn.stop.group-end { margin-left: auto; min-height: 30px; padding: 0 10px; gap: 5px; font-size: 13px; border-radius: 8px; background: linear-gradient(180deg, #d0605a 0%, var(--danger) 55%, #a8362f 100%); border-color: var(--danger); }
-.btn.stop.group-end svg { width: 12px; height: 12px; }
 /* A moment as a time, AM or PM, and a date side by side (Branch.gs splitWhen). */
 .when-input { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .when-input [data-field=when-time] { flex: 0 0 96px; font-size: 16px; font-variant-numeric: tabular-nums; }
@@ -2067,6 +2126,27 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
   .login-panel { padding: 0 max(16px, calc(50% - 280px)) 32px; }
   /* A tablet's turf columns are wide enough for the time beside the sport. */
   .turf-time { display: inline; }
+  /* A tablet, or a phone on its side (owner, 26 October: the time cut off below the cross): the name, WhatsApp and the
+     cross share one line, the time (and On hold) under them, as on a computer. */
+  .turf-block-top { flex-wrap: nowrap; height: 24px; }
+  .turf-name { flex: 1 1 auto; }
+  .turf-block .turf-wa { display: inline-grid; }
+  .turf-block-top .turf-x { margin-left: auto; }
+}
+/* A phone's turf board (owner, 25 October: a hold showed its name and the cross, On hold cut off below): the name on its
+   own line, then the cross and, on a hold, a clock that asks Confirm or No, side by side within the hour. */
+@media (max-width: 599px) {
+  .turf-block { flex-direction: row; flex-wrap: wrap; align-content: center; align-items: center; gap: 4px; }
+  .turf-block-top, .turf-block-sub { display: contents; }
+  .turf-hold-tag { display: inline-grid; place-items: center; width: 28px; height: 24px; padding: 0; }
+  .turf-hold-tag svg { display: block; width: 15px; height: 15px; }
+  .turf-hold-tag span { display: none; }
+  /* Collect's three ways in words alone, so Cash + UPI fits its third of a phone. */
+  .turf-collect .turf-pay .btn { gap: 0; font-size: 15px; }
+  .turf-collect .turf-pay .btn svg { display: none; }
+  /* The hold strip: the words on the first line, Message and Confirm together on the second. */
+  .turf-hold-text { flex-basis: calc(100% - 40px); }
+  .turf-hold-text + * { margin-left: auto; }
 }
 /* Cash, UPI and CA side by side, the same width. */
 .turf-pay.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
@@ -2241,6 +2321,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
       <div class="top-title"><h1 id="pageTitle"></h1><p id="pageSub" class="page-sub"></p></div>
       <div class="top-tools">
         <span id="sync" class="sync" role="status"><i></i><span id="syncText"></span></span>
+        <button id="payQr" type="button" class="btn quiet" aria-label="Payment QR" title="A UPI QR for any amount, to send on WhatsApp"></button>
         <button id="refresh" type="button" class="icon-btn" aria-label="Refresh" title="Refresh"></button>
       </div>
     </header>
@@ -2334,13 +2415,14 @@ var ARENA_BRANCH = (function () {
     // On the turf board a booking turns orange once its time is over and it is not paid (Mangalore, 24 October); Manipal
     // keeps its board as it was (the owner's second message for the Manipal chat).
     boardOverOrange: false,
-    // Consoles grouped on one bill keep their card's shape (owner, 24 October): the group is a small tag on the who line and
-    // End Group is in the console's ⋮, instead of a panel on the card.
-    compactGroups: true,
     // A moment is typed as a time and a date in two boxes, the cursor in the time (owner, 24 October: "when I type the time
     // the cursor goes to the date").
     splitWhen: true,
     contact: '9740450857',
+    // The payment QR (Mangalore, 25 October): a UPI QR with the amount filled in, copied to paste on WhatsApp. Off on Manipal
+    // until its own UPI ID is given (owner, 27 October: "QR off for now"); with upi filled in and live true it is shown, and
+    // Settings has its On / Off switch.
+    pay: { upi: '', name: 'City Arena', live: false },
     venues: [
       // emoji: beside the venue's name in the availability message; share: the message's columns, each ✅ when any of its
       // courts is free (owner, 23 October: the turf as Full court and Half court).
@@ -2754,7 +2836,7 @@ var ArenaApp=(function(){
 
 /* Post-session settlement and physical-table parties. Called inside the existing locked atomic command. */
 var ArenaLifecycle=(function(){
- var types=['END_SELECTION','SPLIT_REVIEW','KEEP_SHARED','MOVE_REVIEW','JOIN_TABLE','SETTLE_REVIEW','TRANSFER_CREDIT_INLINE','COMBINE_TABS','ATTACH_TO_GROUP','COUNTER_SALE','CREDIT_SALE','GROUP_TABS','TABLE_ROUND','TABLE_COLLECT','TABLE_ITEMS_PAY'];
+ var types=['END_SELECTION','SPLIT_REVIEW','KEEP_SHARED','MOVE_REVIEW','JOIN_TABLE','SETTLE_REVIEW','TRANSFER_CREDIT_INLINE','COMBINE_TABS','ATTACH_TO_GROUP','COUNTER_SALE','CREDIT_SALE','GROUP_TABS','TABLE_ROUND','TABLE_COLLECT','TABLE_ITEMS_PAY','REOPEN_END'];
  function check(v,m){ArenaCore.check(v,m);}
  function row(rows,id){var r=(rows||[]).find(function(x){return x.id===id;});check(!!r,'Record not found.');return r;}
  function tab(s,id){var t=row(s.Tabs,id);check(t.status==='open','This tab is already finalized or moved.');return t;}
@@ -2768,14 +2850,15 @@ var ArenaLifecycle=(function(){
  // moved onto it, items for everyone). Time left for the others to pay (End · Others Will Pay) stays out of it.
  // Takes the rest onto bill `to`: all of it ('these'), or the time chosen and how many of each item ({ids, items}; owner, 21
  // October: two of them pay for one juice of ten). Returns how many lines or items were taken.
- function takeRest(s,origins,to,choice,actor,now,id){var rest=restLines(s,origins);
+ function takeRest(s,origins,to,choice,actor,now,id){var rest=restLines(s,origins,!!choice&&typeof choice==='object');
   if(choice==='these'){rest.forEach(function(x){x.tabId=to;});return rest.length;}
   if(!choice||typeof choice!=='object')return 0;var ids=Array.isArray(choice.ids)?choice.ids:[],items=Array.isArray(choice.items)?choice.items:[];
   check(ids.length+items.length<=60&&items.every(function(i){return i&&ids.indexOf(i.orderId)<0;}),'Invalid selection.');
   ids.forEach(function(lid){var x=rest.find(function(r){return r.id===lid;});check(!!x,'This charge is no longer on the bill. Refresh and try again.');x.tabId=to;});
   items.forEach(function(item,i){var o=rest.find(function(r){return r.id===item.orderId&&!r.unitId;});check(!!o,'This item is no longer on the bill. Refresh and try again.');ArenaSales.execute(s,{type:'TAKE_ITEMS',fromTabId:o.tabId,tabId:to,items:[{orderId:o.id,quantity:item.quantity}]},actor,now,id+'-take-'+i);});
   return ids.length+items.length;}
- function restLines(s,origins){var staying=s.Segments.filter(function(g){return origins.indexOf(g.tabId)>=0&&g.status==='active';}).map(function(g){return g.id;}),theirs=(s.OrderOwners||[]).filter(function(w){return staying.indexOf(w.segmentId)>=0;}).map(function(w){return w.id;}),left=s.Endings.filter(function(e){return e.status==='shared'&&origins.indexOf(e.originalTabId)>=0;}).map(function(e){return e.segmentId;});return s.Segments.filter(function(g){return origins.indexOf(g.tabId)>=0&&g.status==='ended'&&left.indexOf(g.id)<0;}).concat((s.Orders||[]).filter(function(o){return origins.indexOf(o.tabId)>=0&&o.status==='active'&&theirs.indexOf(o.id)<0;}));}
+ // withKept: controllers that stopped earlier and left their time for the others may be chosen too (owner, 27 October).
+ function restLines(s,origins,withKept){var staying=s.Segments.filter(function(g){return origins.indexOf(g.tabId)>=0&&g.status==='active';}).map(function(g){return g.id;}),theirs=(s.OrderOwners||[]).filter(function(w){return staying.indexOf(w.segmentId)>=0;}).map(function(w){return w.id;}),left=withKept?[]:s.Endings.filter(function(e){return e.status==='shared'&&origins.indexOf(e.originalTabId)>=0;}).map(function(e){return e.segmentId;});return s.Segments.filter(function(g){return origins.indexOf(g.tabId)>=0&&g.status==='ended'&&left.indexOf(g.id)<0;}).concat((s.Orders||[]).filter(function(o){return origins.indexOf(o.tabId)>=0&&o.status==='active'&&theirs.indexOf(o.id)<0;}));}
  function carry(s,from,to){(s.Advances||[]).forEach(function(a){if(a.tabId===from&&a.status==='held')a.tabId=to;});}
  function merge(s,from,to){if(from===to)return;tab(s,from);check(!running(s,from),'This tab still has active players.');lines(s,from).forEach(function(g){g.tabId=to;});(s.Advances||[]).forEach(function(a){if(a.tabId===from&&a.status==='held')a.tabId=to;});row(s.Tabs,from).status='merged';}
  // A controller is "Controller 3" unless a name was typed for it.
@@ -2935,6 +3018,29 @@ var ArenaLifecycle=(function(){
    if(allSelected&&origins.length>1)origins.forEach(function(original){var t=row(s.Tabs,original);if(t.status==='open')merge(s,original,target.id);});
    if(typeof ArenaReservations!=='undefined')ArenaReservations.complete(s);
    return {tabId:target.id,segmentIds:c.segmentIds,message:'Selected timers stopped. Review charges and choose the next step.'};
+  }
+  if(c.type==='REOPEN_END'){
+   // Back from the bill an End opened (owner, 27 October: "i need the back button everywhere because if i need to change
+   // anything by going back"): while nothing is paid on that bill, the controllers stopped there play on as before (their
+   // time counted from when they started), and whatever the End took onto the bill goes back where it came from.
+   var bill=tab(s,c.tabId);
+   check(Array.isArray(c.segmentIds)&&c.segmentIds.length>=1&&c.segmentIds.length<=32&&new Set(c.segmentIds).size===c.segmentIds.length,'Invalid selection.');
+   check(!(s.Advances||[]).some(function(a){return a.tabId===bill.id&&a.status==='held';}),'Money was already taken on this bill, so it cannot go back. Correct it instead.');
+   var back=c.segmentIds.map(function(sid){
+    var g=row(s.Segments,sid),e=(s.Endings||[]).filter(function(x){return x.segmentId===sid&&(x.status==='review'||x.status==='shared');}).pop();
+    check(g.status==='ended'&&!!e&&(g.tabId===bill.id||e.status==='shared'),'This stop cannot be taken back. Refresh and try again.');
+    var home=row(s.Tabs,e.originalTabId);if(home.status==='merged')home.status='open';check(home.status==='open','The bill it came from is already closed.');
+    return {g:g,e:e};
+   });
+   var home=back[0].e.originalTabId;
+   back.forEach(function(x){x.g.status='active';x.g.endMs='';x.g.totalPaise=0;x.g.billableMinutes=0;x.g.tabId=x.e.originalTabId;x.e.status='undone';});
+   // The rest the End took onto this bill (items, controllers closed earlier, time moved here) goes back too.
+   if(bill.id!==home){
+    (s.Endings||[]).forEach(function(e){if(e.reviewTabId===bill.id&&e.status==='review')e.status='undone';});
+    lines(s,bill.id).forEach(function(x){x.tabId=home;});
+    bill.status='merged';
+   }
+   return {tabId:home,segmentIds:c.segmentIds,message:'Back: they are playing again.'};
   }
   if(c.type==='GROUP_TABS'){
    // Consoles already playing become one group on one bill (owner, 20 October): every charge, payment and reminder moves
@@ -3353,7 +3459,7 @@ var ArenaSales=(function(){
    var buyer=c.purchaser||assigned.customer;
    if(c.segmentId){var player=row(s.Segments,c.segmentId);check(player.status==='active'&&player.tabId===assigned.id,'This player assignment changed. Refresh before ordering.');buyer=player.player;}
    check(new Set(c.items.map(function(i){return i.productId;})).size===c.items.length,'Invalid duplicate product.');
-   var ids=[];c.items.forEach(function(item,i){ids.push(execute(s,{type:'ADD_ORDER',tabId:assigned.id,productId:item.productId,quantity:item.quantity,purchaser:buyer},actor,now,id+'-'+i).orderId);});
+   var ids=[];c.items.forEach(function(item,i){ids.push(execute(s,{type:'ADD_ORDER',tabId:assigned.id,productId:item.productId,quantity:item.quantity,purchaser:buyer,merge:!c.segmentId},actor,now,id+'-'+i).orderId);});
    if(c.segmentId){s.OrderOwners=s.OrderOwners||[];ids.forEach(function(orderId){s.OrderOwners.push({id:orderId,segmentId:c.segmentId,createdMs:now});});}
    return {tabId:assigned.id,orderIds:ids,message:ids.length+' items added. Gaming timers unchanged.'};
   }
@@ -3381,6 +3487,11 @@ var ArenaSales=(function(){
     else{check(category!=='Manual'&&Number.isFinite(c.durationMinutes)&&c.durationMinutes>0&&c.durationMinutes<=10080,'Invalid gaming duration.');duration=c.durationMinutes;rates=JSON.stringify(ArenaCore.pricesFor(s,category));price=ArenaCore.bill(0,Math.round(duration*60000),JSON.parse(rates)).totalPaise;}
    }
    var total=price*q;check(Number.isSafeInteger(total)&&total<=100000000,'Charge exceeds supported amount.');
+   // The same item at the same price added again to a bill joins its line (owner, 27 October: "A and B ... cant you add to
+   // the same thing"): one line, its count raised. Not an item bought for one player (OrderOwners), nor a line with a reason.
+   var buyer=c.purchaser?text(c.purchaser,80):target.customer,owned=(s.OrderOwners||[]).map(function(w){return w.id;});
+   var same=c.merge===true&&product?(s.Orders||[]).find(function(o){return o.tabId===target.id&&o.status==='active'&&o.productId===product.id&&Number(o.unitPricePaise)===price&&o.purchaser===buyer&&!o.reason&&owned.indexOf(o.id)<0;}):null;
+   if(same){var more=Number(same.quantity)+q;check(price*more<=100000000,'Charge exceeds supported amount.');same.quantity=more;same.totalPaise=price*more;same.revision=Number(same.revision)+1;return {orderId:same.id,message:'Charge added to '+target.customer+'.'};}
    s.Orders.push({id:id,tabId:target.id,productId:product?product.id:'',label:label,category:category,quantity:q,unitPricePaise:price,totalPaise:total,createdMs:now,status:'active',purchaser:c.purchaser?text(c.purchaser,80):target.customer,durationMinutes:duration,ratesJson:rates,reason:c.reason?text(c.reason,300):'',revision:1});return {orderId:id,message:'Charge added to '+target.customer+'.'};
   }
   if(c.type==='UPDATE_ORDER'){
@@ -3854,8 +3965,12 @@ var ArenaViews = (function () {
       Applied: (state.Operations || []).slice(-80).map(function (o) { return o.id; }),
       DayCloses: (state.DayCloses || []).slice(-14).map(function (d) { return { id: d.id, dateKey: d.dateKey, countedCashPaise: d.countedCashPaise, note: d.note, createdMs: d.createdMs }; })
     };
+    // The screen's copy has no bills paid off more than a day and a half ago, though their moves to credit stay. They owe
+    // nothing, so the summary leaves them out rather than stop at them (owner, 25 October: one such bill sent every save to
+    // the server the slow way, with "Saving…" on the button).
+    var onHand = index(state.Bills), ledger = Object.assign({}, state, { CreditTransfers: (state.CreditTransfers || []).filter(function (t) { return has(onHand, t.billId); }) });
     out.CreditSummary = out.CreditAccounts.map(function (a) {
-      return { id: a.id, outstandingPaise: ArenaCredits.balance(state, a.id), obligations: ArenaCredits.obligations(state, a.id) };
+      return { id: a.id, outstandingPaise: ArenaCredits.balance(ledger, a.id), obligations: ArenaCredits.obligations(ledger, a.id) };
     });
     return out;
   }
@@ -4000,7 +4115,7 @@ var ArenaViews = (function () {
    Charges raised and money received are always reported separately: a bill moved to credit is a charge, not a receipt. */
 var ArenaReports = (function () {
   'use strict';
-  var types = ['CLOSE_DAY', 'BUSINESS_DAY_SETTING'], DAY_MS = 86400000, GAMING = ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling', 'Manual'];
+  var types = ['CLOSE_DAY', 'BUSINESS_DAY_SETTING', 'PAY_QR_SETTING'], DAY_MS = 86400000, GAMING = ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling', 'Manual'];
 
   function check(ok, message) { ArenaCore.check(ok, message); }
   function setting(state, key, fallback) {
@@ -4225,6 +4340,15 @@ var ArenaReports = (function () {
       if (saved) saved.value = cmd.startMinutes; else state.Settings.push({ id: 'businessDayStartMinutes', value: cmd.startMinutes });
       return { message: 'Business day setting saved.' };
     }
+    // The payment QR switched off or on again from Settings (owner, 25 October: "if incase it needs to be removed, make sure
+    // i can anytime"): payQrOff 1 hides it on every screen, 0 shows it.
+    if (cmd.type === 'PAY_QR_SETTING') {
+      check(typeof cmd.on === 'boolean', 'Choose On or Off.');
+      state.Settings = state.Settings || [];
+      var qr = state.Settings.find(function (r) { return r.id === 'payQrOff'; });
+      if (qr) qr.value = cmd.on ? 0 : 1; else state.Settings.push({ id: 'payQrOff', value: cmd.on ? 0 : 1 });
+      return { message: cmd.on ? 'Payment QR is on.' : 'Payment QR is off.' };
+    }
     check(cmd.type === 'CLOSE_DAY', 'Unsupported operation.');
     state.DayCloses = state.DayCloses || [];
     var range = dayRange(state, cmd.dateKey);
@@ -4372,6 +4496,7 @@ var ArenaTurf = (function () {
   // their bill from the start, so they are paid once, together.
   // On hold (owner, 20 October): a slot kept for a new customer until they pay an advance. The advance asked for is kept in
   // the confirmation field as 'hold:<paise>'; confirming clears it, and the usual confirmation then marks it sent.
+  // Held for someone not sure yet (owner, 27 October): no advance asked, kept as 'maybe' until confirmed or cancelled.
   // A weekly series (Bulk booking, owner 21 October): Settings 'turfSeries-<id>' holds its plan; each booking of it carries
   // 'series:<id>' in its reason while booked. Forever keeps about twelve weeks booked ahead and is topped up as days pass.
   var SERIES_AHEAD_DAYS = 84;
@@ -4409,6 +4534,8 @@ var ArenaTurf = (function () {
     return { made: made, skipped: skipped };
   }
   function holdOf(booking) { var m = /^hold:(\d+)$/.exec(String(booking.confirmSent || '')); return m ? Number(m[1]) : 0; }
+  function maybeOf(booking) { return String(booking.confirmSent || '') === 'maybe'; }
+  function heldOf(booking) { return !!holdOf(booking) || maybeOf(booking); }
   function holdMark(value) { check(Number.isSafeInteger(value) && value > 0 && value <= 10000000, 'Enter the advance to ask for.'); return 'hold:' + value; }
   // Money paid towards a one-payer booking before it is billed, at any time: held on the booking's bill, taken off at checkout.
   function advanceOn(state, booking, pay, actor, now, id) {
@@ -4752,7 +4879,7 @@ var ArenaTurf = (function () {
       // An academy's coaching slot: booked in its name at its coaching rate, and on its account.
       var club2 = cmd.academyId ? academy(state, cmd.academyId) : null;
       if (club2) cmd = Object.assign({}, cmd, { customer: club2.name, phone: cmd.phone || ((state.CreditDetails || []).find(function (d) { return d.id === club2.accountId; }) || {}).phone || '' });
-      var person = who(cmd), dates = [cmd.dateKey], made = [], skipped = [], onHold = cmd.holdPaise ? holdMark(cmd.holdPaise) : '';
+      var person = who(cmd), dates = [cmd.dateKey], made = [], skipped = [], onHold = cmd.maybe ? 'maybe' : cmd.holdPaise ? holdMark(cmd.holdPaise) : '';
       // One slot, or several on the same day (another court or hour), booked together on one bill.
       var slots = Array.isArray(cmd.slots) && cmd.slots.length ? cmd.slots : [{ court: cmd.court, startHour: cmd.startHour, hours: cmd.hours }];
       check(slots.length <= 6, 'Book up to six slots at once.');
@@ -4857,7 +4984,7 @@ var ArenaTurf = (function () {
       var moved = changed.dateKey !== booking.dateKey || changed.startHour !== Number(booking.startHour) || changed.hours !== Number(booking.hours) || cmd.court !== booking.court;
       check(!moved || !locked(state, booking), 'This booking is already settled or moved, so its time and court cannot change.');
       // A new time, court or date needs a fresh confirmation.
-      if (moved && !holdOf(booking)) booking.confirmSent = '';
+      if (moved && !heldOf(booking)) booking.confirmSent = '';
       // An academy's slot keeps its coaching rate on another court.
       var coached = accountOf(state, booking.id), club3 = coached ? academies(state).find(function (a) { return a.accountId === coached.accountId; }) : null;
       if (cmd.court !== booking.court) booking.ratePaise = club3 ? coachRate(state, club3, cmd.court) : rateFor(state, cmd.court);
@@ -5034,7 +5161,7 @@ var ArenaTurf = (function () {
       // all of them. Hours chosen that are not next to each other are slots on this booking's bill.
       check(cmd.revision === booking.revision, 'This booking changed on another device. Refresh and try again.');
       check(booking.split !== 'yes' && !linked(state, booking).length, 'Separate hours on a one-payer booking of one slot.');
-      check(!locked(state, booking) && !held(state, booking.tabId) && !holdOf(booking) && !accountOf(state, booking.id), 'This booking is already settled, paid ahead or on hold.');
+      check(!locked(state, booking) && !held(state, booking.tabId) && !heldOf(booking) && !accountOf(state, booking.id), 'This booking is already settled, paid ahead or on hold.');
       var from = Number(booking.startHour), all = [];
       for (var hh = from; hh < from + Number(booking.hours); hh++) all.push(hh);
       var pick = Array.isArray(cmd.hours) ? cmd.hours.map(Number) : [];
@@ -5062,14 +5189,14 @@ var ArenaTurf = (function () {
       return { bookingId: booking.id, receiptNumber: number, amountPaise: cmd.amountPaise, method: cmd.method, message: 'Paid in advance. Receipt ' + number + '.' };
     }
     if (cmd.type === 'TURF_HOLD') {
-      // Every slot booked with it is held too.
-      var mark = holdMark(cmd.amountPaise);
+      // Every slot booked with it is held too: until an advance is paid, or for someone not sure yet.
+      var mark = cmd.maybe ? 'maybe' : holdMark(cmd.amountPaise);
       [booking].concat(linked(state, booking)).forEach(function (b) { b.confirmSent = mark; b.updatedMs = now; b.revision = b.revision + 1; });
-      return { bookingId: booking.id, message: 'On hold until ' + (cmd.amountPaise / 100) + ' is paid.' };
+      return { bookingId: booking.id, message: cmd.maybe ? 'Held until they are sure.' : 'On hold until ' + (cmd.amountPaise / 100) + ' is paid.' };
     }
     if (cmd.type === 'TURF_CONFIRM') {
       // The advance came: recorded (when given) and the hold lifted; the confirmation is sent next.
-      check(!!holdOf(booking), 'This booking is not on hold.');
+      check(heldOf(booking), 'This booking is not on hold.');
       var paidAhead = cmd.advance && cmd.advance.amountPaise ? advanceOn(state, booking, { amountPaise: cmd.advance.amountPaise, method: ArenaCore.payMethod(state, cmd.advance.method) }, actor, now, id) : '';
       [booking].concat(linked(state, booking)).forEach(function (b) { b.confirmSent = ''; b.updatedMs = now; b.revision = b.revision + 1; });
       return { bookingId: booking.id, receiptNumber: paidAhead || undefined, message: 'Booking confirmed.' + (paidAhead ? ' Advance receipt ' + paidAhead + '.' : '') };
@@ -5445,7 +5572,7 @@ var ArenaTurf = (function () {
 
   return {
     handles: function (type) { return types.indexOf(type) >= 0; }, execute: execute, live: live, livePlayers: livePlayers, settlement: settlement, range: range, day: day, importRows: importRows, exportRows: exportRows,
-    memberOf: memberOf, memberPlan: memberPlan, untilOf: untilOf, clash: clash, meet: meet, rentalOf: rentalOf, hoursOf: hoursOf, courtOf: courtOf, linked: linked, holdOf: holdOf, dateKeyOf: dateKeyOf, feeOf: feeOf, rateFor: rateFor, locked: locked, meta: meta, COURTS: COURTS, SPORTS: SPORTS, OPEN_HOUR: OPEN_HOUR, CLOSE_HOUR: CLOSE_HOUR
+    memberOf: memberOf, memberPlan: memberPlan, untilOf: untilOf, clash: clash, meet: meet, rentalOf: rentalOf, hoursOf: hoursOf, courtOf: courtOf, linked: linked, holdOf: holdOf, maybeOf: maybeOf, dateKeyOf: dateKeyOf, feeOf: feeOf, rateFor: rateFor, locked: locked, meta: meta, COURTS: COURTS, SPORTS: SPORTS, OPEN_HOUR: OPEN_HOUR, CLOSE_HOUR: CLOSE_HOUR
   };
 })();
 
@@ -5655,6 +5782,2305 @@ var ArenaArchive = (function () {
 </script>
 <script>
 'use strict';
+/* qrcode-generator 1.4.4 · MIT licence · Kazuhiko Arase */
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(row * cellSize, col * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+
+(function (factory) {
+  if (typeof define === 'function' && define.amd) {
+      define([], factory);
+  } else if (typeof exports === 'object') {
+      module.exports = factory();
+  }
+}(function () {
+    return qrcode;
+}));
+
 /* FLOW_START */
 // One save at a time. The request keeps its ID until the server gives a definite answer,
 // so a lost reply is checked with the same request and can never save twice.
@@ -6096,6 +8522,30 @@ function menu(items, label = 'More') {
   return wrap;
 }
 
+// A small box opened beside what was tapped, to ask there and then (owner, 25 October: "it should ask there only"); over
+// everything, inside the sheet when it was tapped in one; closed by a tap outside it or Esc.
+let popoverOpen = null;
+function popover(anchor, ...content) {
+  closePopover();
+  const box = h('div', { class: 'popover', role: 'dialog' }, ...content);
+  (anchor.closest('dialog') || document.body).append(box);
+  const at = anchor.getBoundingClientRect(), wide = box.offsetWidth, tall = box.offsetHeight;
+  box.style.left = Math.max(8, Math.min(at.left, innerWidth - wide - 8)) + 'px';
+  box.style.top = (at.bottom + 6 + tall > innerHeight - 8 ? Math.max(8, at.top - tall - 6) : at.bottom + 6) + 'px';
+  const outside = e => { if (!box.contains(e.target) && !anchor.contains(e.target)) closePopover(); };
+  const escape = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePopover(); } };
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('keydown', escape, true);
+  popoverOpen = { box, off: () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', escape, true); } };
+  return box;
+}
+function closePopover() {
+  if (!popoverOpen) return;
+  popoverOpen.off();
+  popoverOpen.box.remove();
+  popoverOpen = null;
+}
+
 // Customer name with suggestions from the registry. Picking one fills the mobile number too. The name is always optional
 // (owner, 20 October); only a credit account must have one.
 function customerFields(initialName = '', initialPhone = '', phoneRequired = false) {
@@ -6252,7 +8702,14 @@ function dismissSheet() {
   closeSheet();
   if (next) next();
 }
-// config: { title, sub, caption, icon, tone, build(ui), command(), then(result, command), onClose(), onFailed() }
+// ← Back: where onBack says (the bill after End takes the End back, owner 27 October), otherwise as ✕.
+function goBack() {
+  const back = current && current.onBack;
+  if (!back) return dismissSheet();
+  closeSheet();
+  back();
+}
+// config: { title, sub, caption, icon, tone, build(ui), command(), then(result, command), onClose(), onBack(), onFailed() }
 // build(ui) fills ui.body and ui.foot. ui.primary(label) adds the one main button; it submits command().
 // A sheet opened from another sheet (Add Items from a bill, a bill from a booking) goes back to it on ✕, Esc or Done (owner,
 // 20 October), unless it says where to go itself. A sheet that follows a save does not: the one before it is done with. The
@@ -6279,7 +8736,7 @@ function openSheet(config) {
   $('sheetIcon').replaceChildren(...(config.icon ? [icon(config.icon)] : []));
   sheetStatus('', '');
   // Back shows when there is a sheet to go back to (the one it was opened from, or the place it says).
-  $('sheetBack').hidden = !current.onClose;
+  $('sheetBack').hidden = !(current.onBack || current.onClose);
   const ui = {
     body: $('sheetBody'), foot: $('sheetFoot'),
     primary(label, disabled) {
@@ -6747,20 +9204,11 @@ function groupRow(name, text, ...extras) { return h('div', 'who-row', icon(name)
 // ---------- Groups over several consoles ----------
 // The consoles a bill is playing on, this one first.
 const unitsOfTab = tabId => [...new Set(state.Segments.filter(g => g.tabId === tabId && g.status === 'active').map(g => g.unitId))];
-// A console whose bill also plays on other consoles: "Group · PS5 2 + PS5 3" and one button to end them all.
-function groupStrip(unit) {
-  const tab = billOn(unit), units = tab ? unitsOfTab(tab.id) : [];
-  if (units.length < 2 || ARENA_BRANCH.compactGroups) return null;
-  const names = [unit.id, ...units.filter(id => id !== unit.id)].map(id => (unitOf(id) || {}).name || id);
-  const everyone = state.Segments.filter(g => g.tabId === tab.id && g.status === 'active');
-  return h('div', { class: 'group-strip', data: { group: tab.id } }, icon('users'), h('span', 'group-strip-text', h('b', { text: 'Group' }), h('span', { text: names.join(' + ') })),
-    btn([icon('stop'), 'End Group'], () => endSheet(everyone), 'tonal', { data: { action: 'end-group' } }));
-}
-// Compact groups (Manipal, owner 24–25 October): the card keeps its shape and its buttons (Add Items, Pick to end, End all);
-// End Group is a small red button on the who line and the other consoles are named on the time line.
+// Consoles grouped on one bill keep their card's shape and buttons (Add Items, Pick to end, End all), as on Manipal (owner,
+// 24–25 October): End Group is a small red button on the who line, and the other consoles are named on the time line.
 function compactGroupOf(unit) {
   const tab = billOn(unit), units = tab ? unitsOfTab(tab.id) : [];
-  return units.length >= 2 && ARENA_BRANCH.compactGroups ? { tab, others: units.filter(id => id !== unit.id).map(id => (unitOf(id) || {}).name || id) } : null;
+  return units.length >= 2 ? { tab, others: units.filter(id => id !== unit.id).map(id => (unitOf(id) || {}).name || id) } : null;
 }
 function markCompactGroup(card, unit) {
   const group = compactGroupOf(unit);
@@ -6932,7 +9380,7 @@ function stationCardBody(unit) {
       actions.append(items);
     }
     if (!small) card.append(h('div', { class: 'slots-head', 'aria-hidden': 'true' }, h('span', { text: 'Controllers' }), h('span', { text: 'Session time' })), list);
-    card.append(...[groupStrip(unit)].filter(Boolean), actions);
+    card.append(actions);
     markCompactGroup(card, unit);
     return card;
   }
@@ -7269,7 +9717,8 @@ function addItemsSheet(tab, options = {}) {
 
 // ---------- Ending ----------
 // The rest of a bill when some of its players stop: a bill moved onto it, or items for everyone, owned by nobody still
-// playing (the same rule as END_SELECTION's shared:'these'). Charges left for the others to pay stay out of it.
+// playing (the same rule as END_SELECTION's shared:'these'). Charges left for the others to pay stay out of it: they are
+// listed apart (closedEarlier).
 function restOfBill(segments) {
   const ids = new Set(segments.map(g => g.id)), tabs = new Set(segments.map(g => g.tabId));
   const staying = new Set(state.Segments.filter(g => g.status === 'active' && tabs.has(g.tabId) && !ids.has(g.id)).map(g => g.id));
@@ -7277,21 +9726,31 @@ function restOfBill(segments) {
   const left = new Set(state.Endings.filter(e => e.status === 'shared' && tabs.has(e.originalTabId)).map(e => e.segmentId));
   return [...tabs].flatMap(t => segmentsOf(t).filter(g => g.status === 'ended' && !left.has(g.id)).concat(ordersOf(t).filter(o => !owned.has(o.id))));
 }
-function endSheet(segments) {
+// Controllers on these bills that stopped earlier and left their time for the others (Others will pay).
+function closedEarlier(segments) {
+  const tabs = new Set(segments.map(g => g.tabId));
+  const left = new Set(state.Endings.filter(e => e.status === 'shared' && tabs.has(e.originalTabId)).map(e => e.segmentId));
+  return state.Segments.filter(g => left.has(g.id) && tabs.has(g.tabId) && g.status === 'ended');
+}
+// memory: the ticks as they were, when the bill after End goes Back to it.
+function endSheet(segments, memory = null) {
   if (!segments.length) return;
   const unit = unitOf(segments[0].unitId);
   const ps5 = unit.category === 'PS5', units = [...new Set(segments.map(g => g.unitId))];
   // A group over several consoles ends all of them together (owner, 20 October).
   const title = units.length > 1 ? 'End Group · ' + units.length + ' consoles' : !ps5 ? 'End ' + unit.name : segments.length === 1 ? 'End Controller ' + segments[0].controller : 'End ' + segments.length + ' controllers';
-  // Some stop while others play on (owner, 21 October): one list of what they can pay for now: their own time (ticked),
-  // the items on the system and any bill moved onto it (none of them yet). They tick what they pay; End & Settle opens the
-  // bill with just that, to pay, put on credit, move or keep pending; everything not ticked stays on the system.
-  // own: their controllers paying now. rows: the rest, one row per system moved here and one per item; picks: how many.
-  let time, rows = [];
-  const own = new Set(segments.map(g => g.id)), picks = new Map();
+  // Some stop while others play on (owner, 21 and 27 October): what they could pay for now, nothing ticked at first, in
+  // sections: Stopping now (their own time), Closed earlier (controllers that stopped before and left their time for the
+  // others), Moved here, Items (a tick takes all of an item, − pays for fewer). Nothing ticked: Others will pay, all stays on
+  // the system. Something ticked: Collect. Their own time not ticked is asked for (Others will pay, Credit or Pending); with
+  // Credit or Pending it goes on the bill too, the amount received set to what is ticked and the rest asked there.
+  // own: their controllers paying now. rows: the rest; picks: how many of each. rest: their unticked time.
+  let time, rows = [], rest = memory ? memory.rest : 'others', paidNow = 0;
+  const own = new Set(memory ? memory.own : []), picks = new Map(memory ? memory.picks : []);
   const ids = new Set(segments.map(g => g.id)), tabs = new Set(segments.map(g => g.tabId));
   const others = () => state.Segments.filter(g => g.status === 'active' && tabs.has(g.tabId) && !ids.has(g.id));
   const shared = () => pickedLines(rows, picks);
+  const controllerLabel = g => ps5 ? controllerNode(g) : (tabOf(g.tabId) || {}).customer || g.player;
   openSheet({
     title,
     sub: ps5 ? groupNames(segments) : '',
@@ -7311,35 +9770,55 @@ function endSheet(segments) {
         tick();
         return;
       }
-      rows = pickRows(restOfBill(segments));
-      // Their own time: a tick each.
-      const tickLine = (selected, onclick, main, right, data) => h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(selected), data, onclick },
-        h('input', { type: 'checkbox', checked: selected, tabindex: '-1', 'aria-hidden': 'true' }), main, right);
-      const card = h('div', { class: 'lines end-pick', data: { field: 'end-pick' } });
-      for (const g of segments) {
-        card.append(tickLine(own.has(g.id), () => { if (own.has(g.id)) own.delete(g.id); else own.add(g.id); ui.redraw(); },
-          h('div', 'line-main', h('b', null, ps5 ? controllerNode(g) : (tabOf(g.tabId) || {}).customer || g.player), h('span', { class: 'small muted', text: (units.length > 1 ? (unitOf(g.unitId) || {}).name + ' · ' : '') + 'since ' + when(g.startMs) })), timer(g, true), { segment: g.id }));
-      }
-      card.append(...pickLines(rows, picks, () => ui.redraw(), o => removeOne(o, () => { picks.set(o.id, Math.min(picks.get(o.id) || 0, Number(o.quantity) - 1)); ui.redraw(); return null; })));
-      ui.body.append(h('div', 'group-title', icon('wallet'), (segments.length === 1 ? 'This one pays' : 'These ' + segments.length + ' pay') + ' for'), card);
+      const closed = closedEarlier(segments).map(g => ({ key: 'seg:' + g.id, name: ps5 ? (/^Controller \d$/.test(g.player || '') || !g.player ? 'Controller ' + g.controller : g.player) : (tabOf(g.tabId) || {}).customer || g.player, timers: [g], most: 1, price: 'stopped ' + when(g.endMs) + ' · others to pay', worth: () => g.totalPaise }));
+      rows = pickRows(restOfBill(segments), true).concat(closed);
+      for (const row of rows) if ((picks.get(row.key) || 0) > row.most) picks.set(row.key, row.most);
+      const redraw = () => ui.redraw(), bin = o => removeOne(o, () => { ui.redraw(); return null; });
+      const section = (name, title, lines, field) => lines.length ? ui.body.append(h('div', 'group-title', icon(name), title), h('div', { class: 'lines end-pick', data: { field } }, lines)) : null;
+      // Stopping now: a tick each for the ones who pay their own time now.
+      section(unit.category, 'Stopping now', segments.map(g => h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(own.has(g.id)), data: { segment: g.id }, onclick: () => { if (own.has(g.id)) own.delete(g.id); else own.add(g.id); ui.redraw(); } },
+        h('input', { type: 'checkbox', checked: own.has(g.id), tabindex: '-1', 'aria-hidden': 'true' }),
+        h('div', 'line-main', h('b', null, controllerLabel(g)), h('span', { class: 'small muted', text: (units.length > 1 ? (unitOf(g.unitId) || {}).name + ' · ' : '') + 'since ' + when(g.startMs) })), timer(g, true))), 'end-pick');
+      section('history', 'Closed earlier', pickLines(closed, picks, redraw), 'end-closed');
+      section('transfer', 'Moved here', pickLines(rows.filter(row => row.timers && !row.key.startsWith('seg:')), picks, redraw), 'end-moved');
+      section('snack', 'Items', pickLines(rows.filter(row => row.order), picks, redraw, bin), 'end-items');
       ui.body.append(h('div', { style: 'margin-top:16px' }, time.node));
       const paying = own.size > 0 || rows.some(row => (picks.get(row.key) || 0) > 0);
-      ui.primary(paying ? 'End & Settle' : 'End · All Stays on the System');
+      // Their own time not ticked, when they pay for something else: who pays it (owner, 27 October).
+      if (paying && own.size < segments.length) {
+        const choice = segmented([['others', 'Others will pay', 'users'], ['credit', 'Credit', 'credits'], ['pending', 'Pending', 'clock']], rest, v => { rest = v; });
+        choice.node.dataset.field = 'end-rest';
+        ui.foot.append(h('div', 'end-rest', h('span', { class: 'small muted', text: own.size ? 'The others’ time' : 'Their time' }), choice.node));
+      }
+      ui.primary(paying ? 'Collect' : 'Others will pay');
       tick();
     },
     command: () => {
       const segmentIds = segments.map(g => g.id);
       if (!others().length) return { type: 'END_SELECTION', segmentIds, endMs: time.value() };
-      const leave = segmentIds.filter(id => !own.has(id));
-      if (leave.length === segmentIds.length) return { type: 'END_SELECTION', segmentIds, endMs: time.value(), keep: true, shared: shared() };
-      return { type: 'END_SELECTION', segmentIds, endMs: time.value(), leave: leave.length ? leave : undefined, shared: shared() };
+      const picksNow = shared(), paying = own.size > 0 || !!picksNow;
+      paidNow = rows.reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0);
+      if (!paying) return { type: 'END_SELECTION', segmentIds, endMs: time.value(), keep: true };
+      // Credit or Pending for their own time: all of it on the bill, the rest asked there.
+      const leave = rest === 'others' ? segmentIds.filter(id => !own.has(id)) : [];
+      if (leave.length === segmentIds.length) return { type: 'END_SELECTION', segmentIds, endMs: time.value(), keep: true, shared: picksNow };
+      return { type: 'END_SELECTION', segmentIds, endMs: time.value(), leave: leave.length ? leave : undefined, shared: picksNow };
     },
-    // The controllers ended are forgotten; the ones still playing stay unchosen. What they pay opens to be settled.
+    // The controllers ended are forgotten; the ones still playing stay unchosen. What they pay opens to be settled, with the
+    // amount set to what was ticked when the rest of their time goes to credit or pending.
     then(result) {
       for (const g of segments) picked.delete(g.id);
       render();
       if (result.kept && !result.restTabId) { closeSheet(); return null; }
-      settleSheet(result.restTabId || result.tabId);
+      const asking = rest !== 'others' && own.size < segments.length;
+      const ownPaid = segments.filter(g => own.has(g.id)).reduce((total, g) => total + ((state.Segments.find(x => x.id === g.id) || g).totalPaise || 0), 0);
+      const billId = result.restTabId || result.tabId, memo = { own: [...own], picks: [...picks], rest };
+      // Back (owner, 27 October): the End taken back while nothing is paid, and this screen again with the same ticks.
+      const back = () => runCommand({ type: 'REOPEN_END', tabId: billId, segmentIds: segments.map(g => g.id) }, () => {
+        endSheet(segments.map(g => state.Segments.find(x => x.id === g.id)).filter(g => g && g.status === 'active'), memo);
+        return null;
+      });
+      settleSheet(billId, 'pay', { ...(asking ? { receive: ownPaid + paidNow, rest } : {}), back });
       return null;
     }
   });
@@ -7418,12 +9897,23 @@ function pendingFields(draft) {
 function tableExtras(tab, game) {
   return segmentsOf(tab.id).filter(g => g.status === 'ended' && g.unitId !== game.unitId).concat(ordersOf(tab.id).filter(o => o.category !== 'Turf' && o.category !== 'Carried'));
 }
-// Rows to tick or count: one per system (all its time) and one per item. picks holds how many of each row.
-function pickRows(lines) {
+// Rows to tick or count: one per system (all its time) and one per item. picks holds how many of each row. byItem: the same
+// item at the same price is one row with its whole count, however many times it was added (owner, 27 October: "A and B ...
+// cant you add to the same thing"); the bin then takes one off its latest line.
+function pickRows(lines, byItem = false) {
   return [...new Set(lines.filter(x => x.unitId).map(x => x.unitId))].map(unitId => {
     const timers = lines.filter(x => x.unitId === unitId), same = timers.every(g => g.totalPaise === timers[0].totalPaise);
     return { key: 'unit:' + unitId, name: (unitOf(unitId) || {}).name || unitId, timers, most: timers.length, price: (same ? money(timers[0].totalPaise) + ' each' : money(timers.reduce((total, g) => total + g.totalPaise, 0)) + ' in all') + ' · moved here', worth: n => timers.slice(0, n).reduce((total, g) => total + g.totalPaise, 0) };
-  }).concat(lines.filter(x => !x.unitId).map(o => ({ key: o.id, name: o.label, order: o, most: Number(o.quantity), price: money(o.unitPricePaise) + ' each', worth: n => n * o.unitPricePaise })));
+  }).concat(byItem ? itemRows(lines.filter(x => !x.unitId)) : lines.filter(x => !x.unitId).map(o => ({ key: o.id, name: o.label, order: o, most: Number(o.quantity), price: money(o.unitPricePaise) + ' each', worth: n => n * o.unitPricePaise })));
+}
+function itemRows(orders) {
+  const groups = new Map();
+  for (const o of orders) {
+    const key = 'item:' + (o.productId || o.label) + ':' + o.unitPricePaise;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(o);
+  }
+  return [...groups].map(([key, list]) => ({ key, name: list[0].label, order: list[0], orders: list, binOrder: list[list.length - 1], most: list.reduce((n, o) => n + Number(o.quantity), 0), price: money(list[0].unitPricePaise) + ' each', worth: n => n * list[0].unitPricePaise }));
 }
 // The bin (owner, 21 October): an item added by mistake comes off the bill one at a time (2 becomes 1; the last one takes the
 // line), recorded with its reason; then runs `after`.
@@ -7437,10 +9927,11 @@ function pickLines(rows, picks, redraw, remove = null) {
   return rows.map(row => {
     const n = picks.get(row.key) || 0, set = v => { picks.set(row.key, Math.max(0, Math.min(row.most, v))); redraw(); }, data = { pick: row.order ? row.order.id : row.key };
     const main = h('div', 'line-main', h('b', { text: row.name }), h('span', { class: 'small muted', text: row.price + (row.most > 1 ? ' · ' + row.most + ' on the bill' : '') }));
-    const bin = remove && row.order ? h('button', { type: 'button', class: 'item-remove', 'aria-label': 'Remove one ' + row.name + ' from the bill', title: 'Remove one from the bill', data: { action: 'item-remove' }, onclick: e => { e.stopPropagation(); remove(row.order); } }, icon('trash')) : null;
+    const bin = remove && row.order ? h('button', { type: 'button', class: 'item-remove', 'aria-label': 'Remove one ' + row.name + ' from the bill', title: 'Remove one from the bill', data: { action: 'item-remove' }, onclick: e => { e.stopPropagation(); remove(row.binOrder || row.order); } }, icon('trash')) : null;
     if (row.most === 1) return h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(n === 1), data, onclick: () => set(n ? 0 : 1) },
       h('input', { type: 'checkbox', checked: n === 1, tabindex: '-1', 'aria-hidden': 'true' }), main, bin, h('span', { class: 'line-amount', text: money(row.worth(1)) }));
-    return h('div', { class: 'line', data }, main,
+    return h('div', { class: 'line pick-count', data },
+      h('input', { type: 'checkbox', checked: n > 0, 'aria-label': 'All ' + row.most + ' ' + row.name, data: { action: 'pick-all' }, onchange: () => set(n > 0 ? 0 : row.most) }), main,
       h('span', 'item-tools', h('span', 'step', h('button', { type: 'button', 'aria-label': 'One fewer ' + row.name, disabled: n === 0, data: { action: 'pick-less' }, onclick: () => set(n - 1) }, icon('minus')), h('b', { class: 'qty-n', text: n + ' of ' + row.most }), h('button', { type: 'button', 'aria-label': 'One more ' + row.name, disabled: n === row.most, data: { action: 'pick-more' }, onclick: () => set(n + 1) }, icon('plus'))), bin),
       h('span', { class: 'line-amount', text: money(row.worth(n)) }));
   });
@@ -7448,7 +9939,17 @@ function pickLines(rows, picks, redraw, remove = null) {
 // The picks as the server takes them: the time ticked (ids) and how many of each item.
 function pickedLines(rows, picks) {
   const chosen = rows.map(row => [row, picks.get(row.key) || 0]).filter(([, n]) => n > 0);
-  return chosen.length ? { ids: chosen.filter(([row]) => row.timers).flatMap(([row, n]) => row.timers.slice(0, n).map(g => g.id)), items: chosen.filter(([row]) => row.order).map(([row, n]) => ({ orderId: row.order.id, quantity: n })) } : undefined;
+  return chosen.length ? { ids: chosen.filter(([row]) => row.timers).flatMap(([row, n]) => row.timers.slice(0, n).map(g => g.id)), items: chosen.filter(([row]) => row.order).flatMap(([row, n]) => spread(row.orders || [row.order], n)) } : undefined;
+}
+// n of an item over its lines, oldest first.
+function spread(orders, n) {
+  const out = [];
+  for (const o of orders) {
+    const take = Math.min(n, Number(o.quantity));
+    if (take > 0) out.push({ orderId: o.id, quantity: take });
+    n -= take;
+  }
+  return out;
 }
 // Items on a table paid on their own (owner, 24 October): how many of each, paid in full now; the table plays on and the rest
 // stays on it.
@@ -7657,13 +10158,23 @@ function drawLines(body, lines) {
   // Ticks (a bill being settled, owner 21 October): every line ticked to be paid now; untick what they are not paying now.
   // ticks: { off: Set of line ids unticked, toggle(ids) }.
   const tickBox = ids => (lines.ticks ? h('input', { type: 'checkbox', class: 'line-tick', checked: !ids.some(lid => lines.ticks.off.has(lid)), 'aria-label': 'Paying now', data: { action: 'line-tick' }, onclick: e => { e.stopPropagation(); lines.ticks.toggle(ids); } }) : null);
-  for (const g of segments) { if (!byUnit.has(g.unitId)) byUnit.set(g.unitId, []); byUnit.get(g.unitId).push(g); }
-  for (const [unitId, list] of byUnit) {
-    const unit = unitOf(unitId), card = h('div', 'lines');
+  // What is charged for what (owner, 27 October: "why are the closed controllers clubbed", "make sure its easy to understand
+  // what is being charged for what"): controllers that stopped earlier and left their time for the others are a section of
+  // their own (System · Closed earlier) under the ones ended now (System · Ended now), each section with its total.
+  const wasEarlier = g => !!(lines.earlier && lines.earlier.has(g.id));
+  for (const g of segments.filter(x => !wasEarlier(x)).concat(segments.filter(wasEarlier))) {
+    const key = g.unitId + (wasEarlier(g) ? ':earlier' : '');
+    if (!byUnit.has(key)) byUnit.set(key, []);
+    byUnit.get(key).push(g);
+  }
+  for (const [key, list] of byUnit) {
+    const unitId = list[0].unitId, closedEarlierHere = key.endsWith(':earlier'), unit = unitOf(unitId), card = h('div', 'lines');
+    const part = closedEarlierHere ? ' · Closed earlier' : byUnit.has(unitId + ':earlier') ? ' · Ended now' : '';
+    const partTotal = part && list.every(g => g.status !== 'active') ? h('span', { class: 'group-sum', text: money(list.reduce((total, g) => total + Number(g.totalPaise || 0), 0)) }) : null;
     for (const g of list) {
       const running = g.status === 'active', quote = running && lines.quotes ? lines.quotes[g.id] : null;
       // Started, paused, ended and charged, in words (owner, 24 October), so a question about the time is answered here.
-      const said = timerWords(g, lines.pauses || state.Pauses || [], quote), earlier = lines.earlier && lines.earlier.has(g.id) ? 'earlier' : '';
+      const said = timerWords(g, lines.pauses || state.Pauses || [], quote), earlier = '';
       const span = [said.started, said.ended].filter(Boolean).join(' · ');
       const billed = [said.paused, said.charged, earlier].filter(Boolean).join(' · ');
       // A bowling game is per game, so its line is its people and price, with no time (owner, 22 October).
@@ -7682,7 +10193,7 @@ function drawLines(body, lines) {
       const count = list.length > 1 ? list.length + (unit && unit.category === 'PS5' ? ' controllers' : ' sessions') + ' · ' : '';
       const fold = folded(unit ? unit.category : 'floor', unit ? unit.name : unitId, count + 'added from another bill', list.reduce((sum, g) => sum + g.totalPaise, 0), box => box.append(card), tickBox(list.map(g => g.id)));
       body.append(h('section', 'bill-group folded', fold.head, fold.details));
-    } else body.append(h('section', 'bill-group', h('div', 'group-title', icon(unit ? unit.category : 'floor'), unit ? unit.name : unitId), card));
+    } else body.append(h('section', 'bill-group', h('div', 'group-title', icon(closedEarlierHere ? 'history' : unit ? unit.category : 'floor'), (unit ? unit.name : unitId) + part, partTotal), card));
   }
   // The turf fee or a player's share of it: its own heading, and it follows the booking, so it has no edit menu here.
   // Rackets and shuttlecocks have their own group on a court bill (owner, 22 October).
@@ -7730,7 +10241,7 @@ function drawLines(body, lines) {
     const firstRental = [...card.children].find(n => { const o = goods.find(x => x.id === (n.dataset && n.dataset.order)); return o && isRental(o); });
     if (firstRental) card.insertBefore(h('div', { class: 'group-title rent-title', data: { rentals: '' } }, icon('badminton'), 'Rentals'), firstRental);
     const onlyRentals = goods.every(isRental);
-    body.append(h('section', 'bill-group', onlyRentals ? null : h('div', 'group-title', icon('sales'), 'Snacks & beverages'), card));
+    body.append(h('section', 'bill-group', onlyRentals ? null : h('div', 'group-title', icon('sales'), 'Snacks & beverages', byUnit.size ? h('span', { class: 'group-sum', text: money(goods.reduce((total, o) => total + Number(o.totalPaise || 0), 0)) }) : null), card));
   }
   return segments.length + turf.length + brought.length + goods.length;
 }
@@ -7740,7 +10251,8 @@ function broughtIn(tab, earlier) {
   return new Set(segmentsOf(tab.id).filter(g => g.status === 'ended' && !earlier.has(g.id) && !state.Endings.some(e => e.segmentId === g.id && e.reviewTabId === tab.id)).map(g => g.id));
 }
 
-function settleSheet(tabId, mode = 'pay') {
+// preset: { receive, rest } from End N of M: the amount received set to what they ticked, the rest (credit or pending) asked.
+function settleSheet(tabId, mode = 'pay', preset = null) {
   const tab = tabOf(tabId);
   if (!tab || tab.status !== 'open') { closeSheet(); return; }
   // Opened straight to Pending (a pool or snooker game's Pending): nothing received, kept under a name.
@@ -7750,6 +10262,7 @@ function settleSheet(tabId, mode = 'pay') {
   if (pendingFirst || discountFirst) mode = 'pay';
   const draft = { discount: '', received: '', edited: false, pay: {}, account: newAccountStore(), toAccount: mode === 'credit', rest: '', pendingName: tab.customer === 'Walk-in' ? '' : tab.customer, pendingPhone: tab.phone || '' };
   if (pendingFirst) { draft.edited = true; draft.received = '0'; draft.rest = 'pending'; }
+  if (preset && preset.receive != null) { draft.edited = true; draft.received = String(preset.receive / 100); draft.rest = preset.rest; }
   let picker = null;
   const comment = commentField();
   // Lines not paid now (unticked): they stay on this bill, to be moved, put on credit or kept pending after.
@@ -7783,7 +10296,8 @@ function settleSheet(tabId, mode = 'pay') {
   // Split: what the cash and UPI boxes add up to; otherwise the amount typed, or what is due.
   const receivedPaise = () => { const split = draft.how ? draft.how.paid() : null; return split != null ? split : draft.edited ? toPaise(draft.received || 0) : mode === 'pay' ? duePaise() : 0; };
   // Part of a group paying now: the rest can stay on the group's system, where the others pay it at the end.
-  const keepLabel = group ? 'Keep on ' + (unitsOfTab(group.id).map(id => (unitOf(id) || {}).name || id).join(' + ') || group.customer + '’s bill') : '';
+  // The rest kept on the group's system for the ones still playing: Others will pay (owner, 27 October, in his words).
+  const keepWhere = group ? unitsOfTab(group.id).map(id => (unitOf(id) || {}).name || id).join(' + ') || group.customer + '’s bill' : '', keepLabel = group ? 'Others will pay' : '';
 
   openSheet({
     title: tab.customer,
@@ -7791,8 +10305,11 @@ function settleSheet(tabId, mode = 'pay') {
     caption: !tab.phone && tab.kind !== 'quick_sale',
     icon: 'user',
     focus: discountFirst ? '[data-field=discount]' : false,
-    // Closing one player's bill returns to the list of players still to settle, when there is one.
-    onClose: () => returnToSplit(tab.id),
+    // Closing one player's bill returns to the list of players still to settle, when there is one; Back only shows then
+    // (owner, 27 October: Back on a bill opened after End closed everything).
+    onClose: returnsTo(tab.id) ? () => returnToSplit(tab.id) : undefined,
+    // After End: Back takes the End back, until something is paid here.
+    onBack: preset && preset.back && !heldFor([tab.id]) ? preset.back : undefined,
     build(ui) {
       // An item changed here redraws this bill in place, so the ticks and what was typed stay (owner, 21 October).
       // Ticks when there is more than one line and nothing that must go with the bill (a turf fee, a carried amount).
@@ -7887,10 +10404,9 @@ function settleSheet(tabId, mode = 'pay') {
         // The large figure is what is still outstanding, after the discount typed at the top (not said again here). Rows above
         // it appear only when money was already paid towards this bill (total bill, paid, and by whom).
         // With charges from earlier: this session's total, then what is still owed from earlier; the large figure is both.
-        const owedEarlier = earlier.total - earlier.paid, ownAhead = advance - Math.min(advance, earlier.paid);
-        sums.replaceChildren(...(mode === 'credit' ? [] : earlier.total > 0 && valid && back <= 0
-          ? [sum('This session', money(sub - earlier.total)), ...(owedEarlier > 0 ? [sum('Previous outstanding', money(owedEarlier))] : []), ...(ownAhead > 0 ? [sum('Paid in advance', '−' + money(ownAhead), 'good')] : [])]
-          : [...(advance > 0 ? [sum('Total bill', money(total)), sum(paidLabel, '−' + money(advance + back), 'good')] : [])]));
+        // One total (owner, 27 October): what each part is for is on the bill above, each section with its total; only money
+        // already paid towards it is shown here.
+        sums.replaceChildren(...(mode === 'credit' ? [] : advance > 0 ? [sum('Total bill', money(total)), sum(paidLabel, '−' + money(advance + back), 'good')] : []));
         // Nothing to take when the bill is already paid for; the form for money received steps aside.
         receivedRow.hidden = back > 0;
         totalValue.textContent = valid ? money(due) : 'Check discount';
@@ -7911,7 +10427,7 @@ function settleSheet(tabId, mode = 'pay') {
         restBox.replaceChildren(...(asking ? [h('div', 'rest-title', h('span', { text: 'The other ' + money(left) }), draft.rest === 'keep' && paid ? h('span', { class: 'small muted', text: money(paid) + ' counts as paid towards it' }) : null), restPick.node,
           ...(draft.rest === 'pending' ? [pendingBox.node] : [])] : []));
         const label = back > 0 ? 'Hand Back ' + money(back) + ' · Close Bill' : mode === 'credit' ? (paid > 0 ? 'Collect ' + money(paid) + ' · ' + money(Math.max(0, left)) + ' to Credit' : 'Move ' + money(Math.max(0, left)) + ' to Credit')
-          : asking ? (!draft.rest ? 'Choose for the other ' + money(left) : draft.rest === 'keep' ? (paid > 0 ? 'Collect ' + money(paid) + ' · Keep ' + money(left) : 'Keep ' + money(left) + ' on the system') : (paid > 0 ? 'Collect ' + money(paid) + ' · ' + money(left) + ' Pending' : 'Keep ' + money(left) + ' Pending'))
+          : asking ? (!draft.rest ? 'Choose for the other ' + money(left) : draft.rest === 'keep' ? (paid > 0 ? 'Collect ' + money(paid) + ' · Others pay ' + money(left) : 'Others pay ' + money(left)) : (paid > 0 ? 'Collect ' + money(paid) + ' · ' + money(left) + ' Pending' : 'Keep ' + money(left) + ' Pending'))
             : paid > 0 ? 'Collect Payment · ' + money(paid) : 'Close Bill';
         primary.dataset.label = label;
         // Collecting money shows the wallet; every way of closing ends in an arrow, as in the owner's picture.
@@ -7950,7 +10466,7 @@ function settleSheet(tabId, mode = 'pay') {
       // Part settled: back to this bill with what was not ticked, to move it, put it on credit or keep it pending.
       if (result.restTabId) { settleSheet(result.restTabId); return { text: took + 'The rest is still on this bill.' }; }
       // Kept on the group's system, or left pending: back to where the receptionist was, with a note.
-      if (command.type === 'KEEP_SHARED') { closeSheet(); render(); return { text: took + 'The rest stays on ' + keepLabel.replace(/^Keep on /, '') + '.' }; }
+      if (command.type === 'KEEP_SHARED') { closeSheet(); render(); return { text: took + 'The rest stays on ' + keepWhere + ' for the others to pay.' }; }
       if (command.pending) {
         const left = state.Bills.find(x => x.id === result.billId), owed = left ? left.totalPaise - left.paidPaise : 0;
         closeSheet();
@@ -7977,6 +10493,10 @@ let splitQueue = null;
 // A turf bill (the booking's own or a player's) goes back to its booking.
 // Where a bill made apart from somewhere else goes back to (an academy's items taken off its slot: back to the booking).
 const tabReturns = new Map();
+function returnsTo(tabId) {
+  const booking = turfBookingForTab(tabId);
+  return tabReturns.has(tabId) || !!(splitQueue && splitQueue.tabIds.includes(tabId)) || !!(booking && !['settled', 'pending'].includes(turfStatusOf(booking.id).state));
+}
 function returnToSplit(tabId) {
   if (tabReturns.has(tabId)) { tabReturns.get(tabId)(); return; }
   const booking = turfBookingForTab(tabId);
@@ -8337,6 +10857,89 @@ function whatsappLink(phone, text) {
 }
 function whatsapp(phone, text) {
   window.open(whatsappLink(phone, text), '_blank', 'noopener');
+}
+// ---------- A payment QR (owner, 25 October): a UPI QR with the amount filled in, sent as a picture on WhatsApp ----------
+// Free: the picture is made here and sent by hand (no paid WhatsApp plan). The UPI ID is the owner's for now ("for time
+// being, chethanlobo@ybl"); since 25 October City Arena's own business ID, from the owner's picture of the counter's
+// Google Pay stand (web-config.json pay.upi).
+// From web-config.json "pay" (the build puts it here): { upi, name, live }. live: the QR is shown and copied;
+// off in a release until the owner says so (owner, 25 October), on in the preview and the TEST app.
+const PAY_CONFIG = {"upi":"","name":"City Arena","live":false};
+const PAY_UPI = { id: PAY_CONFIG.upi, name: PAY_CONFIG.name };
+// In the build and not switched off in Settings (payQrOff; owner, 25 October).
+const payQrOn = () => PAY_CONFIG.live && !(state && settingValue('payQrOff', 0) === 1);
+// The UPI ID with its @ as it is (some UPI apps do not read %40).
+const upiLink = (paise, note) => 'upi://pay?pa=' + encodeURIComponent(PAY_UPI.id).replace('%40', '@') + '&pn=' + encodeURIComponent(PAY_UPI.name) + '&am=' + (paise / 100).toFixed(2) + '&cu=INR' + (note ? '&tn=' + encodeURIComponent(note.slice(0, 50)) : '');
+// The picture: the name, the QR, the amount and what it is for, on white, large enough to scan from a phone screen.
+function paymentQrCanvas(paise, note) {
+  const qr = qrcode(0, 'M');
+  qr.addData(upiLink(paise, note));
+  qr.make();
+  const count = qr.getModuleCount(), cell = 10, quiet = 4, size = (count + quiet * 2) * cell, top = 76, bottom = 112;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size + top + bottom;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  g.textAlign = 'center';
+  g.fillStyle = '#1f1b16';
+  g.font = 'bold 34px sans-serif';
+  g.fillText(PAY_UPI.name, size / 2, 52);
+  for (let r = 0; r < count; r++) for (let c = 0; c < count; c++) if (qr.isDark(r, c)) g.fillRect((c + quiet) * cell, top + (r + quiet) * cell, cell, cell);
+  g.font = 'bold 44px sans-serif';
+  g.fillText(money(paise), size / 2, top + size + 48);
+  g.font = '24px sans-serif';
+  g.fillStyle = '#5b5246';
+  g.fillText((note || 'Scan with any UPI app').slice(0, 48), size / 2, top + size + 88);
+  return canvas;
+}
+// The QR picture to the clipboard, on the tap itself (a browser allows it only then), to paste into the chat (Ctrl+V).
+// Resolves true once copied.
+function copyPaymentQr(paise, note) {
+  const picturePng = new Promise(done => paymentQrCanvas(paise, note).toBlob(done, 'image/png'));
+  try {
+    return navigator.clipboard.write([new ClipboardItem({ 'image/png': picturePng })]).then(() => true, () => false);
+  } catch (e) {
+    return Promise.resolve(false);
+  }
+}
+// Amount, mobile and what it is for; the QR shows as it is typed. Send on WhatsApp copies the picture and opens the
+// customer's chat with the message, where the picture is pasted (Ctrl+V) and sent (owner, 25 October: "the image gets
+// copied and i just paste it"; no pay link, no share menu).
+function paymentQrSheet(preset) {
+  let amount, phone, note;
+  openSheet({
+    title: 'Payment QR',
+    sub: 'UPI · ' + PAY_UPI.id,
+    icon: 'upi',
+    tone: 'jade',
+    focus: preset.amountPaise ? false : undefined,
+    build(ui) {
+      amount = amount || h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: preset.amountPaise ? String(preset.amountPaise / 100) : '', 'aria-label': 'Amount', data: { field: 'qr-amount' } });
+      phone = phone || h('input', { type: 'tel', inputmode: 'numeric', value: preset.phone || '', 'aria-label': 'Mobile', data: { field: 'qr-phone' } });
+      note = note || h('input', { type: 'text', value: preset.note || '', placeholder: 'Turf advance, bill…', 'aria-label': 'For', data: { field: 'qr-note' } });
+      const picture = h('div', { class: 'qr-picture', data: { field: 'qr-picture' } });
+      ui.body.append(h('div', 'share-top', field('Amount (₹)', amount), field('Mobile', phone)), field('For (optional)', note), picture);
+      const words = paise => 'Please pay ' + money(paise) + (note.value.trim() ? ' · ' + note.value.trim() : '') + ' to ' + PAY_UPI.name + '. Scan the QR with any UPI app.';
+      // The picture copied and the chat opened, on the tap itself (a browser allows both only then).
+      const send = btn([icon('whatsapp'), 'Send on WhatsApp'], () => {
+        const paise = toPaise(amount.value || 0);
+        if (!(paise > 0)) return;
+        copyPaymentQr(paise, note.value.trim()).then(copied => (copied ? sheetStatus('success', 'QR copied. Paste it in the chat (Ctrl+V) and send.') : sheetStatus('error', 'The picture could not be copied here.')));
+        whatsapp(phone.value.trim(), words(paise));
+      }, 'primary block', { data: { action: 'qr-whatsapp' } });
+      ui.foot.append(send);
+      const paint = () => {
+        const paise = toPaise(amount.value || 0);
+        picture.replaceChildren(paise > 0 ? paymentQrCanvas(paise, note.value.trim()) : h('p', { class: 'muted', text: 'Type the amount to see the QR.' }));
+        send.disabled = !(paise > 0);
+      };
+      amount.oninput = paint;
+      note.oninput = paint;
+      paint();
+    }
+  });
 }
 // A message that goes only once a save is confirmed. A browser opens a window only on the tap itself, so the window
 // is opened then, empty, and given the message after the save; if the save fails it is closed and nothing is sent.
@@ -10207,6 +12810,9 @@ const setupPage = {
           btn('Save', () => runCommand({ type: 'RESERVATION_SETTINGS', horizon: Number(horizon.value), grace: Number(grace.value) }, () => {}))),
         h('section', 'panel', head('sun', 'Business day'), field('The report day starts at', dayStart),
           btn('Save', () => runCommand({ type: 'BUSINESS_DAY_SETTING', startMinutes: Number(dayStart.value) }, () => {}))),
+        // The payment QR on or off for every screen, at once, without a release (owner, 25 October).
+        PAY_CONFIG.live ? h('section', { class: 'panel', data: { field: 'pay-qr-setting' } }, head('upi', 'Payment QR'),
+          segmented([['on', 'On', 'check'], ['off', 'Off', 'close']], payQrOn() ? 'on' : 'off', v => runCommand({ type: 'PAY_QR_SETTING', on: v === 'on' }, () => {})).node) : null,
         h('section', 'panel', head('drive', 'Backups', backupError ? 'bad' : ''),
           h('div', 'kv', h('span', { text: 'Last backup' }), h('b', { text: session.lastBackup ? when(Date.parse(session.lastBackup)) : 'None yet' })),
           backupError ? h('p', { class: 'small', style: 'color:var(--danger);margin:8px 0', text: 'Last scheduled backup failed on ' + when(Date.parse(backupError.at)) + ': ' + backupError.message }) : null,
@@ -10613,6 +13219,9 @@ function newYearWishes() {
 // A confirmation sent with festival wishes (chosen, or New Year's on its days) follows the owner's festive sample.
 // On hold until an advance is paid (Turf.gs): the advance asked for, or 0.
 const turfHoldOf = b => { const m = /^hold:(\d+)$/.exec(String(b.confirmSent || '')); return m ? Number(m[1]) : 0; };
+// Held for someone not sure yet (owner, 27 October): no advance asked, until confirmed or cancelled.
+const turfMaybe = b => String(b.confirmSent || '') === 'maybe';
+const turfHeld = b => !!turfHoldOf(b) || turfMaybe(b);
 // The message for a slot on hold, in the owner's style: the details, then the advance that confirms it.
 function turfHoldMessage(b) {
   const together = [b, ...turfLinkedOf(b)].sort((x, y) => Number(x.startHour) - Number(y.startHour));
@@ -10621,20 +13230,85 @@ function turfHoldMessage(b) {
     'To confirm your booking, kindly pay an advance of *' + money(turfHoldOf(b)) + '*.', '', 'Once we receive it, your slot will be confirmed. 🙌', '',
     '*#PlayAtCityArena*', '*Team City Arena*', ARENA_BRANCH.place].join('\n');
 }
+// What the advance is for, written under the QR.
+const turfAdvanceNote = b => 'Turf advance · ' + turfDayName(b.dateKey) + ' ' + turfRange(b);
+// The hold message, sent on the tap itself; with the payment QR on, its picture is copied too, to paste into the chat
+// (owner, 25 October: "make sure the qr code copies over there only").
+function turfHoldSend(b) {
+  if (payQrOn()) copyPaymentQr(turfHoldOf(b), turfAdvanceNote(b)).then(copied => { if (copied) ($('sheet').open ? sheetStatus : notify)('success', 'QR copied. Paste it in the chat (Ctrl+V) and send.'); });
+  whatsapp(b.phone, turfHoldMessage(b));
+}
+// A hold's box, from its tag or WhatsApp on the board and the Message on its strip (owner, 27 October: "an option where i can
+// edit the advance needed and send changed QR"). Hold (Pay): the advance needed, changeable and saved, then Send on WhatsApp
+// (the message, the QR copied for that amount); Advance received confirms it. Hold: Confirm, nothing to send (owner, 27 October:
+// "why is this send on whatsapp there for hold also??"). Both: Cancel booking.
+function turfHoldAsk(b, anchor) {
+  const pay = !!turfHoldOf(b);
+  const amount = pay ? h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(turfHoldOf(b) / 100), 'aria-label': 'Advance needed', data: { field: 'hold-send-amount' } }) : null;
+  const send = () => {
+    const paise = pay ? toPaise(amount.value || 0) : 0;
+    if (pay && !(paise > 0)) {
+      amount.focus();
+      return;
+    }
+    closePopover();
+    turfHoldSend(pay ? { ...b, confirmSent: 'hold:' + paise } : b);
+    if (pay && paise !== turfHoldOf(b)) runCommand({ type: 'TURF_HOLD', id: b.id, revision: b.revision, amountPaise: paise }, () => ($('sheet').open ? turfAfter(b.id) : { text: 'Advance needed: ' + money(paise) + '.' }));
+  };
+  const inSheet = $('sheet').open;
+  if (amount) amount.onkeydown = e => { if (e.key === 'Enter') send(); };
+  popover(anchor, h('b', { class: 'popover-title', text: pay ? 'Hold (Pay)' : 'Hold' }), h('span', { class: 'muted', text: b.customer + ' · ' + turfRange(b) }),
+    ...(pay ? [field('Advance needed (₹)', amount)] : []),
+    ...(pay ? [btn([icon('whatsapp'), 'Send on WhatsApp'], send, 'primary block', { data: { action: 'turf-hold-send' } })] : []),
+    h('div', 'popover-foot',
+      btn([icon('check'), pay ? 'Advance received' : 'Confirm'], () => { closePopover(); if (inSheet) turfConfirmSheet(b); else turfHoldReceived(b); }, pay ? '' : 'primary', { data: { action: 'turf-hold-received' } }),
+      // Not coming after all (owner, 27 October: a hold "should have cancellation as well").
+      btn([icon('close'), 'Cancel booking'], () => { closePopover(); turfCancelSheet(b, inSheet ? () => turfDetailSheet(b.id) : null); }, 'quiet danger-text', { data: { action: 'turf-hold-cancel' } })));
+  if (amount) {
+    amount.focus();
+    amount.select();
+  }
+}
+// The hold's tag on the board, where its Advance received box opens.
+const turfHoldAnchor = b => document.querySelector('.turf-block[data-booking="' + b.id + '"] .turf-hold-tag') || document.body;
+function turfHoldReceived(b) {
+  const anchor = turfHoldAnchor(b);
+  const amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: turfHoldOf(b) ? String(turfHoldOf(b) / 100) : '', placeholder: '0', 'aria-label': 'Advance received', data: { field: 'hold-received' } });
+  const way = { method: 'cash', ca: false };
+  const scanner = h('div', { class: 'turf-scanner', data: { field: 'hold-scanner' } });
+  const paintScanner = () => {
+    scanner.hidden = way.method !== 'upi';
+    scanner.replaceChildren(...(way.method === 'upi' ? [segmented([['ours', 'Scanner'], ['ca', 'CA']], way.ca ? 'ca' : 'ours', v => { way.ca = v === 'ca'; }).node] : []));
+  };
+  const how = segmented([['cash', 'Cash', 'cash'], ['upi', 'UPI', 'upi']], way.method, v => {
+    way.method = v;
+    paintScanner();
+  });
+  paintScanner();
+  const confirm = () => {
+    const paise = toPaise(amount.value || 0), method = way.method === 'upi' ? (way.ca ? 'upi:ca' : 'upi') : 'cash';
+    closePopover();
+    runCommand({ type: 'TURF_CONFIRM', id: b.id, revision: b.revision, advance: paise > 0 ? { amountPaise: paise, method } : undefined },
+      result => ({ text: 'Confirmed' + (result.receiptNumber ? ' · advance receipt ' + result.receiptNumber : '') + '.', action: { label: 'Send confirmation', run: () => turfSendConfirmation(turfBookingOf(b.id), () => null) } }));
+  };
+  popover(anchor, h('b', { class: 'popover-title', text: turfHoldOf(b) ? 'Advance received?' : 'Confirm booking?' }), h('span', { class: 'muted', text: b.customer + ' · ' + turfRange(b) }),
+    field('Advance received (₹)', amount), how.node, scanner,
+    h('div', 'popover-foot', btn([icon('check'), 'Confirm'], confirm, 'primary', { data: { action: 'turf-hold-yes' } }), btn('No', closePopover, 'quiet', { data: { action: 'turf-hold-no' } })));
+}
 // Put a booking on hold: the advance to ask for, then the message is one tap away.
 function turfHoldSheet(b) {
-  const amount = h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(300 * Number(b.hours)), 'aria-label': 'Advance to confirm', data: { field: 'hold-amount' } });
+  const amount = h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(300 * Number(b.hours)), 'aria-label': 'Advance needed', data: { field: 'hold-amount' } });
   openSheet({
-    title: 'Hold until advance is paid', sub: b.customer + ' · ' + turfRange(b), icon: 'clock', tone: 'warn',
+    title: 'Hold (Pay)', sub: b.customer + ' · ' + turfRange(b), icon: 'clock', tone: 'warn',
     onClose: () => turfDetailSheet(b.id),
-    build(ui) { ui.body.append(field('Advance to confirm (₹)', amount)); ui.primary('Put on Hold'); },
+    build(ui) { ui.body.append(field('Advance needed (₹)', amount)); ui.primary('Hold (Pay)'); },
     command: () => ({ type: 'TURF_HOLD', id: b.id, revision: b.revision, amountPaise: toPaise(amount.value) }),
-    then() { const x = turfBookingOf(b.id); turfDetailSheet(b.id); return { text: 'On hold · ' + money(turfHoldOf(x)) + ' to confirm.', action: { label: 'Send hold message', run: () => whatsapp(x.phone, turfHoldMessage(x)) } }; }
+    then() { const x = turfBookingOf(b.id); turfDetailSheet(b.id); return { text: 'Hold (Pay) · ' + money(turfHoldOf(x)) + ' advance needed.', action: { label: 'Send hold message', run: () => turfHoldSend(turfBookingOf(b.id)) } }; }
   });
 }
 // The advance came in: record it (or confirm without one) and the hold becomes a confirmed booking.
 function turfConfirmSheet(b) {
-  const amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: String(turfHoldOf(b) / 100), 'aria-label': 'Advance received', data: { field: 'received' } });
+  const amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: turfHoldOf(b) ? String(turfHoldOf(b) / 100) : '', placeholder: '0', 'aria-label': 'Advance received', data: { field: 'received' } });
   const pay = { method: 'cash' };
   let how;
   openSheet({
@@ -10713,28 +13387,36 @@ function turfMessage(b, cancelled, wishes, slots) {
 // columns stand in straight lines on every phone (owner, 23 October). A venue may name its own columns (Branch.gs share:
 // the turf as Full court and Half court), each ✅ when any of its courts is free; otherwise a column per court.
 function turfAvailabilityText(key, list) {
+  // The words around the table bold, as on Mangalore (owner, 27 October). Each venue's own columns (Branch.gs share: the turf as
+  // Full court and Half court), each ✅ when any of its courts is free; otherwise a column per court.
   const venue = venueHere(), d = new Date(key + 'T00:00:00+05:30');
   const columns = venue.share || courtsHere().map(c => ({ name: courtLabel(c), courts: [c] }));
   const lines = ['*City Arena - ' + ARENA_BRANCH.place + '*', '', (venue.emoji ? venue.emoji + ' ' : '') + '*' + venue.name + '*'];
-  lines.push('Slot availability on *' + d.toLocaleDateString('en-IN', { timeZone: IST, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '*', '');
-  const short = hour => (hour % 12 || 12) + (hour < 12 ? 'am' : 'pm');
-  const timeWidth = 12, widths = columns.map(c => Math.max(c.name.length, 2));
-  // An emoji takes about two letters' room in monospace; it is centred under its column's name.
+  lines.push('*Slot availability on ' + d.toLocaleDateString('en-IN', { timeZone: IST, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '*', '');
+  // Every hour written in seven letters, as many as Timings ("06-07am", "11-12pm"): WhatsApp on a phone or tablet gives a
+  // run of spaces less room than letters, so padding cannot even out a longer time; the same letters in every row keep the
+  // columns straight on the phone, the tablet and the laptop (Mangalore, 27 October; owner's picture of Manipal's, 27 October).
+  const two = hour => String(hour % 12 || 12).padStart(2, '0');
+  // The half of the day is the hour's end: 11-12pm at noon, 11-12am at midnight (badminton and pickleball close at 12).
+  const slot = hour => two(hour) + '-' + two(hour + 1) + ((hour + 1) % 24 < 12 ? 'am' : 'pm');
+  // In WhatsApp's monospace between ``` fences, each sign centred under its column's name. An emoji takes about two
+  // letters' room in monospace.
+  const timeWidth = 10, widths = columns.map(c => Math.max(c.name.length, 2));
   const cell = (text, width, emoji) => {
     const room = width - (emoji ? 2 : text.length), left = Math.floor(room / 2);
     return ' '.repeat(left) + text + ' '.repeat(room - left);
   };
   const table = ['Timings'.padEnd(timeWidth) + columns.map((c, i) => cell(c.name, widths[i], false)).join(' | ')];
   for (let hour = venue.open; hour < venue.close; hour++) {
-    if (hourStart(key, hour + 1) <= nowMs()) continue;
+    // An hour is left out from one minute past its start (Mangalore, 25 October: "once its 2:01 pm do not send 2-3").
+    if (hourStart(key, hour) + 60000 <= nowMs()) continue;
     const mark = column => (column.courts.some(court => !bookingAt(list, court, hour)) ? '✅' : '❌');
-    table.push((short(hour) + '-' + short(hour + 1)).padEnd(timeWidth) + columns.map((c, i) => cell(mark(c), widths[i], true)).join(' | '));
+    table.push(slot(hour).padEnd(timeWidth) + columns.map((c, i) => cell(mark(c), widths[i], true)).join(' | '));
   }
   if (table.length > 1) lines.push('```', ...table, '```');
   else lines.push('No hours left on this day.');
-  // What the signs mean; a column of several courts says what its ✅ means.
-  const together = columns.filter(c => c.courts.length > 1).map(c => c.name + ' ✅ : ' + c.courts.map(courtLabel).join(' or ') + ' free');
-  lines.push('', '✅ : Slot available', '❌ : Not available', ...together, '', ...(ARENA_BRANCH.contact ? ['For bookings,', 'Contact 📱: ' + ARENA_BRANCH.contact, ''] : []), '#playatcityarena');
+  // What the signs mean; no line for Half court (owner, 27 October: "that last half court 1 or 2 free is not required").
+  lines.push('', '✅ : Slot available', '❌ : Not available', '', ...(ARENA_BRANCH.contact ? ['*For bookings,*', '*Contact 📱: ' + ARENA_BRANCH.contact + '*', ''] : []), '*#PlayAtCityArena*');
   return lines.join('\n');
 }
 
@@ -10816,7 +13498,7 @@ function turfSlotFields(key, slot, exceptId, others, redraw) {
 // A new booking can take more slots the same day (another court or hour: say 4–5 PM on 5A and 5–6 PM on 6A), all on one bill.
 function turfBookingSheet(existing, preset) {
   const base = existing || preset;
-  let dateKey = base.dateKey, who, date, sport, forWho, holding = false, holdAmount = null;
+  let dateKey = base.dateKey, who, date, sport, forWho, holding = '', holdAmount = null;
   // Academies on account (Settings): a coaching slot is booked in the academy's name, at its rate.
   const clubs = existing ? [] : turfAcademies(), clubOf = () => clubs.find(a => forWho && a.accountId === forWho.value()) || null;
   const exceptId = existing ? existing.id : '';
@@ -10866,12 +13548,23 @@ function turfBookingSheet(existing, preset) {
         ui.redraw();
       }, 'quiet', { data: { action: 'add-slot' } })));
       ui.body.append(h('div', 'field', h('span', { text: 'Date' }), date));
-      // A new customer's slot can be held until they pay an advance (owner, 20 October); ₹300 an hour unless changed.
+      // A new customer's slot can be held until they pay an advance (owner, 20 October; ₹300 an hour unless changed), or for
+      // someone not sure yet, with no advance (owner, 27 October).
       if (!existing) {
         const hours = [main, ...more].reduce((sum, slot) => sum + slot.hours, 0);
-        holdAmount = holdAmount || h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(300 * hours), 'aria-label': 'Advance to confirm', data: { field: 'hold-amount' } });
-        ui.body.append(h('div', { class: 'station-links', style: 'margin:0 0 10px' }, btn([icon('clock'), 'Hold until advance is paid'], () => { holding = !holding; ui.redraw(); if (holding) { holdAmount.focus(); holdAmount.select(); } }, 'quiet', { 'aria-pressed': String(holding), data: { action: 'hold' } })));
-        if (holding) ui.body.append(field('Advance to confirm (₹)', holdAmount));
+        holdAmount = holdAmount || h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(300 * hours), 'aria-label': 'Advance needed', data: { field: 'hold-amount' } });
+        const hold = kind => () => {
+          holding = holding === kind ? '' : kind;
+          ui.redraw();
+          if (holding === 'advance') {
+            holdAmount.focus();
+            holdAmount.select();
+          }
+        };
+        ui.body.append(h('div', { class: 'station-links', style: 'margin:0 0 10px' },
+          btn([icon('clock'), 'Hold (Pay)'], hold('advance'), 'quiet', { 'aria-pressed': String(holding === 'advance'), data: { action: 'hold' } }),
+          btn([icon('clock'), 'Hold'], hold('maybe'), 'quiet', { 'aria-pressed': String(holding === 'maybe'), data: { action: 'hold-maybe' } })));
+        if (holding === 'advance') ui.body.append(field('Advance needed (₹)', holdAmount));
       }
       const label = holding ? 'Hold · ' + hourLabel(main.start) + ' – ' + hourLabel(main.start + main.hours) + (more.length ? ' + ' + more.length : '') : existing ? 'Save Changes' : more.length ? 'Confirm ' + (more.length + 1) + ' Slots' : 'Confirm Booking · ' + hourLabel(main.start) + ' – ' + hourLabel(main.start + main.hours);
       ui.primary(label, !main.ok || more.some(slot => !slot.ok));
@@ -10881,7 +13574,7 @@ function turfBookingSheet(existing, preset) {
       if (!sport.value()) throw new Error('Choose the sport.');
       const slots = more.length ? [main, ...more].map(slot => ({ court: slot.court, startHour: slot.start, hours: slot.hours })) : undefined;
       const club = clubOf();
-      return { type: existing ? 'TURF_CHANGE' : 'TURF_BOOK', id: exceptId || undefined, revision: existing ? existing.revision : undefined, dateKey, court: main.court, startHour: main.start, hours: main.hours, slots, customer: who.name.value.trim(), phone: who.phone.value.trim(), sport: sport.value(), academyId: club ? club.accountId : undefined, holdPaise: holding ? toPaise(holdAmount.value) : undefined };
+      return { type: existing ? 'TURF_CHANGE' : 'TURF_BOOK', id: exceptId || undefined, revision: existing ? existing.revision : undefined, dateKey, court: main.court, startHour: main.start, hours: main.hours, slots, customer: who.name.value.trim(), phone: who.phone.value.trim(), sport: sport.value(), academyId: club ? club.accountId : undefined, holdPaise: holding === 'advance' ? toPaise(holdAmount.value) : undefined, maybe: holding === 'maybe' || undefined };
     },
     then(result, command) {
       turfDay = dateKey;
@@ -10892,8 +13585,9 @@ function turfBookingSheet(existing, preset) {
       turfPicked.cells.clear();
       render();
       const slots = more.length + 1, first = turfBookingOf(result.bookingId);
-      const text = (command.holdPaise ? 'On hold for ' : 'Booked for ') + first.customer + ' · ' + (slots > 1 ? slots + ' slots from ' + hourLabel(Math.min(main.start, ...more.map(slot => slot.start))) : turfRange(first)) + '.';
-      if (command.holdPaise) return { text, action: { label: 'Send hold message', run: () => whatsapp(first.phone, turfHoldMessage(turfBookingOf(result.bookingId))) } };
+      const text = (command.holdPaise || command.maybe ? 'On hold for ' : 'Booked for ') + first.customer + ' · ' + (slots > 1 ? slots + ' slots from ' + hourLabel(Math.min(main.start, ...more.map(slot => slot.start))) : turfRange(first)) + '.';
+      if (command.holdPaise) return { text, action: { label: 'Send hold message', run: () => turfHoldSend(turfBookingOf(result.bookingId)) } };
+      if (command.maybe) return { text };
       // Send confirmation opens WhatsApp for the first week; each later week is confirmed from its own booking.
       return { text, action: { label: 'Send confirmation', run: () => { const b = turfBookingOf(result.bookingId); whatsapp(b.phone, turfMessage(b, false)); runCommand({ type: 'TURF_SENT', id: b.id, revision: b.revision }, () => null); } } };
     }
@@ -11066,12 +13760,12 @@ function turfDetailSheet(id) {
         }), false, 'transfer']] : []),
         ['Send confirmation', sendConfirmation, false, 'whatsapp'],
         ...(split && !status.locked ? [['One payer', () => runCommand({ type: 'TURF_SPLIT', id: b.id, revision: b.revision, on: false }, back), false, 'user']] : []),
-        ...(!ended && !turfHoldOf(b) && status.state === 'open' && !turfHasCharges(b) ? [['Put on hold', () => turfHoldSheet(b), false, 'clock']] : []),
+        ...(!ended && !turfHeld(b) && status.state === 'open' && !turfHasCharges(b) ? [['Hold (Pay)', () => turfHoldSheet(b), false, 'clock'], ['Hold', () => runCommand({ type: 'TURF_HOLD', id: b.id, revision: b.revision, maybe: true }, back), false, 'clock']] : []),
         ...(turfCancellable(b) ? [['Cancel booking', () => turfCancelSheet(b, () => turfDetailSheet(b.id)), true, 'close']] : [])
       ];
       ui.body.append(h('div', 'bill-head', glyph('turf', 'jade', 'lg'),
         h('div', 'bill-who', h('div', { class: 'who turf-when', text: turfSpanOf(b) }), h('div', { class: 'small muted', text: [turfDayName(b.dateKey), turfLinkedOf(b).length ? [b, ...turfLinkedOf(b)].map(x => courtLabel(x.court)).join(', ') : courtLabel(b.court), b.sport].join(' · ') }),
-          h('div', 'turf-head-badge', h('span', { class: 'badge ' + (sent ? 'good' : turfHoldOf(b) ? 'warn' : ''), text: sent ? 'Confirmed' : turfHoldOf(b) ? 'On hold' : 'Not confirmed' }))),
+          h('div', 'turf-head-badge', h('span', { class: 'badge ' + (sent ? 'good' : turfHeld(b) ? 'hold' : ''), text: sent ? 'Confirmed' : turfMaybe(b) ? 'Hold' : turfHoldOf(b) ? 'Hold (Pay)' : 'Not confirmed' }))),
         // The turf's amount (after discount) in this box, so the items and Collect come higher (owner, 22 October).
         // Several slots: their total and "3 courts · 1 hour" here (owner, 22 October); one slot says its price once, below.
         b.split === 'yes' || turfAccountOf(b.id) || !turfLinkedOf(b).length ? null : h('div', 'turf-head-fee', h('b', { class: 'num', data: { turfFee: '1' }, text: money(turfFee(b) + turfLinkedOf(b).filter(x => x.split !== 'yes').reduce((n, x) => n + turfFee(x), 0) - Number(b.discountPaise || 0)) }),
@@ -11080,10 +13774,12 @@ function turfDetailSheet(id) {
       // Moving the slot (another time, court or day, wherever it is free) is one tap, not hidden in the menu (owner, 20 October).
       // A booking left pending sends its reminder from here.
       // On hold: what confirms it, the message, and Confirm.
-      if (turfHoldOf(b)) ui.body.append(h('div', { class: 'turf-hold', data: { hold: String(turfHoldOf(b)) } }, icon('clock'),
-        h('span', 'turf-hold-text', h('b', { text: 'On hold' }), h('span', { text: money(turfHoldOf(b)) + ' advance to confirm' })),
-        btn([icon('whatsapp'), 'Message'], () => whatsapp(b.phone, turfHoldMessage(b)), 'quiet', { data: { action: 'turf-hold-message' } }),
-        btn([icon('check'), 'Confirm'], () => turfConfirmSheet(b), 'go', { data: { action: 'turf-confirm-hold' } })));
+      // Held for someone not sure yet: no advance, the message asks them to let us know. Either can be cancelled from here.
+      if (turfHeld(b)) ui.body.append(h('div', { class: 'turf-hold' + (turfMaybe(b) ? ' maybe' : ''), data: { hold: turfMaybe(b) ? 'maybe' : String(turfHoldOf(b)) } }, icon('clock'),
+        h('span', 'turf-hold-text', h('b', { text: turfMaybe(b) ? 'Hold' : 'Hold (Pay)' }), h('span', { text: turfMaybe(b) ? 'No advance' : money(turfHoldOf(b)) + ' advance needed' })),
+        ...(turfMaybe(b) ? [] : [btn([icon('whatsapp'), 'Message'], e => turfHoldAsk(b, e.currentTarget), 'quiet', { data: { action: 'turf-hold-message' } })]),
+        btn([icon('check'), 'Confirm'], () => turfConfirmSheet(b), 'go', { data: { action: 'turf-confirm-hold' } }),
+        ...(turfCancellable(b) ? [btn([icon('close'), 'Cancel'], () => turfCancelSheet(b, () => turfDetailSheet(b.id)), 'quiet danger-text', { data: { action: 'turf-hold-cancel' } })] : [])));
       const quick = h('div', 'station-links');
       if (!split && !turfAccountOf(b.id) && mainOpen && !(mainPart && mainPart.state === 'playing') && status.state !== 'settled') quick.append(btn([icon('wallet'), 'Paid in advance'], () => turfAdvanceSheet(b), 'quiet', { data: { action: 'turf-advance' } }));
       if (!ended && !status.locked) quick.append(btn([icon('transfer'), 'Move slot'], () => turfBookingSheet(b), 'quiet', { data: { action: 'turf-move-slot' } }));
@@ -11666,7 +14362,7 @@ function turfItemsSheet(b, p, fromCard = false) {
 const turfIsTurf = b => courtInfo(b.court).venue === VENUES[0].key;
 function turfSeparable(b) {
   const main = b.tabId ? tabOf(b.tabId) : null, status = turfStatusOf(b.id);
-  return b.split !== 'yes' && Number(b.hours) >= 2 && !status.locked && (!main || main.status === 'open') && !turfLinkedOf(b).length && !turfHoldOf(b) && !turfAccountOf(b.id) && !(main && (state.Advances || []).some(x => x.tabId === main.id && x.status === 'held'));
+  return b.split !== 'yes' && Number(b.hours) >= 2 && !status.locked && (!main || main.status === 'open') && !turfLinkedOf(b).length && !turfHeld(b) && !turfAccountOf(b.id) && !(main && (state.Advances || []).some(x => x.tabId === main.id && x.status === 'held'));
 }
 function turfSeparateSheet(b) {
   const hours = [], picked = new Set();
@@ -11978,8 +14674,8 @@ function turfBlock(b, row, column, rows) {
   const mark = settled === 'settled' ? h('span', { class: 'turf-mark ok', title: 'Settled' }, icon('checkCircle')) : settled === 'part' || settled === 'pending' ? h('span', { class: 'turf-mark part', title: settled === 'pending' ? 'Pending' : 'Part settled' }, icon('clock')) : null;
   // The confirmation goes from the board, beside the name: green until it is sent, then orange. It can always be sent again;
   // a change of time, date or court makes it green again (the booking needs a new confirmation).
-  const hold = turfHoldOf(b), hint = hold ? 'Send the hold message' : sent ? 'Confirmation sent · send again' : 'Send confirmation';
-  const send = ended ? null : h('button', { type: 'button', class: 'turf-wa' + (sent ? ' sent' : ''), title: hint, 'aria-label': hint + ' to ' + b.customer, data: { action: 'turf-confirm' }, onclick: e => { e.stopPropagation(); if (hold) whatsapp(b.phone, turfHoldMessage(b)); else turfSendConfirmation(b, () => null); } }, icon('whatsapp'));
+  const hold = turfHeld(b), maybe = turfMaybe(b), hint = hold ? 'Send the hold message' : sent ? 'Confirmation sent · send again' : 'Send confirmation';
+  const send = ended || maybe ? null : h('button', { type: 'button', class: 'turf-wa' + (sent ? ' sent' : ''), title: hint, 'aria-label': hint + ' to ' + b.customer, data: { action: 'turf-confirm' }, onclick: e => { e.stopPropagation(); if (hold) turfHoldAsk(b, e.currentTarget); else turfSendConfirmation(b, () => null); } }, icon('whatsapp'));
   // A cancel button big enough to see and tap (owner, 20 October).
   const cancel = turfCancellable(b) ? h('button', { type: 'button', class: 'turf-x', title: 'Cancel booking', 'aria-label': 'Cancel ' + b.customer + '’s booking', data: { action: 'turf-cancel' }, onclick: e => { e.stopPropagation(); turfCancelSheet(b, null); } }, icon('close')) : null;
   // The card opens the booking from anywhere on it; the name is the button a keyboard reaches. Under the name, the sport in
@@ -11990,9 +14686,11 @@ function turfBlock(b, row, column, rows) {
   // A branch may keep a booking teal after its time until it is paid or left pending (Branch.gs boardOverOrange: false, Manipal).
   const overOrange = ended && !turfAccountOf(b.id) && ARENA_BRANCH.boardOverOrange !== false;
   const tone = settled === 'settled' ? ' paid' : settled === 'pending' || settled === 'part' || overOrange ? ' owing' : '';
-  return h('div', { class: 'turf-block' + tone + (hold ? ' hold' : ''), style: 'grid-row:' + row + ' / span ' + rows + ';grid-column:' + column, data: { booking: b.id, settled }, onclick: () => turfOpenBooking(b.id) },
+  // A hold in a colour of its own, the same for both kinds (owner, 27 October); its tag says which.
+  // Paid green and pending or over-and-unpaid orange come before the hold's plum.
+  return h('div', { class: 'turf-block' + tone + (tone ? '' : maybe ? ' maybe' : hold ? ' hold' : ''), style: 'grid-row:' + row + ' / span ' + rows + ';grid-column:' + column, data: { booking: b.id, settled }, onclick: () => turfOpenBooking(b.id) },
     h('span', 'turf-block-top', h('button', { type: 'button', class: 'turf-name', 'aria-label': b.customer + ', ' + courtLabel(b.court) + ', ' + b.sport + ', ' + turfRange(b), text: b.customer }), send, mark, cancel),
-    h('span', 'turf-block-sub', h('span', { class: 'turf-sport ' + sportIcon(b.sport) }, icon(sportIcon(b.sport)), b.sport), hold ? h('span', { class: 'turf-hold-tag', text: 'On hold' }) : null, h('span', { class: 'turf-time', text: turfRange(b) })));
+    h('span', 'turf-block-sub', h('span', { class: 'turf-sport ' + sportIcon(b.sport) }, icon(sportIcon(b.sport)), b.sport), hold ? h('button', { type: 'button', class: 'turf-hold-tag', title: maybe ? 'Hold: message, confirm or cancel' : 'Hold (Pay): advance needed, message, confirm or cancel', 'aria-label': (maybe ? 'Hold' : 'Hold (Pay)') + ': ' + b.customer, data: { action: 'turf-hold-ask' }, onclick: e => { e.stopPropagation(); turfHoldAsk(b, e.currentTarget); } }, icon('clock'), h('span', { text: maybe ? 'Hold' : 'Hold (Pay)' })) : null, h('span', { class: 'turf-time', text: turfRange(b) })));
 }
 // The board keeps the hours still to come, and any earlier hour of a booking not yet settled (it stays until it is).
 // Every hour of the day stays on the board (owner, 20 October): nothing leaves it, its colour says what it is.
@@ -12089,7 +14787,7 @@ let turfBoardOpening = false;
 function openTurfBoard() { turfView = 'board'; turfBoardOpening = true; render(); }
 // What each colour on the board means.
 function turfLegend() {
-  return h('div', { class: 'turf-legend', 'aria-hidden': 'true' }, [['free', 'Free'], ['booked', 'Booked'], ['paid', 'Paid'], ['owing', 'Pending · part paid'], ['missed', 'Time gone, not booked']].map(([k, t]) => h('span', 'turf-key ' + k, h('i'), t)));
+  return h('div', { class: 'turf-legend', 'aria-hidden': 'true' }, [['free', 'Free'], ['booked', 'Booked'], ['paid', 'Paid'], ['owing', 'Pending · part paid'], ['hold', 'Hold · Hold (Pay)'], ['missed', 'Time gone, not booked']].map(([k, t]) => h('span', 'turf-key ' + k, h('i'), t)));
 }
 // Every booking still to come, soonest first.
 function turfUpcoming(target) {
@@ -12100,7 +14798,7 @@ function turfUpcoming(target) {
       h('td', null, h('div', 'cell-text', h('b', { text: turfDayWord(b.dateKey) }), h('span', { class: 'small muted num', text: turfRange(b) }))),
       h('td', null, person(b.customer, b.phone)),
       h('td', { class: 'hide-s' }, h('span', 'cell', icon(sportIcon(b.sport)), h('span', { text: courtLabel(b.court) + ' · ' + b.sport }))),
-      h('td', { class: 'r' }, turfHoldOf(b) ? h('span', { class: 'badge warn', text: 'On hold' }) : h('span', { class: 'badge ' + (b.confirmSent === 'yes' ? 'good' : 'warn'), text: b.confirmSent === 'yes' ? 'Sent' : 'Not sent' })))),
+      h('td', { class: 'r' }, turfHeld(b) ? h('span', { class: 'badge hold', text: turfMaybe(b) ? 'Hold' : 'Hold (Pay)' }) : h('span', { class: 'badge ' + (b.confirmSent === 'yes' ? 'good' : 'warn'), text: b.confirmSent === 'yes' ? 'Sent' : 'Not sent' })))),
     'No bookings to come.', 'turf'));
 }
 
@@ -12453,6 +15151,8 @@ function trySaveHere(command) {
   try { out = predict(state, item); }
   catch (e) {
     if (e.userFacing && e.message !== 'Record not found.') return { refused: e.message };
+    // Said in the console, so a save that keeps going the slow way can be traced.
+    console.warn('[City Arena] ' + command.type + ' could not be worked out on screen (' + e.message + '); the server saves it');
     return null;
   }
   outbox.push(item);
@@ -12614,6 +15314,7 @@ function render() {
     reportCache = { key: '', data: null };
   }
   if (!state) return;
+  $('payQr').hidden = !payQrOn();
   const section = PAGES[page] || floorPage, scroll = $('main').scrollTop;
   $('pageTitle').replaceChildren(...titleParts(section.title, sectionText(section.accent)));
   $('pageSub').textContent = sectionText(section.subtitle);
@@ -12727,6 +15428,8 @@ function applySnapshot(data) {
   watchArrivals();
   postAcademyDue();
   extendSeries();
+  // A save left unconfirmed: the notice with Check again. Never retried by itself (owner, 25 October: the retry every minute
+  // put "Saving…" on the open sheet's button and held every tap while it waited).
   if (flow.pending() && !flow.saving() && !$('sheet').open) notify('pending', 'A save from earlier has not been confirmed.', { label: 'Check again', run: retrySave });
 }
 // The data that came back with a save: the screen is brought up to date without asking again.
@@ -12762,11 +15465,14 @@ function refresh(force) {
 
 // ---------- Wiring ----------
 $('refresh').append(icon('refresh'));
+$('payQr').append(icon('upi'), h('span', { class: 'desk-only', text: 'Payment QR' }));
+$('payQr').onclick = () => paymentQrSheet({});
+$('payQr').hidden = true;
 $('logout').append(icon('logout'));
 $('sheetClose').append(icon('close'));
 // Back (owner, 21 October): a sheet opened from another goes back to it, one step, plainly named.
 $('sheetBack').append(icon('back'), h('span', { text: 'Back' }));
-$('sheetBack').onclick = () => { if (!flow.saving()) dismissSheet(); };
+$('sheetBack').onclick = () => { if (!flow.saving()) goBack(); };
 $('refresh').onclick = () => refresh(true);
 $('logout').onclick = signOut;
 $('sheetClose').onclick = () => { if (!flow.saving()) dismissSheet(); };
