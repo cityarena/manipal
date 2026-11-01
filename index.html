@@ -2494,9 +2494,10 @@ var ARENA_BRANCH = (function () {
     pay: { upi: '', name: 'City Arena', live: false },
     venues: [
       // emoji: beside the venue's name in the availability message; share: the message's columns, each ✅ when any of its
-      // courts is free (owner, 23 October: the turf as Full court and Half court).
+      // courts is free (owner, 23 October: the turf as Full court and Half court), short: its two letters on the Timings line
+      // (owner, 1 November: FC and HC).
       { key: 'turf', name: 'Turf', icon: 'football', emoji: '⚽', open: 6, close: 22, sports: ['Football', 'Cricket'], board: ['left', 'right'],
-        share: [{ name: 'Full court', courts: ['full'] }, { name: 'Half court', courts: ['left', 'right'] }],
+        share: [{ name: 'Full court', short: 'FC', courts: ['full'] }, { name: 'Half court', short: 'HC', courts: ['left', 'right'] }],
         courts: [
           { id: 'full', name: 'Full court', ratePaise: 260000, takes: ['left', 'right'] },
           { id: 'left', name: 'Court 1', ratePaise: 130000 },
@@ -13524,50 +13525,45 @@ function turfMessage(b, cancelled, wishes, slots) {
   lines.push('', '*#PlayAtCityArena*', '*Team City Arena*', ARENA_BRANCH.place);
   return lines.join('\n');
 }
-// Which hours are still open on each court, for sending to a group. The table is set in WhatsApp's monospace (```), so the
-// columns stand in straight lines on every phone (owner, 23 October). A venue may name its own columns (Branch.gs share:
-// the turf as Full court and Half court), each ✅ when any of its courts is free; otherwise a column per court.
+// Which hours are still open on each court, for sending to a group.
+// Digits all of one width (Mathematical Sans-Serif Digits, U+1D7E2 on): a phone's own font draws 1 narrower than 0, which
+// moved the signs of 10:00 and 11:00 left (Mangalore, 29 October); these keep every row the same.
+const sameWidthDigits = text => text.replace(/\d/g, d => String.fromCodePoint(0x1d7e2 + Number(d)));
+// The same for am and pm: a phone draws p wider than a, so a row with pm put its signs further right than one with am (owner's
+// picture of the Manipal message, 1 November: "they dont start at same point"). Their letters are written in Mathematical
+// Monospace (U+1D68A on), each the same width.
+const sameWidthHalf = text => text.replace(/[amp]/g, c => String.fromCodePoint(0x1d68a + c.charCodeAt(0) - 97));
+// A column's short name over its sign: Branch.gs share gives it (the turf's FC and HC); a court "Court 3" is C3.
+const shareShort = column => column.short || column.name.replace(/^Court\s*/, 'C');
 function turfAvailabilityText(key, list) {
-  // The words around the table bold, as on Mangalore (owner, 27 October). Each venue's own columns (Branch.gs share: the turf as
-  // Full court and Half court), each ✅ when any of its courts is free; otherwise a column per court.
-  const venue = venueHere(), d = new Date(key + 'T00:00:00+05:30');
+  // In Mangalore's format of 29 October, found by trial and error on the owner's phone (owner, 1 November: "the format you
+  // need to follow the new one i did recently for mangalore ... the main priority is the font and 6:00am-7:00am format"):
+  // WhatsApp's own font, no monospace block; the day as "29th October 2026 Thursday" in bold; then one row an hour.
+  const venue = venueHere(), day = new Date(key + 'T00:00:00+05:30').toLocaleDateString('en-IN', { timeZone: IST, weekday: 'long' });
+  // Each venue's own columns (the turf as Full court and Half court, each ✅ when any of its courts is free; otherwise a
+  // column per court), named on the Timings line by two letters over their signs, as 6A | 5A on Mangalore: *Timings*,
+  // seventeen spaces, *FC | HC*, all bold; what the letters stand for is said below the table (owner, 1 November). Thin
+  // spaces (U+2009) either side of the bar: with plain ones the second name stood about 9 px right of its sign on the phone,
+  // the bar's spaces taking more room than the one space between two signs (owner's picture, 1 November: "hc is gone one
+  // step ahead").
   const columns = venue.share || courtsHere().map(c => ({ name: courtLabel(c), courts: [c] }));
-  const lines = ['*City Arena - ' + ARENA_BRANCH.place + '*', '', (venue.emoji ? venue.emoji + ' ' : '') + '*' + venue.name + '*'];
-  lines.push('*Slot availability on ' + d.toLocaleDateString('en-IN', { timeZone: IST, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + '*', '');
-  // Every hour written in seven letters, as many as Timings ("06-07am", "11-12pm"): WhatsApp on a phone or tablet gives a
-  // run of spaces less room than letters, so padding cannot even out a longer time; the same letters in every row keep the
-  // columns straight on the phone, the tablet and the laptop (Mangalore, 27 October; owner's picture of Manipal's, 27 October).
-  const two = hour => String(hour % 12 || 12).padStart(2, '0');
-  // The half of the day is the hour's end: 11-12pm at noon, 11-12am at midnight (badminton and pickleball close at 12).
-  const slot = hour => two(hour) + '-' + two(hour + 1) + ((hour + 1) % 24 < 12 ? 'am' : 'pm');
-  // In WhatsApp's monospace between ``` fences, each sign centred under its column's name. An emoji takes about two
-  // letters' room in monospace. The padding is no-break spaces: WhatsApp on a phone draws a plain space far narrower than a
-  // letter, so a column of signs drifted left of its name, more with each column (owner's picture, 27 October: Court 3 not
-  // lined up); a no-break space keeps a letter's room there (Mangalore, 27 October).
-  const pad = count => '\u00a0'.repeat(Math.max(0, count)), bar = '\u00a0|\u00a0', timeWidth = 10;
-  // A row fits a phone's line (about 30 letters): when the full names would not, each court is headed by its number alone
-  // ("Court 3" → "C3", badminton's three courts).
-  const fits = names => timeWidth + names.reduce((n, name) => n + Math.max(name.length, 2), 0) + 3 * (names.length - 1) <= 30;
-  const names = fits(columns.map(c => c.name)) ? columns.map(c => c.name) : columns.map(c => c.name.replace(/^Court\s*/, 'C'));
-  const widths = names.map(name => Math.max(name.length, 2));
-  const cell = (text, width, emoji) => {
-    const room = width - (emoji ? 2 : text.length), left = Math.floor(room / 2);
-    return pad(left) + text.replace(/ /g, '\u00a0') + pad(room - left);
-  };
-  // The heading: two more spaces after Timings, as a row's hour (digits) is wider on a phone than Timings (letters); after
-  // that, every name has exactly the room of its column's sign, and the bars stand where the rows' bars stand (WhatsApp's
-  // table is fixed-width: every letter and no-break space takes the same room). Badminton: "Timings     C1 | C2 | C3".
-  const table = ['Timings' + pad(timeWidth - 7 + 2) + names.map((name, i) => cell(name, widths[i], false)).join(bar)];
+  const lines = ['*City Arena - ' + ARENA_BRANCH.place + '*', '', (venue.emoji ? venue.emoji + ' ' : '') + '*' + venue.name + '*',
+    'Slot availability on *' + ordinalDate(key) + ' ' + day + '*', '', '*Timings' + ' '.repeat(17) + columns.map(shareShort).join('\u2009|\u2009') + '*'];
+  // Every hour as "06:00am - 07:00am", then a sign for each column (✅ ❌), single spaces only, so every row is the same
+  // width and the signs stand in straight lines. Midnight is 12:00am (badminton and pickleball close then).
+  const clock = hour => String(hour % 12 || 12).padStart(2, '0') + ':00' + (hour % 24 < 12 ? 'am' : 'pm');
+  const slot = hour => sameWidthHalf(sameWidthDigits(clock(hour) + ' - ' + clock(hour + 1)));
+  const mark = (column, hour) => (column.courts.some(court => !bookingAt(list, court, hour)) ? '✅' : '❌');
+  let rows = 0;
   for (let hour = venue.open; hour < venue.close; hour++) {
     // An hour is left out from one minute past its start (Mangalore, 25 October: "once its 2:01 pm do not send 2-3").
     if (hourStart(key, hour) + 60000 <= nowMs()) continue;
-    const mark = column => (column.courts.some(court => !bookingAt(list, court, hour)) ? '✅' : '❌');
-    table.push(slot(hour) + pad(timeWidth - 7) + columns.map((c, i) => cell(mark(c), widths[i], true)).join(bar));
+    lines.push(slot(hour) + ' ' + columns.map(column => mark(column, hour)).join(' '));
+    rows++;
   }
-  if (table.length > 1) lines.push('```', ...table, '```');
-  else lines.push('No hours left on this day.');
-  // What the signs mean; no line for Half court (owner, 27 October: "that last half court 1 or 2 free is not required").
-  lines.push('', '✅ : Slot available', '❌ : Not available', '', ...(ARENA_BRANCH.contact ? ['*For bookings,*', '*Contact 📱: ' + ARENA_BRANCH.contact + '*', ''] : []), '*#PlayAtCityArena*');
+  if (!rows) lines.push('No hours left on this day.');
+  const named = columns.filter(column => shareShort(column) !== column.name).map(column => shareShort(column) + ' : ' + column.name);
+  lines.push('', '✅ : Slot available', '❌ : Not available', ...named, '', ...(ARENA_BRANCH.contact ? ['*For bookings,*', '*Contact 📱: ' + ARENA_BRANCH.contact + '*', ''] : []), '*#PlayAtCityArena*');
   return lines.join('\n');
 }
 
