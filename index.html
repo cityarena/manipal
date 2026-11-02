@@ -1817,7 +1817,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .arrival-text { flex: 1; min-width: 0; display: grid; line-height: 1.35; }
 .arrival-text b { color: var(--gold); }
 /* Every booking card outlined in the dark of its own colour, as a hold is (owner, 28 October: "outline all booking cards"). */
-.turf-block { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 4px 12px; line-height: 1.35; border: 2px solid var(--primary-deep); border-radius: var(--r-sm); background: linear-gradient(180deg, #e9eef0 0%, #dfe7ea 100%); box-shadow: var(--hi); color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; transition: border-color var(--ease), background var(--ease); }
+.turf-block { container: turf-block / inline-size; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 4px 12px; line-height: 1.35; border: 2px solid var(--primary-deep); border-radius: var(--r-sm); background: linear-gradient(180deg, #e9eef0 0%, #dfe7ea 100%); box-shadow: var(--hi); color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; transition: border-color var(--ease), background var(--ease); }
 .turf-block:hover { border-color: var(--primary); }
 .turf-block.ended { border-color: var(--ink-3); background: var(--raised); color: var(--ink-2); box-shadow: var(--hi); }
 .turf-block-top { display: flex; align-items: center; gap: 8px; min-width: 0; height: 28px; }
@@ -1838,6 +1838,12 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .turf-block-sub { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--ink-2); font-size: var(--text-xs); line-height: 1.3; font-variant-numeric: tabular-nums; }
 .turf-sport { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px 0 6px; border: 1px solid var(--primary-line); border-radius: 999px; background: rgb(var(--paper)); color: var(--ink); font-weight: 600; }
 .turf-sport svg { width: 14px; height: 14px; color: var(--accent); }
+/* Paid in advance on a booking card: the station card's chip, at the sport tag's height, at the right of the name. */
+.turf-paid.chip-paid { height: 20px; gap: 4px; margin-left: auto; padding: 0 8px 0 6px; cursor: inherit; }
+.turf-paid ~ .turf-mark, .turf-paid ~ .turf-x { margin-left: 0; }
+@container turf-block (max-width: 260px) {
+  .turf-paid-word { display: none; }
+}
 /* Cricket in the same white chip as Football (owner, 27 October); only its bat keeps its colour. */
 .turf-sport.cricket svg { color: var(--gold); }
 .turf-block.ended .turf-sport { border-color: var(--line-strong); background: rgb(var(--tint) / 0.045); color: var(--ink-2); }
@@ -2204,8 +2210,8 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
   .turf-name { font-size: var(--text-sm); }
   .turf-block-sub { gap: 6px; }
   .turf-time { display: none; }
-  /* Three courts on a phone: the name gets the room; the sport and WhatsApp are in the booking itself. */
-  .turf-block .turf-sport, .turf-block .turf-wa { display: none; }
+  /* Three courts on a phone: the name gets the room; the sport, WhatsApp and what was paid in advance are in the booking itself. */
+  .turf-block .turf-sport, .turf-block .turf-wa, .turf-block .turf-paid { display: none; }
   .turf-block { padding: 4px 6px; }
   .turf-block-top { flex-wrap: wrap; height: auto; row-gap: 4px; }
   .turf-name { flex: 1 1 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-xs); }
@@ -4025,6 +4031,24 @@ var ArenaCorrections = (function () {
     bill.totalPaise = 0;
     var detail = (state.BillDetails || []).find(function (d) { return d.id === bill.id; }), tab = detail ? state.Tabs.find(function (t) { return t.id === detail.tabId; }) : null;
     if (tab && tab.status === 'billed') tab.status = 'open';
+    // Cancelled completely (owner, 2 November: "even after clicking void, it still opens this"): every session and item of the
+    // visit is voided too (items back in stock), so nothing is charged and nothing is left to collect. A turf booking's bill
+    // only opens again; the booking is changed or cancelled on the turf.
+    if (cmd.whole === true && tab) {
+      check(!(state.Orders || []).some(function (o) { return o.tabId === tab.id && o.status === 'active' && o.category === 'Turf'; }), 'This is a turf booking’s bill. Change or cancel the booking on the turf.');
+      (state.Segments || []).filter(function (g) { return g.tabId === tab.id && g.status !== 'void'; }).forEach(function (segment, i) {
+        record(state, id + '-s' + i, 'segment_void', segment.id, 'status', JSON.stringify({ status: segment.status, startMs: segment.startMs, endMs: segment.endMs, totalPaise: segment.totalPaise }), 'void', why, actor, now);
+        if (segment.status === 'active') segment.endMs = now;
+        segment.status = 'void';
+        segment.totalPaise = 0;
+        segment.billableMinutes = 0;
+      });
+      (state.Orders || []).filter(function (o) { return o.tabId === tab.id && o.status === 'active'; }).forEach(function (o, i) {
+        ArenaSales.execute(state, { type: 'UPDATE_ORDER', id: o.id, revision: o.revision, quantity: 0, reason: why }, actor, now, id + '-o' + i);
+      });
+      tab.status = 'void';
+      return { voidedBillId: bill.id, tabId: '', message: 'Bill voided. Nothing is charged.' };
+    }
     return { voidedBillId: bill.id, tabId: tab ? tab.id : '', message: tab ? 'Bill voided. The visit is open again for correction.' : 'Bill voided.' };
   }
 
@@ -4280,13 +4304,28 @@ var ArenaViews = (function () {
     var text = String(query.text || '').trim().toLowerCase(), limit = Math.min(Math.max(Number(query.limit) || 100, 1), 500);
     var bills = index(state.Bills), tabs = index(state.Tabs), accounts = index(state.CreditAccounts), rows = [], matched = 0, ca = {};
     (state.Payments || []).forEach(function (p) { if (p.method === 'upi:ca' && p.billId) ca[p.billId] = true; });
-    var list = (state.BillDetails || []).slice().sort(function (a, b) { return b.createdMs - a.createdMs; });
+    // A bill of an earlier day paid in the dates comes too, with what was paid then (owner, 2 November: "listen the fucking
+    // bill section is 0. then how the fuck is it 800??" — eight bills of earlier days were paid that morning).
+    var paidIn = {}, paidAt = {};
+    if (query.fromMs || query.toMs) (state.Payments || []).forEach(function (p) {
+      if (!p.billId || (query.fromMs && p.createdMs < query.fromMs) || (query.toMs && p.createdMs >= query.toMs)) return;
+      paidIn[p.billId] = (paidIn[p.billId] || 0) + p.amountPaise;
+      paidAt[p.billId] = Math.max(paidAt[p.billId] || 0, p.createdMs);
+    });
+    var made = function (d) { return !(query.fromMs && d.createdMs < query.fromMs) && !(query.toMs && d.createdMs >= query.toMs); };
+    var when = function (d) { return made(d) ? d.createdMs : paidAt[d.id] || d.createdMs; };
+    var list = (state.BillDetails || []).slice().sort(function (a, b) { return when(b) - when(a); });
     for (var i = 0; i < list.length; i++) {
       var detail = list[i], bill = bills[detail.id];
       if (!bill) continue;
-      if (query.fromMs && detail.createdMs < query.fromMs) continue;
-      if (query.toMs && detail.createdMs >= query.toMs) continue;
+      if (!made(detail) && !(detail.id in paidIn)) continue;
       var item = summaryRow(state, bill, detail, tabs, accounts);
+      if (!made(detail)) { item.paidThenPaise = paidIn[detail.id]; item.paidAtMs = paidAt[detail.id]; }
+      // Paid on a later day than it was made: that day, shown beside its status on its own day (owner, 2 November).
+      else {
+        var lastPaid = (state.Payments || []).filter(function (p) { return p.billId === detail.id && p.amountPaise > 0; }).reduce(function (ms, p) { return Math.max(ms, p.createdMs); }, 0);
+        if (lastPaid && ArenaReports.dateKeyOf(state, lastPaid) !== ArenaReports.dateKeyOf(state, detail.createdMs)) item.laterPaidMs = lastPaid;
+      }
       if (query.status && query.status !== 'all' && item.status !== query.status) continue;
       if (query.unitId && item.units.indexOf(query.unitId) < 0) continue;
       if (text && [item.number, item.customer, item.phone, item.account, item.units.join(' ')].join(' ').toLowerCase().indexOf(text) < 0) continue;
@@ -4396,7 +4435,7 @@ var ArenaViews = (function () {
       var NAMES = { advance: 'Advance', pending: 'Pending collected', credit: 'Credit collected', reversed: 'Reversed', Manual: 'Other gaming', RC: 'RC Gaming' };
       var named = function (as) { return as.split(' + ').map(function (k) { return NAMES[k] || k; }).join(' + '); };
       return { name: 'received', columns: ['Receipt', 'Taken on', 'Customer', 'Bill', 'Method', 'Recorded as', 'Amount'],
-        rows: ArenaReports.summary(state, fromMs, toMs, Date.now(), true).paymentRows.map(function (r) { return [number(state, r.paymentId), when(r.at), r.customer, r.billId ? number(state, r.billId) : '', r.method, named(r.as), rupees(r.amountPaise)]; }) };
+        rows: ArenaReports.summary(state, fromMs, toMs, Date.now(), true).paymentRows.map(function (r) { var undo = (state.Corrections || []).find(function (c) { return c.kind === 'payment_reversal' && c.id === r.paymentId; }); return [undo ? 'Reversal of ' + number(state, undo.targetId) : number(state, r.paymentId), when(r.at), r.customer, r.billId ? number(state, r.billId) : '', r.method, named(r.as), rupees(r.amountPaise)]; }) };
     }
     ArenaCore.check(false, 'Unsupported export.');
   }
@@ -4439,8 +4478,7 @@ var ArenaReports = (function () {
     return new Date(ms - setting(state, 'businessDayStartMinutes', 0) * 60000 + 19800000).toISOString().slice(0, 10);
   }
 
-  // How much each part of the floor was used: the play on the bills of the range (as the earnings are), and, when the
-  // range includes now, the play still going on. Players (or games) and time played, with pauses taken out; a PS5 is
+  // How much each part of the floor was used: the play started in the range, still going on or not. Players (or games) and time played, with pauses taken out; a PS5 is
   // counted as groups, the controllers they used, and the time each console was in use. Gaming charged by duration
   // over the counter counts too. The turf: bookings held for days in the range, and their hours.
   function usage(state, fromMs, toMs, now, units, billed, out) {
@@ -4448,7 +4486,8 @@ var ArenaReports = (function () {
     ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling'].forEach(function (k) { use[k] = { sessions: 0, groups: 0, minutes: 0 }; });
     (state.Segments || []).forEach(function (g) {
       var category = units[g.unitId];
-      if (g.status === 'void' || !use[category] || !(billed[g.tabId] || (live && g.status === 'active'))) return;
+      // On the day it was played (owner, 2 November: a pool game of 1 November closed the next morning read as played that day).
+      if (g.status === 'void' || !use[category] || !inRange(Number(g.startMs), fromMs, toMs)) return;
       var start = Number(g.startMs), end = g.endMs ? Number(g.endMs) : Math.max(start, now);
       use[category].sessions++;
       if (category !== 'PS5') { use[category].minutes += Math.max(0, end - start - ArenaCore.pausedMs(state, g, end)) / 60000; return; }
@@ -4457,7 +4496,7 @@ var ArenaReports = (function () {
     });
     Object.keys(consoles).forEach(function (key) { use.PS5.groups++; use.PS5.minutes += (consoles[key].to - consoles[key].from) / 60000; });
     (state.Orders || []).forEach(function (o) {
-      if (o.status !== 'active' || !use[o.category] || !Number(o.durationMinutes) || !billed[o.tabId]) return;
+      if (o.status !== 'active' || !use[o.category] || !Number(o.durationMinutes) || !inRange(Number(o.createdMs), fromMs, toMs)) return;
       use[o.category].sessions++;
       if (o.category === 'PS5') use.PS5.groups++;
       use[o.category].minutes += Number(o.durationMinutes) * (Number(o.quantity) || 1);
@@ -4518,50 +4557,74 @@ var ArenaReports = (function () {
     };
     EARNINGS.forEach(function (k) { out.earnings[k] = 0; });
 
+    // What a bill is made of. Its sessions and items are found by its visit once (state.Segments and state.Orders by tab).
+    var segmentsBy = {}, ordersBy = {};
+    (state.Segments || []).forEach(function (g) { (segmentsBy[g.tabId] = segmentsBy[g.tabId] || []).push(g); });
+    (state.Orders || []).forEach(function (o) { (ordersBy[o.tabId] = ordersBy[o.tabId] || []).push(o); });
+    var makeUp = function (detail) {
+      var m = { gaming: 0, products: 0, turf: 0, turfOff: 0, brought: 0, gamingBy: {}, productBy: {}, turfBy: {}, gamingOn: {}, productOn: {} };
+      // Each part also named with the day it was played or bought, for naming the money paid for it (owner, 2 November:
+      // "anything that has been played yesterday, and recieved today or anyday, how can you put it to todays earnings").
+      var add = function (into, key, paise) { into[key] = (into[key] || 0) + paise; };
+      var on = function (key, ms) { return key + '@' + dateKeyOf(state, ms || detail.createdMs); };
+      (segmentsBy[detail.tabId] || []).forEach(function (g) {
+        if (g.status === 'void') return;
+        m.gaming += g.totalPaise;
+        add(m.gamingBy, units[g.unitId] || 'Manual', g.totalPaise);
+        add(m.gamingOn, on(units[g.unitId] || 'Manual', g.startMs), g.totalPaise);
+      });
+      (ordersBy[detail.tabId] || []).forEach(function (o) {
+        if (o.status !== 'active') return;
+        if (o.category === 'Carried') m.brought += o.totalPaise;
+        else if (o.category === 'Turf') {
+          var part = ArenaTurf.meta(o), gross = part.part === 'share' ? Number(part.grossPaise) : o.totalPaise;
+          m.turf += gross;
+          m.turfOff += gross - o.totalPaise;
+          // By the day its slot is played, so money paid for it is named by that day (see below).
+          add(m.turfBy, 'turf@' + (bookingDays[part.bookingId] || dateKeyOf(state, detail.createdMs)), o.totalPaise);
+        } else if (GAMING.indexOf(o.category) >= 0) { m.gaming += o.totalPaise; add(m.gamingBy, o.category, o.totalPaise); add(m.gamingOn, on(o.category, o.createdMs), o.totalPaise); }
+        else { m.products += o.totalPaise; add(m.productBy, o.category, o.totalPaise); add(m.productOn, on(o.category, o.createdMs), o.totalPaise); }
+      });
+      var subtotal = m.gaming + m.products + m.turf - m.turfOff, discount = detail.discountPaise || 0;
+      m.gamingShare = subtotal > 0 ? Math.round(discount * m.gaming / subtotal) : 0;
+      m.turfShare = subtotal > 0 ? (m.products > 0 ? Math.round(discount * (m.turf - m.turfOff) / subtotal) : discount - m.gamingShare) : 0;
+      m.productShare = discount - m.gamingShare - m.turfShare;
+      // What the bill is made of, after its discount, each part with its day, for sharing out the money paid for it; a balance
+      // brought from an earlier bill is pending collected.
+      m.parts = {};
+      spread(m.gamingOn, m.gamingShare, m.parts);
+      spread(m.productOn, m.productShare, m.parts);
+      spread(m.turfBy, m.turfShare, m.parts);
+      if (m.brought) m.parts.pending = m.brought;
+      return m;
+    };
+    // The parts of any bill not voided, whatever day it was made (an advance paid on the day of play for a bill closed later).
+    var partsFor = function (billId) {
+      if (!(billId in partsOf)) partsOf[billId] = details[billId] && !voided[billId] ? makeUp(details[billId]).parts : null;
+      return partsOf[billId];
+    };
+
     // Charges: bills finalized in the range. One invoice discount is shared between gaming, turf and products in proportion.
     // A player's turf share was already reduced by the booking's discount before it was split; that part is counted once, here.
     (state.Bills || []).forEach(function (bill) {
       var detail = details[bill.id];
       if (!detail || !inRange(detail.createdMs, fromMs, toMs) || voided[bill.id]) return;
-      var tab = tabs[detail.tabId] || {}, gaming = 0, products = 0, turf = 0, turfOff = 0, brought = 0, gamingBy = {}, productBy = {}, turfBy = {};
+      var tab = tabs[detail.tabId] || {}, m = makeUp(detail);
       billed[detail.tabId] = true;
-      var add = function (into, key, paise) { into[key] = (into[key] || 0) + paise; };
-      (state.Segments || []).forEach(function (g) { if (g.tabId === detail.tabId && g.status !== 'void') { gaming += g.totalPaise; add(gamingBy, units[g.unitId] || 'Manual', g.totalPaise); } });
-      (state.Orders || []).forEach(function (o) {
-        if (o.tabId !== detail.tabId || o.status !== 'active') return;
-        if (o.category === 'Carried') brought += o.totalPaise;
-        else if (o.category === 'Turf') {
-          var part = ArenaTurf.meta(o), gross = part.part === 'share' ? Number(part.grossPaise) : o.totalPaise;
-          turf += gross;
-          turfOff += gross - o.totalPaise;
-          // By the day its slot is played, so money paid for it is named by that day (see below).
-          add(turfBy, 'turf@' + (bookingDays[part.bookingId] || dateKeyOf(state, detail.createdMs)), o.totalPaise);
-        } else if (GAMING.indexOf(o.category) >= 0) { gaming += o.totalPaise; add(gamingBy, o.category, o.totalPaise); }
-        else { products += o.totalPaise; add(productBy, o.category, o.totalPaise); }
-      });
-      var subtotal = gaming + products + turf - turfOff, discount = detail.discountPaise || 0;
-      var gamingShare = subtotal > 0 ? Math.round(discount * gaming / subtotal) : 0, turfShare = subtotal > 0 ? (products > 0 ? Math.round(discount * (turf - turfOff) / subtotal) : discount - gamingShare) : 0;
       out.bills++;
-      out.gamingGrossPaise += gaming;
-      out.productGrossPaise += products;
-      out.turfGrossPaise += turf;
-      out.gamingDiscountPaise += gamingShare;
-      out.turfDiscountPaise += turfOff + turfShare;
-      out.productDiscountPaise += discount - gamingShare - turfShare;
-      spread(gamingBy, gamingShare, out.earnings);
-      spread(productBy, discount - gamingShare - turfShare, out.earnings);
-      out.earnings.Turf += turf - turfOff - turfShare;
-      // What the bill is made of, after its discount, for sharing out the money paid for it the same day; a balance brought
-      // from an earlier bill is pending collected.
-      var parts = {};
-      spread(gamingBy, gamingShare, parts);
-      spread(productBy, discount - gamingShare - turfShare, parts);
-      spread(turfBy, turfShare, parts);
-      if (brought) parts.pending = brought;
-      partsOf[bill.id] = parts;
+      out.gamingGrossPaise += m.gaming;
+      out.productGrossPaise += m.products;
+      out.turfGrossPaise += m.turf;
+      out.gamingDiscountPaise += m.gamingShare;
+      out.turfDiscountPaise += m.turfOff + m.turfShare;
+      out.productDiscountPaise += m.productShare;
+      spread(m.gamingBy, m.gamingShare, out.earnings);
+      spread(m.productBy, m.productShare, out.earnings);
+      out.earnings.Turf += m.turf - m.turfOff - m.turfShare;
+      partsOf[bill.id] = m.parts;
       // A balance brought from an earlier bill was already charged there.
-      out.billedPaise += bill.totalPaise - brought;
-      out.broughtForwardPaise += brought;
+      out.billedPaise += bill.totalPaise - m.brought;
+      out.broughtForwardPaise += m.brought;
       if (tab.kind === 'quick_sale') out.quickSalePaise += bill.totalPaise;
     });
 
@@ -4600,10 +4663,13 @@ var ArenaReports = (function () {
       var receipt = !advance && (state.CreditReceipts || []).find(function (r) { return r.id === p.id; });
       if (detail) customer = detail.customer || (tabs[detail.tabId] || {}).customer || '';
       if (advance) {
-        // Paid ahead, unless its bill was made the same day: then it paid for that day's bill.
+        // Advance until its bill is made; then shared over the bill's parts, each named by its own day: an advance paid on the
+        // day of play is that game's or the turf's, whenever the rest was paid (owner, 2 November: "if advance is paid today
+        // for the game to be played today ... it goes to that respective system or turf").
         var own = (state.BillDetails || []).filter(function (d) { return d.tabId === advance.tabId && !voided[d.id]; }).pop();
         customer = (tabs[advance.tabId] || {}).customer || '';
-        return own && dateKeyOf(state, own.createdMs) === day && partsOf[own.id] ? { parts: partsOf[own.id], customer: customer } : { as: 'advance', customer: customer };
+        var ownParts = own ? partsFor(own.id) : null;
+        return ownParts ? { parts: ownParts, customer: customer } : { as: 'advance', customer: customer };
       }
       if (receipt) return { as: 'credit', customer: ((state.CreditAccounts || []).find(function (a) { return a.id === receipt.accountId; }) || {}).name || '' };
       if (p.amountPaise < 0) {
@@ -4618,8 +4684,17 @@ var ArenaReports = (function () {
       if (detail && partsOf[detail.id]) return { parts: partsOf[detail.id], customer: customer };
       return { as: detail ? 'pending' : 'advance', customer: customer };
     };
+    // A payment taken back the same day it was taken never happened, for the report: neither it nor its reversal is listed
+    // (owner, 2 November: a ₹3,600 paid at 10:37 and reversed at 10:38 read as two lines). Both still count in Cash and UPI,
+    // where they cancel out.
+    var undoneSameDay = {};
+    (state.Corrections || []).forEach(function (c) {
+      if (c.kind !== 'payment_reversal') return;
+      var original = (state.Payments || []).find(function (x) { return x.id === c.targetId; }), back = (state.Payments || []).find(function (x) { return x.id === c.id; });
+      if (original && back && dateKeyOf(state, original.createdMs) === dateKeyOf(state, back.createdMs)) { undoneSameDay[original.id] = true; undoneSameDay[back.id] = true; }
+    });
     (state.Payments || []).forEach(function (p) {
-      if (!inRange(p.createdMs, fromMs, toMs)) return;
+      if (!inRange(p.createdMs, fromMs, toMs) || undoneSameDay[p.id]) return;
       var found = classify(p), as = found.as || '', amount = p.amountPaise;
       if (as === 'reversed') out.collected.reversed += -amount;
       else if (as) out.collected[as] += amount;
@@ -4633,12 +4708,14 @@ var ArenaReports = (function () {
         bits.sort(function (a, b) { return b.rest - a.rest || a.key.localeCompare(b.key); });
         for (var i = 0; given < size && i < bits.length; i++, given++) bits[i].paise++;
         if (!bits.length) out.collected.pending += amount;
-        // Turf is named by the day its slot is played (owner, 1 November): paid that day, Turf; paid before it, Advance (a slot
-        // paid in full days ahead); paid after it, Pending collected.
+        // Each part is named by the day it was played or bought: paid that day, under its own name; paid after it, Pending
+        // collected (owner, 2 November: a PS5 played yesterday and paid today is not today's PS5); paid before it, Advance (a
+        // turf slot paid in full days ahead; owner, 1 November).
         var payDay = dateKeyOf(state, p.createdMs), named = function (key) {
-          if (key.indexOf('turf@') !== 0) return key;
-          var slotDay = key.slice(5);
-          return slotDay === payDay ? 'Turf' : slotDay > payDay ? 'advance' : 'pending';
+          var at = key.lastIndexOf('@');
+          if (at < 0) return key;
+          var playDay = key.slice(at + 1), name = key.slice(0, at);
+          return playDay === payDay ? (name === 'turf' ? 'Turf' : name) : playDay > payDay ? 'advance' : 'pending';
         };
         bits.forEach(function (b) {
           var key = named(b.key);
@@ -11526,6 +11603,15 @@ function printReceipt(data) {
   window.print();
 }
 
+// When a bill was made; played on an earlier day, that day too (owner, 2 November: "the fuck is that walk in with todays time
+// and yesterday's bill" — a pool game of 1 November closed the next morning read only 2 Nov, 10:04 AM).
+function billWhen(data, detail) {
+  if (!detail) return '';
+  const closed = day(detail.createdMs) + ', ' + clock(detail.createdMs);
+  const starts = (data.segments || []).map(g => Number(g.startMs)).concat((data.orders || []).filter(o => o.category !== 'Carried' && o.category !== 'Turf').map(o => Number(o.createdMs))).filter(Boolean);
+  const first = starts.length ? Math.min(...starts) : 0;
+  return first && dayKey(first) !== dayKey(detail.createdMs) ? 'Played ' + day(first) + ' · Closed ' + closed : closed;
+}
 async function receiptSheet(billId, back) {
   let data = viewHere(view => ArenaViews.bill(view, billId));
   try { data = data || await rpc('rpcBill', token, billId); }
@@ -11549,19 +11635,25 @@ async function receiptSheet(billId, back) {
       const kv = (label, value, tone = '', props = {}) => h('div', ('kv ' + tone).trim(), h('span', { text: label }), h('b', { text: value, ...props }));
       const section = (title, box) => ui.body.append(h('div', { class: 'summary-title', text: title }), box);
       ui.body.append(h('div', 'bill-head', glyph(stateIcon, stateTone, 'lg'),
-        h('div', 'bill-who', h('div', { class: 'who', text: customer }), h('div', { class: 'small muted', text: [phone, detail ? day(detail.createdMs) + ', ' + clock(detail.createdMs) : ''].filter(Boolean).join(' · ') })),
+        h('div', 'bill-who', h('div', { class: 'who', text: customer }), h('div', { class: 'small muted', data: { billWhen: '1' }, text: [phone, billWhen(data, detail)].filter(Boolean).join(' · ') })),
         h('span', 'bill-tools', statusBadge(data.status), menu([
           ['Print receipt', () => printReceipt(data), false, 'printer'],
           ...(phone ? [['WhatsApp confirmation', () => whatsapp(phone, 'City Arena: bill ' + data.number + ' for ' + money(bill.totalPaise) + '. Received ' + money(paidHere) + (data.transfer ? '. On credit ' + money(data.transfer.amountPaise) : due ? '. Balance ' + money(due) : '') + '. Thank you.'), false, 'message']] : []),
           ...(data.archived ? [['Bring back to correct', () => restoreBill(billId), false, 'undo']] : []),
           ...(!data.archived && correctable(data) && data.payments.length ? [['Correct payment', () => correctBillPaymentSheet(data, back), false, 'pencil'], ['Correct charges', () => correctChargesSheet(data, back), false, 'bills']] : []),
-          ...(!data.archived && data.status !== 'void' && bill.paidPaise === 0 && !data.transfer ? [['Void bill', () => reasonSheet({ title: 'Void bill ' + data.number, sub: 'The visit opens again so it can be corrected.', action: 'Void bill', icon: 'ban', tone: 'bad', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => {
-            // A turf booking's bill opens its booking again (owner, 1 November: an academy's slot voided went to Collect, where
-            // nothing is owed); any other visit opens to be corrected and settled.
-            const booking = result.tabId ? turfBookingForTab(result.tabId) : null;
-            if (booking) { closeSheet(); render(); return turfDetailSheet(booking.id); }
-            return result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet();
-          } }), true, 'ban']] : [])
+          // Nothing paid on it: Void bill cancels it completely, its sessions and items too, nothing charged and the sheet closes
+          // (owner, 2 November: "even after clicking void, it still opens this"); Correct charges opens it again to be fixed and
+          // settled. A turf booking's bill: Void bill opens its booking again (owner, 1 November), where the slot is changed or
+          // cancelled.
+          ...(!data.archived && data.status !== 'void' && bill.paidPaise === 0 && !data.transfer ? (data.orders.some(o => o.category === 'Turf')
+            ? [['Void bill', () => reasonSheet({ title: 'Void bill ' + data.number, sub: 'The booking opens again.', action: 'Void bill', icon: 'ban', tone: 'bad', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => {
+              const booking = result.tabId ? turfBookingForTab(result.tabId) : null;
+              if (booking) { closeSheet(); render(); return turfDetailSheet(booking.id); }
+              return result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet();
+            } }), true, 'ban']]
+            // Correct charges here only when the menu has not got it already (a bill with payments has it above).
+            : [...(correctable(data) && data.payments.length ? [] : [['Correct charges', () => reasonSheet({ title: 'Correct charges · Bill ' + data.number, sub: 'The visit opens again to be corrected and settled.', action: 'Open to correct', icon: 'pencil', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => (result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet()) }), false, 'pencil']]),
+              ['Void bill', () => reasonSheet({ title: 'Void bill ' + data.number, sub: 'Cancelled completely: nothing is charged.', action: 'Void bill', icon: 'ban', tone: 'bad', command: reason => ({ type: 'VOID_BILL', billId, reason, whole: true }), then: result => { closeSheet(); render(); return { text: result.message }; } }), true, 'ban']]) : [])
         ], 'Bill actions'))));
       drawLines(ui.body, { segments: data.segments, orders: data.orders, customer, editable: false, detail: true, pauses: data.pauses });
       const notes = notesBlock([billId, data.tab ? data.tab.id : '']);
@@ -11929,8 +12021,9 @@ function billRange() {
 async function loadBills(key) {
   try {
     const out = await rpc('rpcHistory', token, { text: billQuery.text, status: billQuery.status, ...billRange(), limit: 200 });
-    if (key !== billKey()) return;
-    billCache = { key, rows: out.rows, matched: out.matched };
+    // An answer asked for while a save was still being confirmed is not kept; the redraw below asks again (owner, 2 November:
+    // a bill reversed and voided from this list still read Paid ₹180 in it).
+    if (key === billKey()) billCache = { key, rows: out.rows, matched: out.matched };
   } catch (e) { billCache = { key, rows: [], matched: 0 }; notify('error', e.message); }
   if (page === 'bills' && billsMode === 'closed') redrawKeepingFocus();
 }
@@ -11953,11 +12046,13 @@ const billsPage = {
       rows.map(b => h('tr', { class: 'click', data: { bill: b.id }, onclick: () => receiptSheet(b.id) },
         // A bill paid (in part) by UPI to the CA scanner carries a small CA (owner, 20 October).
         h('td', { class: 'num' }, b.number, b.ca ? h('span', { class: 'tag-ca', text: 'CA' }) : null),
-        h('td', { class: 'hide-s muted', text: when(b.createdMs) }),
-        h('td', null, h('b', { text: b.customer }), h('div', { class: 'small muted', text: [b.units.map(id => (unitOf(id) || {}).name || id).join(', '), b.account ? 'credit: ' + b.account : ''].filter(Boolean).join(' · ') })),
+        // A bill of an earlier day paid in these dates: when it was paid, and the day it was made.
+        h('td', { class: 'hide-s muted', text: b.paidAtMs ? 'Paid ' + when(b.paidAtMs) + ' · bill of ' + day(b.createdMs) : when(b.createdMs) }),
+        h('td', null, h('b', { text: b.customer }), h('div', { class: 'small muted', text: [b.units.map(id => (unitOf(id) || {}).name || id).join(', '), b.account ? 'credit: ' + b.account : '', b.paidAtMs ? (b.paidThenPaise < 0 ? money(-b.paidThenPaise) + ' taken back' : money(b.paidThenPaise) + ' paid') : ''].filter(Boolean).join(' · ') })),
         h('td', { class: 'r num', text: money(b.totalPaise) }),
         h('td', { class: 'r num hide-s' + (b.outstandingPaise && !b.account ? ' owing' : ''), text: b.outstandingPaise && !b.account ? money(b.outstandingPaise) : '—' }),
-        h('td', null, statusBadge(b.status)),
+        // Paid on a later day: which day, beside the status (owner, 2 November: "incase a customer wants to trace back").
+        h('td', null, statusBadge(b.status), b.laterPaidMs ? h('div', { class: 'small muted', data: { paidLater: b.id }, text: 'Paid ' + day(b.laterPaidMs) }) : null),
         // A bill settled by mistake is corrected from here, without opening it first.
         h('td', { class: 'r', onclick: e => e.stopPropagation() }, b.archived ? menu([
           ['Bring back to correct', () => restoreBill(b.id), false, 'undo']
@@ -15450,10 +15545,14 @@ function turfBlock(b, row, column, rows) {
   // A branch may keep a booking teal after its time until it is paid or left pending (Branch.gs boardOverOrange: false, Manipal).
   const overOrange = ended && !turfAccountOf(b.id) && ARENA_BRANCH.boardOverOrange !== false;
   const tone = settled === 'settled' ? ' paid' : settled === 'pending' || settled === 'part' || overOrange ? ' owing' : '';
+  // Money paid in advance, on the card beside the name (owner, 2 November: "if advance is paid show like nicely so and so is
+  // paid"), as a station's card shows it; on a narrow card the wallet and the amount.
+  const ahead = b.tabId && settled !== 'settled' ? heldFor([b.tabId]) : 0;
+  const paidChip = ahead ? h('span', { class: 'chip-paid turf-paid', title: 'Paid in advance', data: { turfPaid: b.id } }, icon('wallet'), h('span', { class: 'turf-paid-word', text: 'Paid' }), money(ahead)) : null;
   // A hold in a colour of its own, the same for both kinds (owner, 27 October); its tag says which.
   // Paid green and pending or over-and-unpaid orange come before the hold's plum.
   return h('div', { class: 'turf-block' + tone + (tone ? '' : maybe ? ' maybe' : hold ? ' hold' : ''), style: 'grid-row:' + row + ' / span ' + rows + ';grid-column:' + column, data: { booking: b.id, settled }, onclick: () => turfOpenBooking(b.id) },
-    h('span', 'turf-block-top', h('button', { type: 'button', class: 'turf-name', 'aria-label': b.customer + ', ' + courtLabel(b.court) + ', ' + b.sport + ', ' + turfRange(b), text: b.customer }), send, mark, cancel),
+    h('span', 'turf-block-top', h('button', { type: 'button', class: 'turf-name', 'aria-label': b.customer + ', ' + courtLabel(b.court) + ', ' + b.sport + ', ' + turfRange(b), text: b.customer }), send, paidChip, mark, cancel),
     h('span', 'turf-block-sub', h('span', { class: 'turf-sport ' + sportIcon(b.sport) }, icon(sportIcon(b.sport)), b.sport), hold ? h('button', { type: 'button', class: 'turf-hold-tag', title: maybe ? 'Hold: message, confirm or cancel' : 'Hold (Pay): advance needed, message, confirm or cancel', 'aria-label': (maybe ? 'Hold' : 'Hold (Pay)') + ': ' + b.customer, data: { action: 'turf-hold-ask' }, onclick: e => { e.stopPropagation(); turfHoldAsk(b, e.currentTarget); } }, icon('clock'), h('span', { text: maybe ? 'Hold' : 'Hold (Pay)' })) : null, h('span', { class: 'turf-time', text: turfRange(b) })));
 }
 // The board keeps the hours still to come, and any earlier hour of a booking not yet settled (it stays until it is).
@@ -16197,7 +16296,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "8e4ff1f88901";
+const APP_BUILD = "35e6ba3e42bb";
 function reloadIfOld(build) {
   if (!build || build === APP_BUILD || outbox.length || flow.saving() || $('sheet').open) return;
   let tried = '';
