@@ -5540,7 +5540,7 @@ var ArenaTurf = (function () {
         kept += done.waiting;
         keptPaise += done.total;
       });
-      return { posted: kept, amountPaise: keptPaise, message: kept ? 'Pending ' + (keptPaise / 100) + ' from earlier days.' : 'Nothing is due to pending.' };
+      return { posted: kept, amountPaise: keptPaise, noop: !kept, message: kept ? 'Pending ' + (keptPaise / 100) + ' from earlier days.' : 'Nothing is due to pending.' };
     }
     if (cmd.type === 'TURF_ACCOUNT_DUE') {
       // Academy slots that have ended go to the academy's credit account, with their items named; so do academy players in a
@@ -5572,7 +5572,7 @@ var ArenaTurf = (function () {
       // Asked by hand for one booking or player: nothing to move is said. Asked by a screen on its own, nothing to move is not an
       // error: another screen open at the same time may have moved it a moment before (owner, 3 November: "Nothing is due to an
       // academy. That change was taken back" on one screen while the other had put Titans on its account).
-      if (!posted && !cmd.id && !cmd.playerId) return { posted: 0, message: 'Nothing is due to an academy.' };
+      if (!posted && !cmd.id && !cmd.playerId) return { posted: 0, noop: true, message: 'Nothing is due to an academy.' };
       check(posted > 0, 'Nothing is due to an academy.');
       return { posted: posted, message: posted + (posted === 1 ? ' academy bill' : ' academy bills') + ' moved to credit.' };
     }
@@ -5583,9 +5583,9 @@ var ArenaTurf = (function () {
       check(!!plan2 && plan2.forever && !plan2.stopped, 'This weekly booking is not running.');
       var today = dateKeyOf(now), horizon = addDays(today, SERIES_AHEAD_DAYS), last = seriesBookings(state, cmd.seriesId).concat((state.TurfBookings || []).filter(function (b) { return b.status === 'cancelled' && String(b.reason || '').indexOf('series:' + cmd.seriesId) === 0; })).reduce(function (k, b) { return b.dateKey > k ? b.dateKey : k; }, plan2.from);
       var from2 = addDays(last > today ? last : today, 1);
-      if (from2 > horizon) return { seriesId: cmd.seriesId, bookingIds: [], message: 'Already booked ahead.' };
+      if (from2 > horizon) return { seriesId: cmd.seriesId, bookingIds: [], noop: true, message: 'Already booked ahead.' };
       var run2 = bookPlan(state, plan2, from2, horizon, now, id, String(cmd.seriesId));
-      return { seriesId: cmd.seriesId, bookingIds: run2.made, skipped: run2.skipped, message: run2.made.length + ' more weeks booked.' };
+      return { seriesId: cmd.seriesId, bookingIds: run2.made, skipped: run2.skipped, noop: !run2.made.length, message: run2.made.length + ' more weeks booked.' };
     }
     if (cmd.type === 'TURF_MEMBER') {
       // A membership (owner, 22 October): the court and hours chosen, on the chosen days of the week, for the period; paid now
@@ -14471,7 +14471,24 @@ function storagePanel(head) {
       notify('success', r.moved ? r.moved + ' records moved to the archive.' : 'Nothing to archive yet: everything is from the last month or still open.');
     } catch (e) { notify('error', e.message); go.disabled = false; go.classList.remove('loading'); }
   }, '', { data: { action: 'archive-now' } });
-  panel.append(go);
+  // Tidy storage (owner, 4 November): a backup copy first, then only the empty columns and rows of the live Sheet are given
+  // back; asked again before it runs.
+  let tidyArmed = false;
+  const tidy = btn([icon('layers'), 'Tidy storage'], async () => {
+    if (!tidyArmed) { tidyArmed = true; tidy.replaceChildren(icon('layers'), 'Tap again to tidy now'); return; }
+    tidy.disabled = true;
+    tidy.classList.add('loading');
+    notify('pending', 'Making a backup copy, then tidying the Sheet…');
+    try {
+      await outboxDrained();
+      const r = await rpc('rpcTidyStorage', token);
+      storageInfo.key = '';
+      await refresh(true);
+      const share = cells => Math.max(1, Math.round((cells / r.limit) * 100)) + '%';
+      notify('success', r.cellsAfter < r.cellsBefore ? 'Storage tidied: ' + share(r.cellsBefore) + ' → ' + share(r.cellsAfter) + '. A backup copy was made first.' : 'Nothing to tidy.');
+    } catch (e) { notify('error', e.message); tidy.disabled = false; tidy.classList.remove('loading'); }
+  }, '', { data: { action: 'tidy-storage' } });
+  panel.append(h('div', 'station-links', go, tidy));
   return panel;
 }
 // Festival wishes for turf booking confirmations: the dates of each one this year, on or off, and the wording.
@@ -16793,6 +16810,9 @@ const turfPage = {
 // An academy's slot goes to its credit account by itself two hours after it ends (owner, 20 and 24 October), unless it was
 // put there by hand first: any screen that is open sends it then; the server moves each one once and names its items.
 let academyDueTried = 0;
+// How often an open screen asks for each of its own checks (an academy's slot, a day's orange bookings, a weekly booking's next
+// weeks): every five minutes, not every minute (owner, 4 November).
+const SWEEP_EVERY_MS = 5 * 60000;
 // A weekly series: its id on a booking, and its plan (the same rules as Turf.gs).
 const turfSeriesOf = b => { const m = /^series:([^ ]+)/.exec(String((b && b.reason) || '')); return m ? m[1] : ''; };
 function turfSeriesPlan(id) { const row = (state.Settings || []).find(r => r.id === 'turfSeries-' + id); try { return row ? JSON.parse(row.value) : null; } catch (e) { return null; } }
@@ -16800,7 +16820,7 @@ function turfSeriesPlan(id) { const row = (state.Settings || []).find(r => r.id 
 // asks; the server books nothing twice.
 let seriesTried = 0;
 function extendSeries() {
-  if (!state || outbox.length || flow.saving() || nowMs() - seriesTried < 60000) return;
+  if (!state || outbox.length || flow.saving() || nowMs() - seriesTried < SWEEP_EVERY_MS) return;
   const soon = shiftDay(dayKey(nowMs()), 56);
   const due = (state.Settings || []).filter(r => String(r.id).startsWith('turfSeries-')).map(r => String(r.id).slice(11)).find(id => {
     const plan = turfSeriesPlan(id);
@@ -16817,7 +16837,7 @@ function extendSeries() {
 // about them first: any open screen sends it after midnight; the server keeps each one pending once.
 let pendingDueTried = 0;
 function postPendingDue() {
-  if (!state || outbox.length || flow.saving() || nowMs() - pendingDueTried < 60000) return;
+  if (!state || outbox.length || flow.saving() || nowMs() - pendingDueTried < SWEEP_EVERY_MS) return;
   const today = dayKey(nowMs());
   const due = (state.TurfBookings || []).some(b => b.dateKey < today && !turfAccountOf(b.id) && !turfStatusOf(b.id).leadId && ['open', 'part'].includes(turfStatusOf(b.id).state));
   if (!due) return;
@@ -16826,7 +16846,7 @@ function postPendingDue() {
   if (here && !here.refused) render();
 }
 function postAcademyDue() {
-  if (!state || outbox.length || flow.saving() || nowMs() - academyDueTried < 60000) return;
+  if (!state || outbox.length || flow.saving() || nowMs() - academyDueTried < SWEEP_EVERY_MS) return;
   const owing = tabId => { const t = tabOf(tabId); return !!t && t.status === 'open' && !stillPlaying(t.id) && ordersOf(t.id).length > 0; };
   const twoHoursOn = b => hourStart(b.dateKey, Number(b.startHour) + Number(b.hours)) + 2 * 3600000 <= nowMs();
   const due = (state.TurfBookings || []).some(b => twoHoursOn(b) && (
@@ -17176,7 +17196,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "4c56b5d7bc2d";
+const APP_BUILD = "33b7ca325b91";
 function reloadIfOld(build) {
   if (!build || build === APP_BUILD || outbox.length || flow.saving() || $('sheet').open) return;
   let tried = '';
