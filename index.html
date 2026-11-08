@@ -5804,11 +5804,18 @@ var ArenaTurf = (function () {
       // A last-moment cancellation (owner, 6 November: "next time when he calls and i try to book, i should get a warning"):
       // kept in Settings lateCancel-<request> with who it was, the day and the hours, so a booking from that mobile warns how
       // many times. Nothing else about the cancel changes.
-      if (cmd.late) {
+      // A no-show (owner, 8 November) is kept the same way, marked as one: it needs the booking's time to have begun.
+      var strike = cmd.late ? 'late' : cmd.noShow ? 'noshow' : '';
+      if (cmd.noShow) {
+        check(!cmd.late && !cmd.all && !cmd.ids && !cmd.fromHere && !(Array.isArray(cmd.hours) && cmd.hours.length), 'A no-show is for one whole booking.');
+        check(now >= startOf(booking), 'This booking has not started yet.');
+        reason = 'No-show' + (reason ? ' · ' + reason : '');
+      }
+      if (strike) {
         check(!cmd.ids && !cmd.fromHere, 'A last-moment cancellation is for one booking.');
         var lateHours = Array.isArray(cmd.hours) && cmd.hours.length ? cmd.hours.map(Number) : null;
         state.Settings = state.Settings || [];
-        state.Settings.push({ id: 'lateCancel-' + id, value: JSON.stringify({ bookingId: booking.id, customer: booking.customer, phone: booking.phone || '', dateKey: booking.dateKey, court: booking.court,
+        state.Settings.push({ id: 'lateCancel-' + id, value: JSON.stringify({ kind: strike, bookingId: booking.id, customer: booking.customer, phone: booking.phone || '', dateKey: booking.dateKey, court: booking.court,
           start: lateHours ? Math.min.apply(null, lateHours) : Number(booking.startHour), end: lateHours ? Math.max.apply(null, lateHours) + 1 : Number(booking.startHour) + Number(booking.hours), at: now }) });
       }
       // Some hours of a long booking only (owner, 21 October): the hours kept stay on this booking and its bill; the hours
@@ -5852,6 +5859,19 @@ var ArenaTurf = (function () {
         });
         if (cmd.fromHere === true) { var p3 = seriesPlan(state, sid2); if (p3) { p3.stopped = true; p3.until = addDays(booking.dateKey, -1); saveSeries(state, sid2, p3); } }
         return { bookingId: booking.id, cancelledIds: chosen2.map(function (b) { return b.id; }), kept: kept.length, stopped: cmd.fromHere === true, message: chosen2.length + (chosen2.length === 1 ? ' booking' : ' bookings') + ' cancelled' + (kept.length ? '; ' + kept.length + ' with money on them left' : '') + '.' };
+      }
+      // Money paid in advance on a last-moment cancellation or a no-show is the turf's (owner, 8 November: "just consider the
+      // advance paid money to the turf"): the booking's bill closes at exactly that amount, paid by the advance, and the
+      // booking is cancelled, so its hours are free.
+      if (strike && cmd.all !== true && booking.tabId && held(state, booking.tabId)) {
+        check(booking.split !== 'yes' && !linked(state, booking).length && !itemsOn(state, booking.tabId) && !playing(state, booking.tabId), 'This booking has items or another slot on its bill. Settle it first.');
+        var aheadPaise = (state.Advances || []).filter(function (a) { return a.tabId === booking.tabId && a.status === 'held'; }).reduce(function (n, a) { return n + Number(a.amountPaise); }, 0);
+        booking.discountPaise = Math.max(0, feeOf(booking) - aheadPaise);
+        ensureMain(state, booking, now, id);
+        sync(state, booking, now, id);
+        ArenaLifecycle.execute(state, { type: 'SETTLE_REVIEW', tabId: booking.tabId, settlement: 'pay', discountType: 'none', discountValue: 0, amountPaise: 0, method: 'cash' }, actor, now, id + '-kept');
+        booking.status = 'cancelled'; booking.reason = reason; booking.updatedMs = now; booking.revision = booking.revision + 1;
+        return { bookingId: booking.id, cancelled: 1, advanceKeptPaise: Math.min(aheadPaise, feeOf(booking)), message: 'Booking closed; the advance is kept for the turf.' };
       }
       // One slot, or (owner, 20 October) every slot booked with it.
       // Chosen slots of those booked together (owner, 22 October), or all of them, or this one.
@@ -8936,6 +8956,8 @@ function h(tag, props, ...kids) {
 function btn(label, onclick, kind = '', props = {}) {
   return h('button', { type: 'button', class: ('btn ' + kind).trim(), onclick, ...props }, label);
 }
+// The one ending of every message sent to a customer (owner, 8 November: "throughout all our messages … keep the ending consistent").
+const MESSAGE_SIGN = ['Warm regards,', '*Team City Arena, ' + ARENA_BRANCH.place + '*', '#PlayAtCityArena'];
 function field(label, input) { return h('label', 'field', h('span', { text: label }), input); }
 function textInput(props) { return h('input', { type: 'text', autocomplete: 'off', ...props }); }
 
@@ -12047,7 +12069,7 @@ function paymentQrSheet(preset) {
       note = note || h('input', { type: 'text', value: preset.note || '', placeholder: 'Turf advance, bill…', 'aria-label': 'For', data: { field: 'qr-note' } });
       const picture = h('div', { class: 'qr-picture', data: { field: 'qr-picture' } });
       ui.body.append(h('div', 'share-top', field('Amount (₹)', amount), field('Mobile', phone)), field('For (optional)', note), picture);
-      const words = paise => 'Please pay ' + money(paise) + (note.value.trim() ? ' · ' + note.value.trim() : '') + ' to ' + PAY_UPI.name + '. Scan the QR with any UPI app.';
+      const words = paise => 'Please pay ' + money(paise) + (note.value.trim() ? ' · ' + note.value.trim() : '') + ' to ' + PAY_UPI.name + '. Scan the QR with any UPI app.' + '\n\n' + MESSAGE_SIGN.join('\n');
       // The picture copied and the chat opened, on the tap itself (a browser allows both only then).
       const send = btn([icon('whatsapp'), 'Send on WhatsApp'], () => {
         const paise = toPaise(amount.value || 0);
@@ -12163,7 +12185,7 @@ async function receiptSheet(billId, back) {
         h('div', 'bill-who', h('div', { class: 'who', text: customer }), h('div', { class: 'small muted', data: { billWhen: '1' }, text: [phone, billWhen(data, detail)].filter(Boolean).join(' · ') })),
         h('span', 'bill-tools', statusBadge(data.status), menu([
           ['Print receipt', () => printReceipt(data), false, 'printer'],
-          ...(phone ? [['WhatsApp confirmation', () => whatsapp(phone, 'City Arena: bill ' + data.number + ' for ' + money(bill.totalPaise) + '. Received ' + money(paidHere) + (data.transfer ? '. On credit ' + money(data.transfer.amountPaise) : due ? '. Balance ' + money(due) : '') + '. Thank you.'), false, 'message']] : []),
+          ...(phone ? [['WhatsApp confirmation', () => whatsapp(phone, 'City Arena: bill ' + data.number + ' for ' + money(bill.totalPaise) + '. Received ' + money(paidHere) + (data.transfer ? '. On credit ' + money(data.transfer.amountPaise) : due ? '. Balance ' + money(due) : '') + '. Thank you.' + '\n\n' + MESSAGE_SIGN.join('\n')), false, 'message']] : []),
           ...(data.archived ? [['Bring back to correct', () => restoreBill(billId), false, 'undo']] : []),
           ...(!data.archived && correctable(data) && data.payments.length ? [['Correct payment', () => correctBillPaymentSheet(data, back), false, 'pencil'], ['Correct charges', () => correctChargesSheet(data, back), false, 'bills']] : []),
           // Nothing paid on it: Void bill cancels it completely, its sessions and items too, nothing charged and the sheet closes
@@ -13369,7 +13391,7 @@ function dayStatementText(account) {
     if (due > 0) lines.push('Thank you so much for your payment! We truly appreciate it. 💛', '', 'Whenever convenient, we’d be grateful if you could clear the remaining balance.', '', 'Thank you for your continued support. Looking forward to seeing you again soon! 🙌');
     else lines.push('You’re all settled! ✨', '', 'Thank you so much for clearing your balance. We truly appreciate your support and trust in City Arena! 💛', '', 'Thank you for your continued support. Looking forward to seeing you again soon! 🙌🙌');
   }
-  lines.push('', '#PlayAtCityArena', 'Team City Arena', ARENA_BRANCH.place);
+  lines.push('', ...MESSAGE_SIGN);
   return lines.join('\n');
 }
 // An academy's statement on WhatsApp (owner, 24 October): a greeting, the previous balance, every booking put on its account
@@ -13422,7 +13444,7 @@ function academyStatementText(account) {
     const widths = [0, 1, 2].map(i => Math.max(...rows.map(r => r[i].length))), amountWidth = Math.max(...rows.map(r => money(r[3]).length));
     lines.push(heading, '```', ...rows.map(r => [r[0].padEnd(widths[0]), r[1].padEnd(widths[1]), r[2].padEnd(widths[2]), money(r[3]).padStart(amountWidth)].join('  ')), '```');
   } else lines.push((since ? 'No new bookings since ' + shortDay(dayKey(since)).replace(/^\w+ /, '') : 'No bookings yet') + '.');
-  lines.push('', '*Total Outstanding: ' + money(due) + '*', '', 'We would appreciate it if you could kindly arrange to clear the outstanding balance at your earliest convenience.', '', 'Thank you for your continued support!', '', ...(ARENA_BRANCH.contact ? ['Contact: 📱 ' + ARENA_BRANCH.contact, ''] : []), '#playatcityarena');
+  lines.push('', '*Total Outstanding: ' + money(due) + '*', '', 'We would appreciate it if you could kindly arrange to clear the outstanding balance at your earliest convenience.', '', 'Thank you for your continued support!', '', ...(ARENA_BRANCH.contact ? ['Contact: 📱 ' + ARENA_BRANCH.contact, ''] : []), ...MESSAGE_SIGN);
   return lines.join('\n');
 }
 // The statement as it will be sent, then WhatsApp; the moment it is sent is remembered for the next one.
@@ -13685,7 +13707,7 @@ function accountItemsSheet(account) {
 function pendingReminderText(name, amountPaise, what, detail = []) {
   const lines = [greetingLine(name, nowMs()), '', 'Hope you’re doing well! 😊', '', 'This is a gentle reminder that *' + money(amountPaise) + '* is pending at City Arena for ' + what + '.', ''];
   if (detail.length) lines.push(...detail, '');
-  lines.push('Whenever convenient, we’d be grateful if you could clear it. 💛', '', 'Thank you for choosing *City Arena*!', '', '*#PlayAtCityArena*', '*Team City Arena*', ARENA_BRANCH.place);
+  lines.push('Whenever convenient, we’d be grateful if you could clear it. 💛', '', 'Thank you for choosing *City Arena*!', '', ...MESSAGE_SIGN);
   return lines.join('\n');
 }
 function pendingRows() {
@@ -14795,7 +14817,7 @@ function turfHoldMessage(b) {
   return [greetingLine(b.customer, nowMs()), '', '*Your slot at City Arena is on hold.* ⏳', '', 'Here are the details:', '', '*📋 Booking Details*', '',
     '📅 *Date:* ' + ordinalDate(b.dateKey), ...together.map(x => '⏰ *Time:* ' + paddedHour(Number(x.startHour)) + ' – ' + paddedHour(Number(x.startHour) + Number(x.hours)) + ' · ' + courtLabel(x.court)), (SPORT_EMOJI[b.sport] || '🎯') + ' *Sport:* ' + b.sport, '',
     'To confirm your booking, kindly pay an advance of *' + money(turfHoldOf(b)) + '*.', '', 'Once we receive it, your slot will be confirmed. 🙌', '',
-    '*#PlayAtCityArena*', '*Team City Arena*', ARENA_BRANCH.place].join('\n');
+    ...MESSAGE_SIGN].join('\n');
 }
 // What the advance is for, written under the QR.
 const turfAdvanceNote = b => 'Turf advance · ' + turfDayName(b.dateKey) + ' ' + turfRange(b);
@@ -14947,7 +14969,7 @@ function turfMessage(b, cancelled, wishes, slots) {
     if (festive) lines.push('Kindly inform us in advance in case of any cancellations or changes to your booking.', '', 'We look forward to seeing you on the turf!', '', festive.join('\n\n'));
     else lines.push('We look forward to welcoming you to the turf! 🙌', '', 'If there’s any change in your plans, we kindly request you to inform us in advance.', '', 'Thank you for choosing *City Arena*. See you soon!');
   }
-  lines.push('', '*#PlayAtCityArena*', '*Team City Arena*', ARENA_BRANCH.place);
+  lines.push('', ...MESSAGE_SIGN);
   return lines.join('\n');
 }
 // Which hours are still open on each court, for sending to a group.
@@ -15079,18 +15101,48 @@ const timesWord = n => n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times';
 // From the third, every booking needs an advance (owner, 6 November: "any bookings after 3 cancellations will require advance").
 const LATE_ADVANCE_FROM = 3;
 const LATE_ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+const lateNth = n => LATE_ORDINALS[n - 1] || n + 'th';
+// No-shows and last-moment cancellations are named apart and counted together for the advance (owner, 8 November).
+function turfStrikeWords(list) {
+  const missed = list.filter(v => v.kind === 'noshow').length, late = list.length - missed;
+  const words = [missed ? 'No-show ' + timesWord(missed) : '', late ? 'Cancelled at the last moment ' + timesWord(late) : ''].filter(Boolean).join(' · ');
+  return words + (list.length >= LATE_ADVANCE_FROM ? ' · advance needed' : '');
+}
+// The day, the time of each slot and the sport with the court, as the short-notice messages write them.
+function turfStrikeDetails(slots, mark = '_') {
+  const b = slots[0], word = text => mark + text + mark;
+  const times = slots.map(x => '🕒 ' + word('Time:') + ' ' + paddedHour(Number(x.startHour)) + ' – ' + paddedHour(Number(x.startHour) + Number(x.hours)) + (slots.length > 1 ? ' · ' + courtLabel(x.court) : ''));
+  const courts = [...new Set(slots.map(x => courtLabel(x.court)))].join(' & ');
+  return ['📅 ' + word('Date:') + ' ' + ordinalDate(b.dateKey), ...times, (SPORT_EMOJI[b.sport] || '🎯') + ' ' + word('Sport:') + ' ' + b.sport + ' / ' + courts];
+}
+// A booking nobody came for, in the owner's words (8 November): the first, the second, and the third, which is sent again for
+// every one after it, naming which it is; the wording goes by no-shows and last-moment cancellations together.
+function turfMissedMessage(slots, count, total) {
+  const nth = lateNth(count), level = Math.min(total, LATE_ADVANCE_FROM);
+  const opening = level === 1 ? 'We noticed that you were unable to make it to your scheduled booking at *City Arena*.' : 'We noticed that you were unable to attend your scheduled booking at *City Arena*.';
+  const lines = ['Hi ' + slots[0].customer + ', 👋', '', opening, '', ...turfStrikeDetails(slots, '*'), ''];
+  if (level === 1) lines.push('We understand that unexpected situations can come up! 😊', '',
+    'Just a gentle reminder that this is your *' + nth + ' missed booking without prior notice*. We kindly request you to inform us if you\'re unable to attend, so we can make the slot available to other players.', '',
+    'Thank you for your understanding, and we hope to see you again soon!');
+  else if (level === 2) lines.push('We understand that plans can sometimes change unexpectedly! 😊', '',
+    'We would just like to bring to your attention that this is your *' + nth + ' missed booking without prior notice*. Since the slot was reserved specifically for you, we were unable to offer it to other players.', '',
+    'We would really appreciate it if you could inform us in advance whenever you\'re unable to attend.', '',
+    'Thank you for your cooperation and continued support!');
+  else lines.push('We understand that unforeseen circumstances can arise! 😊', '',
+    'However, we would like to gently bring to your attention that this is your *' + nth + ' missed booking without prior notice*. Repeated missed bookings make it difficult for us to manage reservations and accommodate other players.', '',
+    'To ensure fair availability for everyone, *an advance payment will henceforth be required to confirm your future bookings.*', '',
+    'We truly value your support and appreciate your understanding. We look forward to welcoming you back to City Arena!');
+  return [...lines, '', ...MESSAGE_SIGN].join('\n');
+}
 // The WhatsApp message for a cancellation on short notice, in the owner's words (6 November): the first, the second, and the
 // third, which is sent again for every one after it, naming which it is.
-function turfLateMessage(slots, count) {
-  const b = slots[0], nth = LATE_ORDINALS[count - 1] || count + 'th';
-  const times = slots.map(x => '🕒 _Time:_ ' + paddedHour(Number(x.startHour)) + ' – ' + paddedHour(Number(x.startHour) + Number(x.hours)) + (slots.length > 1 ? ' · ' + courtLabel(x.court) : ''));
-  const courts = [...new Set(slots.map(x => courtLabel(x.court)))].join(' & ');
-  const lines = ['Hi ' + b.customer + ', 👋', '', 'Your booking at _City Arena_ has been cancelled as requested.', '',
-    '📅 _Date:_ ' + ordinalDate(b.dateKey), ...times, (SPORT_EMOJI[b.sport] || '🎯') + ' _Sport:_ ' + b.sport + ' / ' + courts, ''];
-  if (count === 1) lines.push('We understand that plans can change! 😊', '',
+function turfLateMessage(slots, count, total) {
+  const nth = lateNth(count), level = Math.min(total, LATE_ADVANCE_FROM);
+  const lines = ['Hi ' + slots[0].customer + ', 👋', '', 'Your booking at _City Arena_ has been cancelled as requested.', '', ...turfStrikeDetails(slots), ''];
+  if (level === 1) lines.push('We understand that plans can change! 😊', '',
     'Just a gentle reminder that this is your _' + nth + ' cancellation on short notice_. We kindly request you to inform us a little earlier whenever possible, so other players have an opportunity to book the slot.', '',
     'Thank you for your understanding, and we look forward to welcoming you again!');
-  else if (count === 2) lines.push('We understand that unexpected changes can happen! 😊', '',
+  else if (level === 2) lines.push('We understand that unexpected changes can happen! 😊', '',
     'We would just like to bring to your attention that this is your _' + nth + ' cancellation on short notice_. As slots are reserved specifically for you, cancellations close to the scheduled time make it difficult for us to accommodate other players.', '',
     'We would really appreciate a little more advance notice for future cancellations.', '',
     'Thank you for your cooperation and continued support!');
@@ -15098,9 +15150,7 @@ function turfLateMessage(slots, count) {
     'However, we would like to gently bring to your attention that this is your _' + nth + ' cancellation on short notice_. Repeated cancellations close to the booking time make it challenging for us to offer these slots to other players.', '',
     'To help us manage bookings more effectively, _an advance payment will be required to confirm your future reservations._', '',
     'We truly value your support and appreciate your understanding. We look forward to seeing you at City Arena again!');
-  // Signed as the owner's picture (6 November): the tag and the team in bold, Mangalore under them.
-  lines.push('', '*#PlayAtCityArena*', '*Team City Arena*', 'Mangalore');
-  return lines.join('\n');
+  return [...lines, '', ...MESSAGE_SIGN].join('\n');
 }
 // The warning on a booking form, under the name and mobile, painted again as the mobile is typed or a customer chosen. It
 // only tells: the booking can still be made (owner: "then i will decide whether to go ahead").
@@ -15109,8 +15159,8 @@ function turfLateNote(who) {
   const paint = () => {
     const list = turfLateCancels(who.phone.value);
     node.replaceChildren(...(list.length ? [h('div', { class: 'clash late-note', role: 'status' }, icon('alert'), h('div', 'clash-main',
-      h('b', { text: 'Cancelled at the last moment ' + timesWord(list.length) + (list.length >= LATE_ADVANCE_FROM ? ' · advance needed' : '') }),
-      h('span', { class: 'small', text: list.map(v => turfDayName(v.dateKey) + ' · ' + hourSpan(Number(v.start), Number(v.end))).join(', ') })))] : []));
+      h('b', { text: turfStrikeWords(list) }),
+      h('span', { class: 'small', text: list.map(v => turfDayName(v.dateKey) + ' · ' + hourSpan(Number(v.start), Number(v.end)) + (v.kind === 'noshow' ? ' (no-show)' : '')).join(', ') })))] : []));
   };
   return { node, paint };
 }
@@ -15388,7 +15438,7 @@ function turfDetailSheet(id) {
         ['Send confirmation', sendConfirmation, false, 'whatsapp'],
         ...(split && !status.locked ? [['One payer', () => runCommand({ type: 'TURF_SPLIT', id: b.id, revision: b.revision, on: false }, back), false, 'user']] : []),
         ...(!ended && !turfHeld(b) && status.state === 'open' && !turfHasCharges(b) ? [['Hold (Pay)', () => turfHoldSheet(b), false, 'clock'], ['Hold', () => runCommand({ type: 'TURF_HOLD', id: b.id, revision: b.revision, maybe: true }, back), false, 'clock']] : []),
-        ...(turfCancellable(b) ? [['Cancel booking', () => turfCancelSheet(b, () => turfDetailSheet(b.id)), true, 'close']] : [])
+        ...(turfCancellable(b) || turfNoShowable(b) ? [['Cancel booking', () => turfCancelSheet(b, () => turfDetailSheet(b.id)), true, 'close']] : [])
       ];
       ui.body.append(h('div', 'bill-head', glyph('turf', 'jade', 'lg'),
         h('div', 'bill-who', h('div', { class: 'who turf-when', text: turfSpanOf(b) }), h('div', { class: 'small muted', text: [turfDayName(b.dateKey), turfLinkedOf(b).length ? [b, ...turfLinkedOf(b)].map(x => courtLabel(x.court)).join(', ') : courtLabel(b.court), b.sport].join(' · ') }),
@@ -15653,6 +15703,11 @@ function turfDetailSheet(id) {
 }
 // A booking can be cancelled while it is still to come or under way and nothing has been billed or bought on it.
 const turfCancellable = b => !turfEnded(b) && turfStatusOf(b.id).state === 'open' && !turfHasCharges(b);
+// Money paid in advance on a booking's own bill.
+const turfAheadOf = b => (b.tabId ? heldFor([b.tabId]) : 0);
+// A No-show: its time has begun and nothing but an advance is on it (owner, 8 November). After midnight an unpaid booking has
+// gone to Pending by itself.
+const turfNoShowable = b => b.status === 'booked' && hourStart(b.dateKey, Number(b.startHour)) <= nowMs() && !turfHeld(b) && !turfAccountOf(b.id) && turfStatusOf(b.id).state === 'open' && !turfHasCharges(b) && !(turfAheadOf(b) && turfLinkedOf(b).length);
 // Items, a split or a bill: once any of these exist the booking is settled or cancelled through them, not deleted.
 function turfHasCharges(b) {
   const tabs = [b.tabId, ...turfPlayersOf(b).map(p => p.tabId)].filter(Boolean);
@@ -16222,7 +16277,10 @@ function turfCancelSheet(b, back) {
   const weeks = ahead.filter(x => x.dateKey >= b.dateKey), chosenWeeks = new Set();
   let what = 'one';
   for (let hour = Number(b.startHour); hour < Number(b.startHour) + Number(b.hours); hour++) hours.push(hour);
-  let reason, message = null, all = false, some = false, late = false, lateCount = 0, cancelled = [];
+  let reason, message = null, all = false, some = false, late = false, lateCount = 0, lateTotal = 0, noShow = false, missedCount = 0, cancelled = [];
+  // From the booking's time: cancel normally, or tick No-show (owner, 8 November: "just like cancellation, give an option either to
+  // cancel normally or tick no show").
+  const noShowOffered = turfNoShowable(b);
   openSheet({
     title: 'Cancel booking',
     sub: b.customer + ' · ' + turfDayName(b.dateKey) + ' · ' + turfRange(b),
@@ -16253,9 +16311,15 @@ function turfCancelSheet(b, back) {
       }
       ui.body.append(field('Reason (optional)', reason));
       // Last-moment cancellation (owner, 6 November): ticked, the next booking from this mobile warns how many times.
-      if (what === 'one' || what === 'some') {
+      // No-show is for the whole of one booking.
+      if (noShowOffered && (what !== 'one' || all)) noShow = false;
+      if (noShowOffered && what === 'one' && !all) {
+        const tick = h('input', { type: 'checkbox', checked: noShow, data: { field: 'no-show' }, onchange: () => { noShow = tick.checked; ui.redraw(); } });
+        ui.body.append(h('label', 'check', tick, h('span', { text: 'No-show' + (turfAheadOf(b) ? ' · ' + money(turfAheadOf(b)) + ' advance kept for the turf' : '') })));
+      }
+      if (!noShowOffered && (what === 'one' || what === 'some')) {
         const tick = h('input', { type: 'checkbox', checked: late, data: { field: 'late-cancel' }, onchange: () => { late = tick.checked; } });
-        ui.body.append(h('label', 'check', tick, h('span', { text: 'Last-moment cancellation' })));
+        ui.body.append(h('label', 'check', tick, h('span', { text: 'Last-moment cancellation' + (turfAheadOf(b) ? ' · ' + money(turfAheadOf(b)) + ' advance kept for the turf' : '') })));
       }
       const part = some && picked.size && picked.size < hours.length;
       // Hours of a slot booked with others come off its start or end only.
@@ -16266,12 +16330,16 @@ function turfCancelSheet(b, back) {
       else if (!edgeOk) ui.primary('Choose hours at the start or end', true);
       else if (what === 'dates') ui.primary(chosenWeeks.size ? 'Cancel ' + chosenWeeks.size + (chosenWeeks.size === 1 ? ' Booking' : ' Bookings') : 'Choose the dates', !chosenWeeks.size);
       else if (what === 'from') ui.primary('Cancel ' + weeks.length + (weeks.length === 1 ? ' Booking' : ' Bookings'));
-      else ui.primary(some && !picked.size ? 'Choose the hours' : part ? 'Cancel ' + picked.size + (picked.size === 1 ? ' Hour' : ' Hours') : all ? 'Cancel ' + together.length + ' Slots' : 'Cancel Booking', some && !picked.size);
+      else ui.primary(noShow ? 'Mark No-show' : some && !picked.size ? 'Choose the hours' : part ? 'Cancel ' + picked.size + (picked.size === 1 ? ' Hour' : ' Hours') : all ? 'Cancel ' + together.length + ' Slots' : 'Cancel Booking', some && !picked.size);
     },
     command() {
       // Ticked last-moment, the customer always gets the short-notice message for this count (owner, 6 November).
-      lateCount = late && (what === 'one' || what === 'some') ? turfLateCancels(turfPhone(b)).length + 1 : 0;
-      if (b.confirmSent === 'yes' || (lateCount && turfPhone(b))) message = whatsappAfterSave();
+      const strikes = turfLateCancels(turfPhone(b));
+      lateCount = late && (what === 'one' || what === 'some') ? strikes.filter(v => v.kind !== 'noshow').length + 1 : 0;
+      lateTotal = strikes.length + 1;
+      missedCount = noShow ? strikes.filter(v => v.kind === 'noshow').length + 1 : 0;
+      if (b.confirmSent === 'yes' || ((lateCount || noShow) && turfPhone(b))) message = whatsappAfterSave();
+      if (noShow) return { type: 'TURF_CANCEL', id: b.id, revision: b.revision, reason: reason.value.trim(), noShow: true };
       const part = some && picked.size && picked.size < hours.length;
       if (what === 'half') return { type: 'TURF_HALF', id: b.id, revision: b.revision, keep: keepHalf, reason: reason.value.trim() };
       if (what === 'pick') return { type: 'TURF_CANCEL', id: b.id, revision: b.revision, reason: reason.value.trim(), ids: [...chosenSlots] };
@@ -16284,6 +16352,11 @@ function turfCancelSheet(b, back) {
       message = null;
     },
     then(result) {
+      if (noShow) {
+        if (message) message.send(turfPhone(b), turfMissedMessage([b], missedCount, lateTotal));
+        closeSheet();
+        return { text: 'No-show · ' + b.customer + ' · ' + turfRange(b) + (message ? '. The message is ready in WhatsApp.' : '.') };
+      }
       if (what === 'half') { closeSheet(); return { text: result.message }; }
       if (what === 'pick') { cancelled = together.filter(x => chosenSlots.has(x.id)); if (message) message.send(b.phone, turfMessage(cancelled[0], true, null, cancelled.length > 1 ? cancelled : null)); closeSheet(); return { text: 'Cancelled · ' + b.customer + ' · ' + cancelled.map(x => courtLabel(x.court) + ' ' + turfRange(x)).join(', ') + ' · the rest stays booked.' }; }
       // Some hours only: the message and the note name the hours cancelled.
@@ -16296,7 +16369,7 @@ function turfCancelSheet(b, back) {
         else cancelled.push({ ...b, startHour: hour, hours: 1 });
       }
       const gone = cancelled.length ? cancelled : all ? together : [b];
-      if (message) message.send(turfPhone(b), lateCount ? turfLateMessage(gone, lateCount) : turfMessage(gone[0], true, null, gone.length > 1 ? gone : null));
+      if (message) message.send(turfPhone(b), lateCount ? turfLateMessage(gone, lateCount, lateTotal) : turfMessage(gone[0], true, null, gone.length > 1 ? gone : null));
       closeSheet();
       const several = new Set(gone.map(x => x.dateKey)).size > 1;
       return { text: 'Cancelled · ' + b.customer + ' · ' + (several ? gone.length + ' bookings' : gone.map(turfRange).join(', ')) + (cancelled.length && !several ? ' · the rest stays booked' : '') + (message ? '. The cancellation is ready in WhatsApp.' : '.') };
@@ -16305,15 +16378,22 @@ function turfCancelSheet(b, back) {
 }
 
 // A free slot to post on WhatsApp status when someone cancels late. The owner's wording; 🟩 for the artificial grass.
-function turfSlotText(key, court, start, hours) {
-  const today = dayKey(nowMs()), tomorrow = shiftDay(today, 1);
+// The hours tapped, each run of them one Time line ("06:00 AM – 08:00 AM", then "09:00 AM – 10:00 AM").
+function turfSlotText(key, court, hoursPicked) {
+  const sorted = hoursPicked.slice().sort((x, y) => x - y), runs = [];
+  for (const hour of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && last.end === hour) last.end++;
+    else runs.push({ start: hour, end: hour + 1 });
+  }
+  const start = sorted[0], today = dayKey(nowMs()), tomorrow = shiftDay(today, 1);
   const when = key === today ? (start >= 17 ? 'tonight' : 'today') : key === tomorrow ? 'tomorrow' : 'on ' + turfDayName(key);
   const part = start >= 17 ? 'evening' : start >= 12 ? 'afternoon' : 'morning';
   return [
     '⚽ *TURF SLOT AVAILABLE!* 🟩', '',
     'Looking for a game ' + when + '? We’ve got a slot open! 🔥', '',
     '📅 *Date:* ' + (key === today ? 'Today' : key === tomorrow ? 'Tomorrow' : turfDayName(key)),
-    '⏰ *Time:* ' + paddedHour(start) + ' – ' + paddedHour(start + hours),
+    ...runs.map(r => '⏰ *Time:* ' + paddedHour(r.start) + ' – ' + paddedHour(r.end)),
     '🟩 *Turf:* ' + courtLabel(court), '',
     'Gather your squad and make the most of your ' + part + '! ⚽🙌', '',
     '📩 *DM us now to book your slot!*', '',
@@ -16324,7 +16404,7 @@ function turfSlotText(key, court, start, hours) {
 // Share availability: the whole day for a group, or one free slot as a status, for any day from today on (owner,
 // 22 October, both branches: any date can be chosen here).
 function turfShareSheet(key, list, kindFirst = 'day') {
-  let mode = kindFirst, court = courtsHere()[0], start = null, hours = 1;
+  let mode = kindFirst, court = courtsHere()[0], picked = null;
   openSheet({
     title: 'Share availability',
     icon: 'whatsapp',
@@ -16342,21 +16422,29 @@ function turfShareSheet(key, list, kindFirst = 'day') {
         text = turfAvailabilityText(key, list);
         if (hourStart(key, venueHere().close) <= nowMs()) ui.body.append(h('p', { class: 'muted', text: 'Every hour of this day has gone by. Choose another day.' }));
       } else {
-        // The free hours of the chosen court; consecutive free hours can go together.
+        // The free hours of the chosen court, each tapped on or off (owner, 8 November: "instead of selecting 1 hour 2 hour remove
+        // it … i will click 6-7,7-8"); the first free hour at first, a court changed starting again.
         const starts = freeStarts(key, court, '');
-        if (!starts.includes(start)) start = starts.length ? starts[0] : null;
-        const longest = start == null ? 0 : freeRun(key, court, start, '');
-        hours = Math.max(1, Math.min(hours, longest || 1));
-        const courts = segmented(courtsHere().map(c => [c, courtLabel(c), 'turf']), court, value => { court = value; ui.redraw(); });
+        if (!picked) picked = new Set(starts.slice(0, 1));
+        for (const hour of [...picked]) if (!starts.includes(hour)) picked.delete(hour);
+        const courts = segmented(courtsHere().map(c => [c, courtLabel(c), 'turf']), court, value => { court = value; picked = null; ui.redraw(); });
         ui.body.append(h('div', 'field', h('span', { text: 'Court' }), courts.node));
         if (!starts.length) {
           ui.body.append(h('p', { class: 'muted', text: 'No free hours on this court that day.' }));
           return;
         }
-        const chips = h('div', { class: 'chips turf-starts', data: { field: 'slot-start' } }, starts.map(hour => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(hour === start), data: { startHour: String(hour) }, onclick: () => { start = hour; ui.redraw(); } }, turfChipText(hour))));
-        ui.body.append(h('div', 'field', h('span', { text: 'Starts' }), chips));
-        if (longest > 1) ui.body.append(h('div', 'field', h('span', { text: 'For' }), segmented([1, 2, 3, 4].filter(n => n <= longest).map(n => [n, n + (n === 1 ? ' hour' : ' hours')]), hours, value => { hours = value; ui.redraw(); }).node));
-        text = turfSlotText(key, court, start, hours);
+        const tap = hour => {
+          if (picked.has(hour)) picked.delete(hour);
+          else picked.add(hour);
+          ui.redraw();
+        };
+        const chips = h('div', { class: 'chips turf-starts', data: { field: 'slot-start' } }, starts.map(hour => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(picked.has(hour)), data: { startHour: String(hour) }, onclick: () => tap(hour) }, turfChipText(hour))));
+        ui.body.append(h('div', 'field', h('span', { text: 'Hours' }), chips));
+        if (!picked.size) {
+          ui.body.append(h('p', { class: 'muted', text: 'Tap the hours to share.' }));
+          return;
+        }
+        text = turfSlotText(key, court, [...picked]);
       }
       ui.body.append(whatsappPreview(text, 'share-preview'));
       const copy = btn([icon('copy'), 'Copy'], async () => {
@@ -16385,7 +16473,8 @@ function turfBlock(b, row, column, rows) {
   const hold = turfHeld(b), maybe = turfMaybe(b), hint = hold ? 'Send the hold message' : sent ? 'Confirmation sent · send again' : 'Send confirmation';
   const send = ended || maybe ? null : h('button', { type: 'button', class: 'turf-wa' + (sent ? ' sent' : ''), title: hint, 'aria-label': hint + ' to ' + b.customer, data: { action: 'turf-confirm' }, onclick: e => { e.stopPropagation(); if (hold) turfHoldAsk(b, e.currentTarget); else turfSendConfirmation(b, () => null); } }, icon('whatsapp'));
   // A cancel button big enough to see and tap (owner, 20 October).
-  const cancel = turfCancellable(b) ? h('button', { type: 'button', class: 'turf-x', title: 'Cancel booking', 'aria-label': 'Cancel ' + b.customer + '’s booking', data: { action: 'turf-cancel' }, onclick: e => { e.stopPropagation(); turfCancelSheet(b, null); } }, icon('close')) : null;
+  // The same ✕ all along, opening the one Cancel sheet; from the booking's time it can also be ticked No-show (owner, 8 November).
+  const cancel = turfCancellable(b) || turfNoShowable(b) ? h('button', { type: 'button', class: 'turf-x', title: 'Cancel booking', 'aria-label': 'Cancel ' + b.customer + '’s booking', data: { action: 'turf-cancel' }, onclick: e => { e.stopPropagation(); turfCancelSheet(b, null); } }, icon('close')) : null;
   // The card opens the booking from anywhere on it; the name is the button a keyboard reaches. Under the name, the sport in
   // words (Football or Cricket) and the time.
   // Teal while it is to come or under way; orange once its last hour is over and it is not paid (owner, 24 October: "time
@@ -16733,7 +16822,7 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
     ...(!ended && !status.locked ? [['Move slot', () => turfBookingSheet(b), false, 'transfer']] : []),
     ...(open && !split && status.state !== 'settled' ? [['Paid in advance', () => turfAdvanceSheet(b), false, 'wallet']] : []),
     ['Open booking', () => turfOpenBooking(b.id), false, 'turf'],
-    ...(turfCancellable(b) ? [['Cancel booking', () => turfCancelSheet(b, null), true, 'close']] : [])
+    ...(turfCancellable(b) || turfNoShowable(b) ? [['Cancel booking', () => turfCancelSheet(b, null), true, 'close']] : [])
   ], 'More for ' + b.customer));
   body.append(links);
   // Who plays next on this court.
@@ -17196,7 +17285,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "33b7ca325b91";
+const APP_BUILD = "f2f0cd44f22f";
 function reloadIfOld(build) {
   if (!build || build === APP_BUILD || outbox.length || flow.saving() || $('sheet').open) return;
   let tried = '';
