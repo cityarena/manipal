@@ -10290,6 +10290,9 @@ function gameOwed(tabId, game) {
 function closedGamesList(unit, tab) {
   const games = closedGames(tab.id, unit.id).sort((a, b) => a.startMs - b.startMs);
   if (!games.length) return null;
+  // The items not tied to a closed game (lost in the merge of 7 November, which blanked the Table tab once a game was closed).
+  const owned = new Set(ArenaLifecycle.gameOrders(state, tab.id, games).map(o => o.id));
+  const now = ordersOf(tab.id).filter(o => o.category !== 'Turf' && o.category !== 'Carried' && !owned.has(o.id));
   // No amounts here (owner, 25 October: an item may not be that game's): the game and its time; a tap opens it to be paid,
   // where what it pays is counted.
   const rows = games.map((g, i) => {
@@ -17080,7 +17083,7 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
   // The booking's tools: Add Items, Pay (the booking's own sheet, with Cash, UPI and the rest), Credit, Pending, Extend; more in ⋮.
   const later = !open;
   body.append(h('div', 'court-actions',
-    btn([icon('plus'), 'Add Items'], () => (later ? turfLaterItemsSheet(b) : turfItemsSheet(b, null, true)), 'outline', { data: { action: 'court-items' } }),
+    btn([icon('plus'), 'Add Items'], () => (later ? go('sales') : turfItemsSheet(b, null, true)), 'outline', { data: { action: 'court-items' } }),
     btn([icon(paidUp ? 'checkCircle' : 'wallet'), owed > 0 ? 'Pay ' + money(owed) : paidUp ? 'Paid' : 'Open'], () => turfOpenBooking(b.id), owed > 0 ? 'primary' : paidUp ? 'outline paid' : 'outline', { data: { action: 'court-pay' } })));
   const links = h('div', 'court-links');
   if (!split && !turfAccountOf(b.id) && open && owed > 0) {
@@ -17555,7 +17558,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "b2e50776b2c0";
+const APP_BUILD = "62433c9836e1";
 function reloadIfOld(build) {
   if (!build || build === APP_BUILD || outbox.length || flow.saving() || $('sheet').open) return;
   let tried = '';
