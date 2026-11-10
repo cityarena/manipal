@@ -17577,22 +17577,28 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "a8bbf5f8ebcc";
-let reloadFetching = false;
+const APP_BUILD = "5d13b1e5a339";
+let reloadFetching = false, reloadAskedAt = 0;
+// The new page, fetched whole and kept (owner, 10 November: on a slow connection the old copy kept coming back). True only when
+// what came back really is that release: the server can be ahead of the site for a few minutes during a release.
+async function newPageReady(build) {
+  const fresh = await fetch('/', { cache: 'no-store', credentials: 'same-origin' });
+  if (!fresh.ok || !(await fresh.clone().text()).includes(build)) return false;
+  if (window.caches && navigator.serviceWorker && navigator.serviceWorker.controller) await (await caches.open('city-arena-page')).put('./', fresh);
+  return true;
+}
+const reloadWaits = () => outbox.length || flow.saving() || $('sheet').open;
 async function reloadIfOld(build) {
-  if (!build || build === APP_BUILD || outbox.length || flow.saving() || $('sheet').open || reloadFetching) return;
+  if (!build || build === APP_BUILD || reloadWaits() || reloadFetching || nowMs() - reloadAskedAt < 60000) return;
   let tried = '';
   try { tried = sessionStorage.getItem('arenaReloadedFor') || ''; } catch (e) { return; }
   if (tried === build) return;
-  // The new page is fetched whole and kept first (owner, 10 November: on a slow connection the old copy kept coming back, the
-  // new one never finishing), however long it takes; this page goes on working meanwhile.
   reloadFetching = true;
+  reloadAskedAt = nowMs();
   try {
-    if (window.caches && navigator.serviceWorker && navigator.serviceWorker.controller) {
-      const fresh = await fetch('/', { cache: 'no-store', credentials: 'same-origin' });
-      if (!fresh.ok) throw new Error('Not fetched.');
-      await (await caches.open('city-arena-page')).put('./', fresh);
-    }
+    // Asked again on a later refresh until the site has the release (owner, 10 November: "manipal is not updating automatically").
+    if (ARENA_BRANCH.web.sites.includes(location.origin) && !(await newPageReady(build))) { reloadFetching = false; return; }
+    if (reloadWaits()) { reloadFetching = false; return; }
     sessionStorage.setItem('arenaReloadedFor', build);
   } catch (e) { reloadFetching = false; return; }
   location.reload();
