@@ -2804,6 +2804,26 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .bill-group .line:has(> .item-tools) .item-tools .step button, .bill-group .line:has(> .item-tools) .item-remove { width: 26px; height: 26px; }
 .bill-group .line:has(> .item-tools) .line-amount { min-width: 52px; padding-left: 10px; border-left: 1px solid var(--line-strong); font-family: var(--text); font-weight: 700; text-align: right; }
 #sheet:has(.settle-lines) .settle-lines .bill-group > .group-title .group-sum { margin-left: auto; padding-right: 6px; color: var(--ink); font-family: var(--text); font-weight: 700; }
+
+/* So far as the bill (owner, 11 November: "so far thingy needs to be tidied"): one white card a system, never a box in a box;
+   a system moved onto the bill a card of its own edged in gold, one short line. */
+#sheet:has([data-so-far]) { background: #f6f3fc; }
+#sheet:has([data-so-far]) .own-bill { margin-bottom: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+#sheet:has([data-so-far]) .bill-group { margin-bottom: 10px; padding: 8px; border: 1px solid var(--line); border-radius: var(--r-md); background: #ffffff; box-shadow: 0 8px 18px -14px rgba(76, 40, 140, 0.4); }
+#sheet:has([data-so-far]) .bill-group > .group-title { margin: 2px 4px 8px; font-family: var(--text); font-size: var(--text-md); font-weight: 700; }
+#sheet:has([data-so-far]) .bill-group > .group-title > svg { color: var(--accent-ink); }
+#sheet:has([data-so-far]) .bill-group > .group-title .group-sum { margin-left: auto; padding-right: 6px; color: var(--ink); font-family: var(--text); font-weight: 700; }
+#sheet:has([data-so-far]) .bill-group.moved { border-color: var(--edge-account); }
+#sheet:has([data-so-far]) .bill-group.moved:not(.folded) { padding: 0; border-color: var(--edge-account); overflow: hidden; }
+#sheet:has([data-so-far]) .bill-group.moved > .lines { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; display: block; }
+#sheet:has([data-so-far]) .bill-group.moved > .lines > .line { min-height: 52px; padding: 6px 6px 6px 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+#sheet:has([data-so-far]) .bill-group.moved .fold-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: var(--r-sm); background: var(--primary-soft); color: var(--primary-deep); }
+#sheet:has([data-so-far]) .bill-group.moved .fold-icon svg { width: 18px; height: 18px; color: var(--primary-deep); }
+#sheet:has([data-so-far]) .sheet-head > .glyph { width: 36px; height: 36px; border-color: transparent; border-radius: var(--r-sm); background: var(--primary-soft); color: var(--primary); }
+#sheet:has([data-so-far]) .sheet-head h2 { font-family: var(--text); font-weight: 700; letter-spacing: 0; }
+#sheet:has([data-so-far]) #sheetClose { border-radius: var(--r-sm); background: #ffffff; }
+#sheet:has([data-so-far]) .sheet-foot { padding: 10px 14px 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-xl) var(--r-xl) 0 0; background: #ffffff; box-shadow: 0 -10px 22px -18px rgba(76, 40, 140, 0.45); }
+#sheet:has([data-so-far]) .sheet-foot .action, #sheet:has([data-so-far]) .sheet-foot .btn:not(.primary) { border-radius: var(--r-sm); background: #ffffff; }
 </style>
 </head>
 <body>
@@ -2927,6 +2947,8 @@ var ARENA_BRANCH = (function () {
     units: [
       ['PS5-1', 'PS5', 'PS5 1'], ['PS5-2', 'PS5', 'PS5 2'], ['PS5-3', 'PS5', 'PS5 3'], ['PS5-4', 'PS5', 'PS5 4'],
       ['PS5-5', 'PS5', 'PS5 5'], ['PS5-6', 'PS5', 'PS5 6'], ['PS5-7', 'PS5', 'PS5 7'], ['PS5-8', 'PS5', 'PS5 8'],
+      // PS5 9 (owner, 11 November: "now ps5 add one more"): any open screen adds it to the Sheet once (FLOOR_UNITS in App.gs).
+      ['PS5-9', 'PS5', 'PS5 9'],
       ['Snooker-1', 'Snooker', 'Snooker 1'], ['Pool-2', 'Pool', 'Pool 2'], ['Pool-3', 'Pool', 'Pool 3'], ['Pool-4', 'Pool', 'Pool 4'], ['Pool-5', 'Pool', 'Pool 5'],
       ['Bowling-1', 'Bowling', 'Lane 1'], ['Bowling-2', 'Bowling', 'Lane 2']
     ],
@@ -2994,7 +3016,7 @@ var ARENA_BRANCH = (function () {
         // menuNames: a menu item of one of these names, added with Add Items, counts as that rental on a court card.
         // Memberships (owner, 22 October): the same court and hours every chosen day for the period, paid at once. Placeholder
         // prices until the owner sets them in Settings.
-        memberships: [{ id: '1m', name: '1 month', months: 1, pricePaise: 300000 }, { id: '3m', name: 'Quarter', months: 3, pricePaise: 800000 },
+        memberships: [{ id: '1m', name: '1 month', months: 1, pricePaise: 300000 }, { id: '3m', name: '3 months', months: 3, pricePaise: 800000 },
           { id: '6m', name: '6 months', months: 6, pricePaise: 1500000 }, { id: '12m', name: 'Full year', months: 12, pricePaise: 2800000 }],
         rentals: [{ id: 'racket', name: 'Racket', pricePaise: 5000, menuNames: ['racket', 'rackets', 'racquet', 'racquets'] },
           { id: 'shuttle', name: 'Shuttlecock', pricePaise: 3000, menuNames: ['shuttlecock', 'shuttlecocks', 'shuttle', 'shuttles', 'shuttle cock', 'shuttle cocks', 'cock', 'cocks'] }],
@@ -3083,11 +3105,20 @@ var ArenaCore = (function () {
   }
   // A fresh start after trying the app out: every record goes; the venue's setup stays (stations, rates and settings,
   // festival dates) and, if asked, the menu. Bill and receipt numbers start again at the branch's 0001 (MP-0001, MR-0001).
+  // Settings that belong to records go with them (owner, 11 November: an erase keeps the rates and the menu): numbering, weekly
+  // bookings (a Forever series kept would book its weeks again), late cancels, memberships, lane minutes, reservation notes and
+  // academy statements. Every rate stays; an academy keeps its account, with nothing owed, so its rates still work; the
+  // stock counts stay with the menu and go without it.
+  var RECORD_SETTINGS = ['counter-', 'turfSeries-', 'lateCancel-', 'member-', 'laneExtra-', 'reservationMoved-', 'reservationControllers-', 'academyStatement-'];
   function freshStart(state, keepMenu) {
     var out = {};
     Object.keys(state).forEach(function (name) { out[name] = []; });
     out.Equipment = (state.Equipment || []).slice();
-    out.Settings = (state.Settings || []).filter(function (r) { return String(r.id).indexOf('counter-') !== 0; });
+    var record = function (id) { return RECORD_SETTINGS.some(function (p) { return id.indexOf(p) === 0; }) || (!keepMenu && id.indexOf('stock-') === 0); };
+    out.Settings = (state.Settings || []).filter(function (r) { return !record(String(r.id)); });
+    var academies = out.Settings.filter(function (r) { return String(r.id).indexOf('academy-') === 0; }).map(function (r) { return String(r.id).slice(8); });
+    out.CreditAccounts = (state.CreditAccounts || []).filter(function (a) { return academies.indexOf(a.id) >= 0; });
+    out.CreditDetails = (state.CreditDetails || []).filter(function (d) { return academies.indexOf(d.id) >= 0; });
     if (keepMenu) out.Products = (state.Products || []).slice();
     return out;
   }
@@ -3215,7 +3246,7 @@ var ArenaCore = (function () {
 /* Production session workflows. All mutations run inside command_'s lock and atomic batch. */
 var ArenaApp=(function(){
   function check(condition,message){return ArenaCore.check(condition,message);}
-  var types=['OPEN_TAB','ADD_CONTROLLER','ADD_CONTROLLERS','END_SEGMENT','END_CONTROLLERS','SWITCH_SEGMENT','FINALIZE_TAB','ADD_ADVANCE','SET_REMINDER','CLEAR_REMINDER','MOVE_UNIT'];
+  var types=['OPEN_TAB','ADD_CONTROLLER','ADD_CONTROLLERS','END_SEGMENT','END_CONTROLLERS','SWITCH_SEGMENT','FINALIZE_TAB','ADD_ADVANCE','SET_REMINDER','CLEAR_REMINDER','MOVE_UNIT','FLOOR_UNITS'];
   function row(rows,id){var r=rows.find(function(x){return x.id===id;});check(!!r,'Record not found.');return r;}
   function text(v,max){check(typeof v==='string'&&v.trim().length>0&&v.length<=max,'Invalid name.');return v.trim();}
   function time(v,now){var t=v==null?now:v;check(Number.isSafeInteger(t)&&t>0&&t<=now,'Invalid timestamp. Use a past or current time.');return t;}
@@ -3258,6 +3289,18 @@ var ArenaApp=(function(){
   function execute(s,c,actor,now,id){
     check(actor&&actor.role==='owner','Access denied.');var result;
     if(typeof ArenaLifecycle!=='undefined'&&ArenaLifecycle.handles(c.type))return ArenaLifecycle.execute(s,c,actor,now,id);
+    // A system added to the branch (Branch.gs units) joins the floor once, sent by any open screen that finds it missing
+    // (owner, 11 November: PS5 9), with no step in the editor. Units are only ever added; with none missing nothing is written.
+    if(c.type==='FLOOR_UNITS'){
+      s.Equipment=s.Equipment||[];
+      var have={};
+      s.Equipment.forEach(function(u){have[u.id]=true;});
+      var units=typeof ARENA_BRANCH!=='undefined'?ARENA_BRANCH.units:[];
+      var joining=units.filter(function(u){return !have[u[0]];}).map(function(u){return {id:u[0],category:u[1],name:u[2]};});
+      if(!joining.length)return {noop:true,message:'Every system is on the floor.'};
+      joining.forEach(function(u){s.Equipment.push(u);});
+      return {unitIds:joining.map(function(u){return u.id;}),message:joining.map(function(u){return u.name;}).join(', ')+' added to the floor.'};
+    }
     if(c.type==='ADD_CONTROLLERS'){
       check(Array.isArray(c.players)&&c.players.length>=1&&c.players.length<=3,'Invalid controller selection.');
       check(new Set(c.players.map(function(p){return p.controller;})).size===c.players.length,'Invalid duplicate controller selection.');
@@ -5723,8 +5766,10 @@ var ArenaTurf = (function () {
       // The rates that had nowhere to be set (owner, 10 November: "i am not able to find the rates of these"): bowling per person
       // per game, each venue's rentals and its memberships. A game, a rental on a bill and a membership paid keep their price.
       state.Settings = state.Settings || [];
+      // Up to ₹10,00,000, as any other amount: a year's membership can be more than ₹1,00,000 (owner, 11 November: refused,
+      // "Every rate must be more than zero", for a rate that was).
       var setRate = function (key, value) {
-        check(Number.isSafeInteger(value) && value > 0 && value <= 10000000, 'Every rate must be more than zero.');
+        check(Number.isSafeInteger(value) && value > 0 && value <= 100000000, 'Every rate must be more than zero and at most ₹10,00,000.');
         var row = state.Settings.find(function (r) { return r.id === key; });
         if (row) row.value = value; else state.Settings.push({ id: key, value: value });
       };
@@ -11521,7 +11566,8 @@ function movedGroup(unit, unitId, timers, card, items, tickBox, lines, inside = 
     const g = timers[0], said = timerWords(g, lines.pauses || state.Pauses || []);
     return h('section', 'bill-group moved', h('div', 'lines', h('div', { class: 'line', data: { segment: g.id, moved: '1' } }, moveTick(),
       h('span', { class: 'fold-icon', 'aria-hidden': 'true' }, icon(unit ? unit.category : 'floor')),
-      h('div', 'line-main', h('b', { text: name }), h('span', { class: 'small muted', text: [said.started, said.paused, said.ended, said.charged].filter(Boolean).join(' · ') })),
+      // One short line, as every timer on a bill (owner, 11 November: "so far thingy needs to be tidied").
+      h('div', 'line-main one', h('b', { text: name }), h('span', { class: 'timer-short', text: timerShort(g, said) })),
       h('span', { class: 'line-amount', text: money(total) }))));
   }
   // Inside, the system's name is not said again under its own line.
@@ -14584,7 +14630,9 @@ function ratePricesPanel(title, glyphName, action, rows, commandOf) {
   const boxes = rows.map(r => h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(r.paise / 100), 'aria-label': r.label, data: { rateKey: r.key } }));
   const save = () => {
     const paise = boxes.map(box => toPaise(box.value));
-    if (paise.some(value => !(value > 0))) { notify('error', 'Every rate must be more than zero.'); return; }
+    // The box that is wrong, by name, before anything is sent (owner, 11 November).
+    const wrong = rows.findIndex((r, i) => !(paise[i] > 0 && paise[i] <= 100000000));
+    if (wrong >= 0) { notify('error', rows[wrong].label + ': enter a rate from ₹1 to ₹10,00,000.'); boxes[wrong].focus(); return; }
     runCommand(commandOf(Object.fromEntries(rows.map((r, i) => [r.key, paise[i]]))), () => {});
   };
   return h('section', { class: 'panel', data: { panel: action } }, settingsHead(glyphName, title, 'gold'), rows.map((r, i) => field(r.label, boxes[i])), btn('Save', save, '', { data: { action: 'save-' + action } }));
@@ -14627,7 +14675,8 @@ const ratesPage = {
     const saveTurfRates = () => {
       const rates = {};
       RATE_COURTS.forEach((court, i) => { rates[court] = toPaise(turfRates[i].value); });
-      if (Object.values(rates).some(r => !(r > 0))) { notify('error', 'Every turf rate must be more than zero.'); return; }
+      const wrong = RATE_COURTS.findIndex(court => !(rates[court] > 0 && rates[court] <= 10000000));
+      if (wrong >= 0) { notify('error', venueOf(courtInfo(RATE_COURTS[wrong]).venue).name + ' · ' + courtLabel(RATE_COURTS[wrong]) + ': enter a rate from ₹1 to ₹1,00,000 an hour.'); turfRates[wrong].focus(); return; }
       runCommand({ type: 'TURF_RATES', rates }, () => {});
     };
     const head = settingsHead;
@@ -14894,8 +14943,8 @@ function eraseAllSheet() {
       const list = (title, items) => h('div', 'field', h('span', { text: title }), h('p', { class: 'small', text: items }));
       ui.body.append(
         list('Erased', 'Every bill, payment and receipt, gaming session, turf and court booking, reservation, credit account, customer, report day and comment. Bill numbers start again at ' + ARENA_BRANCH.billPrefix + '0001.'),
-        list('Kept', 'Stations, gaming and turf rates, settings, festival dates and the sign-in. A private backup copy of everything is made first.'),
-        h('label', 'check', keepMenu, h('span', { text: 'Keep the snacks and beverages menu' })),
+        list('Kept', 'Stations, every rate (gaming, courts, bowling, rentals, memberships and academies, each academy keeping its account with nothing owed), settings, festival dates and the sign-in. A private backup copy of everything is made first.'),
+        h('label', 'check', keepMenu, h('span', { text: 'Keep the snacks and beverages menu, with its prices and stock' })),
         field(ARENA_BRANCH.web.login ? 'Sign-in password' : 'Manager password', password),
         field('Type ERASE to confirm', word));
       const go = h('button', { type: 'button', class: 'btn danger block', data: { action: 'erase-confirm' } }, icon('trash'), 'Erase everything');
@@ -17637,8 +17686,19 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "3faad3cea6bc";
+const APP_BUILD = "ff3fec03fea6";
 let reloadFetching = false, reloadAskedAt = 0;
+// A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
+// page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
+let floorUnitsTried = 0;
+function postFloorUnits(build) {
+  if (!state || build !== APP_BUILD || outbox.length || flow.saving() || nowMs() - floorUnitsTried < SWEEP_EVERY_MS) return;
+  const have = new Set((state.Equipment || []).map(u => u.id));
+  if (ARENA_BRANCH.units.every(u => have.has(u[0]))) return;
+  floorUnitsTried = nowMs();
+  const here = trySaveHere({ type: 'FLOOR_UNITS' });
+  if (here && !here.refused) render();
+}
 // The new page, fetched whole and kept (owner, 10 November: on a slow connection the old copy kept coming back). True only when
 // what came back really is that release: the server can be ahead of the site for a few minutes during a release.
 async function newPageReady(build) {
@@ -17681,6 +17741,7 @@ function applySnapshot(data) {
   postAcademyDue();
   postPendingDue();
   extendSeries();
+  postFloorUnits(data.build);
   // A save left unconfirmed: the notice with Check again. Never retried by itself (owner, 25 October: the retry every minute
   // put "Saving…" on the open sheet's button and held every tap while it waited).
   if (flow.pending() && !flow.saving() && !$('sheet').open) notify('pending', 'A save from earlier has not been confirmed.', { label: 'Check again', run: retrySave });
