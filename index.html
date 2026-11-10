@@ -14822,10 +14822,10 @@ function eraseAllSheet() {
       keepMenu = keepMenu || h('input', { type: 'checkbox', checked: true, data: { field: 'erase-keep-menu' } });
       const list = (title, items) => h('div', 'field', h('span', { text: title }), h('p', { class: 'small', text: items }));
       ui.body.append(
-        list('Erased', 'Every bill, payment and receipt, gaming session, turf booking, reservation, credit account, customer, report day and comment. Bill numbers start again at CA-0001.'),
+        list('Erased', 'Every bill, payment and receipt, gaming session, turf booking, reservation, credit account, customer, report day and comment. Bill numbers start again at ' + ARENA_BRANCH.billPrefix + '0001.'),
         list('Kept', 'Stations, gaming and turf rates, settings, festival dates and the sign-in. A private backup copy of everything is made first.'),
         h('label', 'check', keepMenu, h('span', { text: 'Keep the snacks and beverages menu' })),
-        field('Manager password', password),
+        field(ARENA_BRANCH.web.login ? 'Sign-in password' : 'Manager password', password),
         field('Type ERASE to confirm', word));
       const go = h('button', { type: 'button', class: 'btn danger block', data: { action: 'erase-confirm' } }, icon('trash'), 'Erase everything');
       const ready = () => { go.disabled = word.value.trim() !== 'ERASE' || !password.value; };
@@ -14838,7 +14838,9 @@ function eraseAllSheet() {
         sheetStatus('pending', 'Making a backup copy, then erasing…');
         try {
           await outboxDrained();
-          await rpc('rpcEraseAll', token, password.value, keepMenu.checked, word.value.trim());
+          // A sign-in kept on Vercel: Vercel checks the password and gives the short pass the server asks for.
+          const proof = ARENA_BRANCH.web.login && typeof previewMode === 'undefined' ? await askLoginPass(session.user.username, password.value).catch(e => { throw new Error(/^Invalid username/.test(e.message) ? 'Invalid password.' : e.message); }) : password.value;
+          await rpc('rpcEraseAll', token, proof, keepMenu.checked, word.value.trim());
           password.value = '';
           closeSheet();
           await refresh(true);
@@ -17553,7 +17555,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "df80393b0c1d";
+const APP_BUILD = "b2e50776b2c0";
 function reloadIfOld(build) {
   if (!build || build === APP_BUILD || outbox.length || flow.saving() || $('sheet').open) return;
   let tried = '';
