@@ -1549,7 +1549,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .group-title .move-turf-pick[aria-pressed=true] { color: var(--primary); background: var(--primary-soft); }
 .move-turf-day { margin-bottom: 10px; }
 /* "So far" with more than one bill on a station: each customer, their total and their Pay Items on one line. */
-.cost-who { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cost-who { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 0 8px; }
 .bill-group { margin-bottom: 12px; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: linear-gradient(180deg, rgb(var(--tint) / 0.032) 0%, rgb(var(--tint) / 0.013) 100%); box-shadow: var(--hi); }
 .bill-group > .group-title { margin: 2px 2px 10px; font-size: var(--text-base); font-weight: 700; letter-spacing: -0.01em; }
 .bill-group > .group-title > svg { width: 20px; height: 20px; color: var(--accent); }
@@ -3327,11 +3327,9 @@ var ArenaApp=(function(){
       var group=row(s.Tabs,c.groupId),current=active(s,c.unitId);
       check(row(s.Equipment,c.unitId).category==='PS5','Invalid console.');
       check(current.some(function(g){return g.groupId===group.id;}),'This group is not active on this console.');
-      // A player arriving from another game keeps their own historical tab when a friend joins.
-      if(group.kind!=='group'){
-        var shared=openTab(s,id+'-group',group.customer+' group','',now,'group');
-        current.forEach(function(g){g.groupId=shared.id;});group=shared;
-      }
+      // One console, one bill: a controller added to someone who came from another system joins their bill, what they brought
+      // with it (owner, 10 November: "why the fuck is controller 1 and 2 written seperately").
+      group.kind='group';
       add(s,id,group.id,group.id,c.unitId,c.controller,(c.player||'').trim()||'Controller '+c.controller,ArenaCore.startTime(c.startMs,now,c.confirmTime),now);
       result={segmentId:id,message:'Controller '+c.controller+' started.'};
     }else if(c.type==='END_SEGMENT'||c.type==='SWITCH_SEGMENT'){
@@ -10073,12 +10071,18 @@ const ordersOf = tabId => state.Orders.filter(o => o.tabId === tabId && o.status
 const tabTotal = tabId => segmentsOf(tabId).concat(ordersOf(tabId)).reduce((sum, line) => sum + line.totalPaise, 0);
 const stillPlaying = tabId => state.Segments.some(g => g.tabId === tabId && g.status === 'active');
 // A PS5 player is "Controller 3", with a name beside it only when one was typed for that controller.
-const isNamed = g => !/^Controller \d$/.test(g.player);
+const isNamed = g => !/^Controller \d$/.test(g.player) && g.player !== 'Walk-in';
 const controllerLabel = g => (g.controller ? 'Controller ' + g.controller + (isNamed(g) ? ' · ' + g.player : '') : g.player);
 // "Controller 4" with the player's name as a small tag beside it, when one was given.
 const controllerNode = g => [h('span', { text: 'Controller ' + g.controller }), isNamed(g) ? h('span', { class: 'tag', text: g.player }) : null];
 // The names of the groups playing on a unit, shown once above their controllers.
-const groupNames = segments => [...new Set(segments.map(g => (tabOf(g.tabId) || {}).customer).filter(Boolean))].join(' + ');
+// The second bill the app used to open by itself, "Walk-in group", for a controller added after a move from another system:
+// never a person, so never shown as one (owner, 10 November: "can you make sense").
+const madeGroup = (tab, tabs) => tab.kind === 'group' && tabs.some(other => other.id !== tab.id && tab.customer === other.customer + ' group');
+const groupNames = segments => {
+  const tabs = [...new Set(segments.map(g => g.tabId))].map(tabOf).filter(Boolean);
+  return [...new Set(tabs.filter(t => !madeGroup(t, tabs)).map(t => t.customer).filter(Boolean))].join(' + ');
+};
 // "End 2 Controllers": the button always says how many it will stop.
 // What a console's End button stops: the whole session when every running controller is chosen (the owner's picture),
 // otherwise how many of them.
@@ -11900,6 +11904,7 @@ async function costSheet(unit) {
   // Controllers that stopped earlier and left their time for the others: a section of their own (owner, 27 October).
   const earlier = new Set(closedEarlier(players).map(g => g.id)), back = () => costSheet(unit);
   const payable = tabs.filter(t => payableItems(t).length || payableTimers(t).length);
+  const made = tabs.filter(t => madeGroup(t, tabs)), people = tabs.filter(t => !made.includes(t));
   openSheet({
     title: unit.name + ' · so far',
     icon: unit.category,
@@ -11908,11 +11913,13 @@ async function costSheet(unit) {
     sub: groupNames(players),
     focus: false,
     build(ui) {
-      for (const t of tabs) {
-        if (tabs.length > 1) ui.body.append(h('div', { class: 'cost-who', style: 'margin:16px 0 -8px' }, h('span', { class: 'muted', text: t.customer + ' · ' + money(quote.tabTotals[t.id] || 0) }),
+      for (const t of people) {
+        if (people.length > 1) ui.body.append(h('div', { class: 'cost-who' }, h('span', { class: 'muted', text: t.customer + ' · ' + money(quote.tabTotals[t.id] || 0) }),
           payable.length > 1 && payable.includes(t) ? btn([icon('wallet'), 'Pay Items'], () => payItemsSheet(t, back), 'quiet', { data: { action: 'pay-items' } }) : null));
-        // A system moved onto it reads as on the bill: one line, or its name and total to open (owner, 4 November).
-        drawLines(ui.body, { segments: segmentsOf(t.id), orders: ordersOf(t.id), customer: t.customer, tab: t, brought: broughtIn(t, earlier), editable: false, quotes: quote.quotes, earlier, after: back });
+        // A system moved onto it reads as on the bill: one line, or its name and total to open (owner, 4 November). A second bill
+        // the app made by itself is listed with it, the controllers together.
+        const together = [t.id, ...made.map(m => m.id)];
+        drawLines(ui.body, { segments: together.flatMap(segmentsOf).sort((a, b) => (a.controller || 0) - (b.controller || 0)), orders: together.flatMap(ordersOf), customer: t.customer, tab: t, brought: broughtIn(t, earlier), editable: false, quotes: quote.quotes, earlier, after: back });
       }
       // The controllers chosen on the card, or, with none chosen, the whole console.
       const chosen = chosenOn(players).length ? chosenOn(players) : players;
@@ -11924,7 +11931,7 @@ async function costSheet(unit) {
         h('div', 'foot-row cost-actions',
           btn([icon('sales'), 'Add Items'], () => addItemsFor(unit), 'block', { data: { action: 'items' } }),
           // The items paid on their own while the time plays on (owner, 27 October), on every system.
-          payable.length === 1 ? btn([icon('wallet'), 'Pay Items'], () => payItemsSheet(payable[0], back), 'block', { data: { action: 'pay-items' } }) : null,
+          payable.length === 1 || (payable.length && people.length === 1) ? btn([icon('wallet'), 'Pay Items'], () => payItemsSheet(payable[0], back), 'block', { data: { action: 'pay-items' } }) : null,
           btn(unit.category === 'PS5' ? endLabel(chosen.length, players.length) : 'End Session', () => endSheet(unit.category === 'PS5' ? chosen : [players[0]]), 'primary block', { disabled: !chosen.length, data: { action: 'end' } }))].filter(Boolean));
     }
   });
@@ -17630,7 +17637,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "201a85b8e7e1";
+const APP_BUILD = "3faad3cea6bc";
 let reloadFetching = false, reloadAskedAt = 0;
 // The new page, fetched whole and kept (owner, 10 November: on a slow connection the old copy kept coming back). True only when
 // what came back really is that release: the server can be ahead of the site for a few minutes during a release.
