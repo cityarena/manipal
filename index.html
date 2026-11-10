@@ -3890,7 +3890,9 @@ var ArenaReservations=(function(){
    var g=(s.Segments||[]).find(function(x){return x.unitId===u.id&&x.status==='active';}),game=g?gameEnd(s,g,now):null;
    return {unitId:u.id,name:u.name,game:game,freeMs:game?game.endMs:now,blocks:[],gaps:[]};
   });
-  var open=(s.Reservations||[]).filter(function(r){return r.category==='Bowling'&&pending(r)&&(walkIn(r)||r.arrivalMs>=now-STALE_MS);});
+  // Only today's and later days' (owner, 11 November: "rest all clear after midnight"): an earlier day's booking or walk-in holds no lane.
+  var today=Math.floor((now+IST_MS)/DAY_MS);
+  var open=(s.Reservations||[]).filter(function(r){return r.category==='Bowling'&&pending(r)&&Math.floor((Number(r.arrivalMs)+IST_MS)/DAY_MS)>=today&&(walkIn(r)||r.arrivalMs>=now-STALE_MS);});
   var booked=open.filter(function(r){return !walkIn(r);}).sort(function(a,b){return a.arrivalMs-b.arrivalMs||Number(a.createdMs)-Number(b.createdMs);});
   var walkins=open.filter(walkIn).sort(function(a,b){return (Number(a.token)||0)-(Number(b.token)||0)||Number(a.createdMs)-Number(b.createdMs);});
   var out={};
@@ -10191,7 +10193,7 @@ const BOOKING_STALE_MS = 4 * 3600000;
 function bookingsWithoutPlace(category, taken, exclude) {
   const now = nowMs(), until = now + settingValue('reservationHorizonMinutes', 60) * 60000;
   const free = state.Equipment.filter(u => u.category === category && u.id !== taken && !inUse(u)).map(u => u.id);
-  const due = state.Reservations.filter(r => r.id !== exclude && r.category === category && !isWalkIn(r) && RES_PENDING.includes(r.status) && r.arrivalMs <= until && r.arrivalMs >= now - BOOKING_STALE_MS)
+  const due = state.Reservations.filter(r => r.id !== exclude && r.category === category && !isWalkIn(r) && RES_PENDING.includes(r.status) && resCurrent(r) && r.arrivalMs <= until && r.arrivalMs >= now - BOOKING_STALE_MS)
     .sort((a, b) => a.arrivalMs - b.arrivalMs);
   const claimed = new Set(), left = [], open = [];
   for (const r of due) {
@@ -12951,6 +12953,9 @@ const billsPage = {
 
 // ---------- Reservations and the waiting list ----------
 const RES_PENDING = ['upcoming', 'confirmed', 'waiting', 'needs_confirmation'];
+// Only today's and later days' bookings and walk-ins are shown (owner, 11 November: "only keep like the things booked for next day
+// or further days. rest all clear after midnight"): an earlier day's are left out everywhere, never changed or deleted.
+const resCurrent = r => dayKey(Number(r.arrivalMs)) >= dayKey(nowMs());
 // A walk-in on the waiting list (owner, 22 October): first come, first served, with a token for the day.
 const isWalkIn = r => r.kind === 'walkin';
 // The branch's minutes for bookings (Branch.gs), each one a setting.
@@ -13030,6 +13035,14 @@ function laneFit(r, wanted, party) {
   const other = best.expectedMs <= wanted + 60000 ? name(best.unitId) + (best.freeMs <= nowMs() + 60000 ? ' free now' : ' free at ' + clock(best.freeMs)) : 'earliest is ' + clock(best.expectedMs) + ' on ' + name(best.unitId);
   return h('p', { class: 'lane-fit late', data: { laneFit: 'clash' } }, icon('alert'), busy + ' · ' + other);
 }
+// Who booked what and when, in the same words on the screen that made it and on every other (owner, 11 November: "if pool is
+// booked then so an so booked pool at so and so time"). A walk-in says it is waiting, with its number.
+function reservationWhat(r) { return (unitOf(r.unitId) || {}).name || catName(r.category); }
+function reservationAt(r) { return dayKey(r.arrivalMs) === dayKey(nowMs()) ? 'at ' + clock(r.arrivalMs) : 'for ' + day(r.arrivalMs) + ' at ' + clock(r.arrivalMs); }
+function reservationWords(r) {
+  if (isWalkIn(r)) return r.customer + ' is waiting for ' + reservationWhat(r) + ' · #' + r.token;
+  return r.customer + ' booked ' + reservationWhat(r) + ' ' + reservationAt(r);
+}
 function reservationSheet(r, kind) {
   let who, category, at, notes, when = null, times = {};
   const keep = {};
@@ -13074,6 +13087,12 @@ function reservationSheet(r, kind) {
       const laneTime = category.value() === 'Bowling' && when && when !== 'own' && times[when];
       if (!laneTime && !at.value) throw new Error('Enter the arrival time.');
       return { type: r ? 'EDIT_RESERVATION' : 'RESERVE', id: r && r.id, revision: r && r.revision, customer: who.name.value.trim(), phone: who.phone.value.trim(), category: category.value(), arrivalMs: laneTime ? times[when] : stamp(at.value), notes: notes.value.trim(), ...current.party.value() };
+    },
+    then(result) {
+      closeSheet();
+      const saved = result && state.Reservations.find(x => x.id === result.reservationId);
+      if (!saved) return null;
+      return { text: r ? saved.customer + '’s booking is now ' + reservationWhat(saved) + ' ' + reservationAt(saved) + '.' : reservationWords(saved) + '.' };
     }
   });
 }
@@ -13149,7 +13168,7 @@ const lanesLocked = new Set();
 function lockLanes() {
   if (!state || !CATEGORIES.includes('Bowling') || flow.saving() || flow.pending() || $('sheet').open) return;
   const now = nowMs(), hold = resMinutes('lock') * 60000;
-  const todo = state.Reservations.filter(r => r.category === 'Bowling' && RES_PENDING.includes(r.status) && !r.unitId && !lanesLocked.has(r.id));
+  const todo = state.Reservations.filter(r => r.category === 'Bowling' && RES_PENDING.includes(r.status) && resCurrent(r) && !r.unitId && !lanesLocked.has(r.id));
   if (!todo.length) return;
   const plan = lanePlan();
   for (const r of todo) {
@@ -13299,7 +13318,7 @@ function playersSheet(title, current, max, command, label = 'Players') {
     command: () => command(Number(count.value()))
   });
 }
-const resOpen = kind => state.Reservations.filter(r => r.category === kind && RES_PENDING.includes(r.status));
+const resOpen = kind => state.Reservations.filter(r => r.category === kind && RES_PENDING.includes(r.status) && resCurrent(r));
 // One tab per kind (owner, 22 October: "when i click ps5, only ps5 i should see"), each with how many are booked or waiting;
 // bookings and walk-ins in one list, in the order they should play.
 const reservationsPage = {
@@ -13321,8 +13340,9 @@ const reservationsPage = {
     const due = r => (plan && plan.bookings[r.id] ? plan.bookings[r.id].expectedMs : r.arrivalMs);
     const open = resOpen(kind).sort((a, b) => due(a) - due(b) || (Number(a.token) || 0) - (Number(b.token) || 0));
     const today = dayKey(nowMs()), done = state.Reservations.filter(r => r.category === kind && ['in_progress', 'completed'].includes(r.status) && dayKey(r.arrivalMs) === today).sort((a, b) => b.arrivalMs - a.arrivalMs);
-    // Cancelled, no-shows and walk-ins who left: never deleted, listed apart with when and why (owner, 22 October).
-    const gone = state.Reservations.filter(r => r.category === kind && RES_GONE.includes(r.status) && nowMs() - Number(r.closedMs || r.arrivalMs) < 30 * 86400000).sort((a, b) => Number(b.closedMs || b.arrivalMs) - Number(a.closedMs || a.arrivalMs));
+    // Cancelled, no-shows and walk-ins who left: never deleted, listed apart with when and why (owner, 22 October); those closed
+    // today, or booked for today or later, the rest gone from the screen at midnight (owner, 11 November).
+    const gone = state.Reservations.filter(r => r.category === kind && RES_GONE.includes(r.status) && (dayKey(Number(r.closedMs || r.arrivalMs)) === today || resCurrent(r))).sort((a, b) => Number(b.closedMs || b.arrivalMs) - Number(a.closedMs || a.arrivalMs));
     const choose = (value, name, text) => h('button', { type: 'button', 'aria-pressed': String(resView === value), data: { value }, onclick: () => { resView = value; render(); } }, icon(name), h('span', { text }));
     const view = { node: h('div', { class: 'res-switch', role: 'group' }, choose('next', 'list', 'Up next'), choose('gone', 'ban', 'Cancelled' + (gone.length ? ' · ' + gone.length : ''))) };
     page.append(nextUpStrip(RES_KINDS) || '');
@@ -17527,7 +17547,7 @@ async function askLoginPass(username, password) {
 function navBadge(id) {
   if (!state) return null;
   if (id === 'bills') { const ready = openBills().filter(t => !stillPlaying(t.id)).length; return ready ? String(ready) : null; }
-  if (id === 'reservations') { const waiting = state.Reservations.filter(r => r.status === 'waiting' || (RES_PENDING.includes(r.status) && r.arrivalMs < nowMs())).length; return waiting ? String(waiting) : null; }
+  if (id === 'reservations') { const waiting = state.Reservations.filter(r => (r.status === 'waiting' || (RES_PENDING.includes(r.status) && r.arrivalMs < nowMs()))).filter(resCurrent).length; return waiting ? String(waiting) : null; }
   return null;
 }
 // The earliest reminder on the floor, as a data-due attribute for tick() to watch.
@@ -17677,8 +17697,9 @@ function watchArrivals() {
   const box = $('arrivals');
   if (!state) { box.replaceChildren(); return; }
   if (!seen) { seen = { since: nowMs(), ids: new Set() }; keepSeen(); }
-  const fresh = list => list.filter(x => Number(x.createdMs) > seen.since && !seen.ids.has(x.id) && !['cancelled', 'no_show'].includes(x.status));
-  const items = fresh(state.Reservations || []).map(r => ({ ids: [r.id], icon: 'reservations', text: r.customer + ' booked ' + ((unitOf(r.unitId) || {}).name || catName(r.category)) + ' · ' + when(r.arrivalMs) }));
+  // A notice of an earlier day goes at midnight (owner, 11 November), as does one for a booking whose day is over.
+  const fresh = list => list.filter(x => Number(x.createdMs) > seen.since && dayKey(Number(x.createdMs)) === dayKey(nowMs()) && resCurrent(x) && !seen.ids.has(x.id) && !['cancelled', 'no_show'].includes(x.status));
+  const items = fresh(state.Reservations || []).map(r => ({ ids: [r.id], icon: 'reservations', text: reservationWords(r) }));
   box.replaceChildren(...items.map(item => h('div', { class: 'arrival', data: { arrival: item.ids[0] } }, glyph(item.icon, 'gold'),
     h('span', 'arrival-text', h('b', { text: 'New booking' }), h('span', { text: item.text })),
     iconButton('close', 'Close this notice', () => { item.ids.forEach(id => seen.ids.add(id)); keepSeen(); watchArrivals(); }, { data: { action: 'arrival-close' } }))));
@@ -17686,7 +17707,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "ff3fec03fea6";
+const APP_BUILD = "1d12f63f71ed";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
