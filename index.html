@@ -2757,6 +2757,53 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 #sheet:has(.turf-top) .turf-player-tools .btn { border-radius: var(--r-sm); font-family: var(--text); letter-spacing: 0; }
 #sheet:has(.turf-top) .turf-player-tools .icon-btn { border-radius: var(--r-sm); }
 #sheet:has(.turf-top) .turf-paid { margin-bottom: 10px; }
+
+/* A timer on a bill: one short line (owner, 10 November). */
+.line-main.one { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.line-main.one .timer-short { color: var(--ink); font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+.bill-group > .lines > .line:has(.line-main.one) { min-height: 40px; padding: 4px 6px 4px 10px; gap: 8px; }
+.bill-group > .lines:has(.line-main.one) { gap: 4px; }
+.bill-group .line:has(.line-main.one) .seat { width: 26px; height: 26px; }
+
+/* A bill being settled, as the owner's picture of 10 November: a small square Back, the name in a tile, each system a white card, each
+   timer a low white row with its number, name, times and a Charged chip, the amount behind a fine line. */
+.line-main.one { display: grid; gap: 2px; }
+.line-main.one > b { font-size: var(--text-sm); font-weight: 700; line-height: 1.2; }
+.line-main.one .timer-short { color: var(--ink-2); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.bill-group > .lines > .line:has(.line-main.one) { min-height: 44px; padding: 4px 4px 4px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: #ffffff; box-shadow: 0 1px 2px rgba(76, 40, 140, 0.06); }
+.bill-group .line:has(.line-main.one) .seat { width: 26px; height: 26px; border-color: var(--line-strong); background: #ffffff; font-size: var(--text-xs); }
+.bill-group .line:has(.line-main.one) .line-amount { min-width: 52px; padding-left: 10px; border-left: 1px solid var(--line-strong); font-family: var(--text); font-weight: 700; text-align: right; }
+#sheet:has(.settle-lines) { background: #f6f3fc; }
+#sheet:has(.settle-lines) .sheet-head { padding: 10px 10px 8px 12px; }
+#sheet:has(.settle-lines) .sheet-back { flex: none; width: 36px; min-width: 36px; height: 36px; min-height: 36px; justify-content: flex-start; gap: 20px; padding: 0 0 0 9px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: #ffffff; white-space: nowrap; }
+#sheet:has(.settle-lines) .sheet-back svg { width: 17px; height: 17px; }
+#sheet:has(.settle-lines) .sheet-head > .glyph { width: 36px; height: 36px; border-color: transparent; border-radius: var(--r-sm); background: var(--primary-soft); color: var(--primary); }
+#sheet:has(.settle-lines) .sheet-head h2 { font-family: var(--text); font-weight: 700; letter-spacing: 0; }
+#sheet:has(.settle-lines) #sheetClose { border-radius: var(--r-sm); background: #ffffff; }
+#sheet:has(.settle-lines) .settle-top .btn, #sheet:has(.settle-lines) .sheet-body > .btn { min-height: 34px; border-radius: var(--r-sm); background: #ffffff; font-family: var(--text); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0; }
+#sheet:has(.settle-lines) .settle-discount input { width: 76px; min-height: 34px; border-radius: var(--r-sm); background: #ffffff; }
+#sheet:has(.settle-lines) .settle-lines .bill-group { margin-bottom: 10px; padding: 8px; border: 1px solid var(--line); border-radius: var(--r-md); background: #ffffff; box-shadow: 0 8px 18px -14px rgba(76, 40, 140, 0.4); }
+#sheet:has(.settle-lines) .settle-lines .bill-group > .group-title { margin: 2px 4px 8px; font-family: var(--text); font-size: var(--text-md); font-weight: 700; }
+#sheet:has(.settle-lines) .settle-lines .bill-group > .group-title > svg { color: var(--accent-ink); }
+#sheet:has(.settle-lines) .settle-lines .bill-group > .lines { gap: 6px; }
+#sheet:has(.settle-lines) .settle-lines .line:not(:has(.line-main.one)) { min-height: 44px; padding: 4px 6px 4px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: #ffffff; }
+#sheet:has(.settle-lines) .sheet-foot { padding: 10px 14px 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-xl) var(--r-xl) 0 0; background: #ffffff; box-shadow: 0 -10px 22px -18px rgba(76, 40, 140, 0.45); }
+#sheet:has(.settle-lines) .sheet-foot .seg.method { gap: 6px; border-bottom: 0; }
+#sheet:has(.settle-lines) .sheet-foot .seg.method button { min-height: 32px; min-width: 76px; padding: 0 8px; border: 1px solid var(--primary-line); border-radius: var(--r-sm); background: #ffffff; color: var(--primary-deep); font-family: var(--text); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0; }
+#sheet:has(.settle-lines) .sheet-foot .seg.method button[aria-pressed=true] { border-color: var(--primary); background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary-line); }
+#sheet:has(.settle-lines) .sheet-foot .btn.primary.block { min-height: 38px; border-radius: var(--r-sm); font-family: var(--text); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0; }
+#sheet:has(.settle-lines) .sheet-foot .action { border-radius: var(--r-sm); background: #ffffff; font-weight: 600; }
+#sheet:has(.settle-lines) .sheet-foot [data-action=split-pay] { min-height: 32px; padding: 0 8px; border: 1px solid var(--primary-line); border-radius: var(--r-sm); background: #ffffff; color: var(--primary-deep); font-family: var(--text); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0; }
+
+/* An item on a bill: one line, its name · its price, its − count + and bin, the amount behind a fine line (owner's picture, 10 November). */
+.bill-group .line:has(> .item-tools) { min-height: 40px; padding: 3px 8px 3px 12px; gap: 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: #ffffff; box-shadow: 0 1px 2px rgba(76, 40, 140, 0.06); }
+.bill-group .line:has(> .item-tools) .line-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+.bill-group .line:has(> .item-tools) .line-main > b { font-size: var(--text-sm); font-weight: 700; }
+.bill-group .line:has(> .item-tools) .line-main > .muted:not(:empty)::before { content: '· '; }
+.bill-group .line:has(> .item-tools) .line-main > .muted { font-size: var(--text-xs); }
+.bill-group .line:has(> .item-tools) .item-tools .step button, .bill-group .line:has(> .item-tools) .item-remove { width: 26px; height: 26px; }
+.bill-group .line:has(> .item-tools) .line-amount { min-width: 52px; padding-left: 10px; border-left: 1px solid var(--line-strong); font-family: var(--text); font-weight: 700; text-align: right; }
+#sheet:has(.settle-lines) .settle-lines .bill-group > .group-title .group-sum { margin-left: auto; padding-right: 6px; color: var(--ink); font-family: var(--text); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -9205,6 +9252,15 @@ function timerWords(g, pauses, quote) {
     charged: quote ? 'Charged so far ' + inWords(quote.billableMinutes) : running ? '' : 'Charged ' + inWords(g.billableMinutes)
   };
 }
+// A timer in one short line, not a sentence (owner, 10 November: "because its written like a sentence, this box looks big"):
+// "6:36–7:07 PM · 30 minutes", any pause after it.
+function timerShort(g, said) {
+  const shorter = words => words.replace(/ minutes?/, ' min').replace(/ hours?/, ' hr');
+  const day_ = dayKey(g.startMs) === dayKey(nowMs()) ? '' : day(g.startMs) + ', ';
+  const when = g.status === 'active' ? 'Since ' + clock(g.startMs) : day_ + clock(g.startMs) + ' – ' + clock(g.endMs);
+  const charged = shorter(said.charged.replace(/^Charged so far (.*)$/, '$1 so far').replace(/^Charged /, ''));
+  return [when, charged, shorter(said.paused.toLowerCase())].filter(Boolean).join(' · ');
+}
 function istInput(ms) { return new Date(ms + 19800000).toISOString().slice(0, 16); }
 function stamp(value) { return value ? Date.parse(value + ':00+05:30') : null; }
 
@@ -11349,21 +11405,18 @@ function drawLines(body, lines) {
     // On "so far" the ones still playing are a section of their own beside those closed earlier (owner, 27 October).
     const playing = list.some(g => g.status === 'active'), part = closedEarlierHere ? ' · Closed earlier' : byUnit.has(unitId + ':earlier') ? (playing ? ' · Playing' : ' · Ended now') : '';
     const worth = g => (g.status !== 'active' ? Number(g.totalPaise || 0) : lines.quotes && lines.quotes[g.id] ? lines.quotes[g.id].totalPaise : null);
-    const partTotal = part && list.every(g => worth(g) !== null) ? h('span', { class: 'group-sum', text: money(list.reduce((total, g) => total + worth(g), 0)) }) : null;
+    // With more than one timer the system's total stands on its heading (owner, 10 November); one timer already says it.
+    const partTotal = (part || list.length > 1) && list.every(g => worth(g) !== null) ? h('span', { class: 'group-sum', text: money(list.reduce((total, g) => total + worth(g), 0)) }) : null;
     for (const g of list) {
       const running = g.status === 'active', quote = running && lines.quotes ? lines.quotes[g.id] : null;
       // Started, paused, ended and charged, in words (owner, 24 October), so a question about the time is answered here.
-      const said = timerWords(g, lines.pauses || state.Pauses || [], quote), earlier = '';
-      const span = [said.started, said.ended].filter(Boolean).join(' · ');
-      const billed = [said.paused, said.charged, earlier].filter(Boolean).join(' · ');
+      const said = timerWords(g, lines.pauses || state.Pauses || [], quote);
       // A bowling game is per game, so its line is its people and price, with no time (owner, 22 October).
       const bowling = bowlingParty(g);
       // A controller is named by its number; a PC or table line is named by its time, with the player if it is someone else's.
       const main = bowling
         ? h('div', 'line-main', h('b', { text: bowling.text }), h('span', { class: 'small muted', text: [running ? 'Playing now' : '', g.player && g.player !== customer ? g.player : ''].filter(Boolean).join(' · ') }))
-        : g.controller
-        ? h('div', 'line-main', h('b', null, controllerNode(g)), h('span', { class: 'small muted', text: [said.started, said.paused, said.ended, said.charged, earlier].filter(Boolean).join(' · ') }))
-        : h('div', 'line-main', h('b', { text: span }), h('span', { class: 'small muted', text: [billed, g.player && g.player !== customer ? g.player : ''].filter(Boolean).join(' · ') }));
+        : h('div', 'line-main one', g.controller ? h('b', null, controllerNode(g)) : g.player && g.player !== customer ? h('b', { text: g.player }) : null, h('span', { class: 'timer-short', text: timerShort(g, said) }));
       card.append(h('div', { class: 'line', data: { segment: g.id } }, tickBox([g.id]), g.controller ? h('span', { class: 'seat', 'aria-hidden': 'true', text: String(g.controller) }) : null, main,
         bowling ? h('span', { class: 'line-amount', text: money(running ? bowling.totalPaise : g.totalPaise) }) : quote ? h('span', { class: 'line-amount', text: money(quote.totalPaise) }) : running ? timer(g, true) : h('span', { class: 'line-amount', text: money(g.totalPaise) }),
         editable ? sessionMenu(g) : null));
@@ -17577,7 +17630,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "5d13b1e5a339";
+const APP_BUILD = "201a85b8e7e1";
 let reloadFetching = false, reloadAskedAt = 0;
 // The new page, fetched whole and kept (owner, 10 November: on a slow connection the old copy kept coming back). True only when
 // what came back really is that release: the server can be ahead of the site for a few minutes during a release.
