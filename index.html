@@ -1702,7 +1702,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 /* Share availability: WhatsApp's own green beside the words. */
 .page-bar .btn[data-action=turf-availability] svg { color: #25d366; width: 18px; height: 18px; }
 /* An hour is tall enough for a one-hour booking's two lines: the name and its time. */
-.turf-board { display: grid; grid-template-columns: 132px repeat(var(--courts, 3), minmax(0, 1fr)); grid-template-rows: 44px; grid-auto-rows: 62px; gap: 6px 16px; padding: 14px 16px 16px; border-color: var(--edge-board); box-shadow: 0 1px 2px rgba(80, 62, 30, 0.05), 0 12px 30px -18px rgba(80, 62, 30, 0.24); }
+.turf-board { display: grid; grid-template-columns: 132px repeat(var(--courts, 3), minmax(0, 1fr)); --turf-row: 62px; --turf-row-gap: 6px; grid-template-rows: 44px; grid-auto-rows: var(--turf-row); gap: var(--turf-row-gap) 16px; padding: 14px 16px 16px; border-color: var(--edge-board); box-shadow: 0 1px 2px rgba(80, 62, 30, 0.05), 0 12px 30px -18px rgba(80, 62, 30, 0.24); }
 /* The turf as one court (owner, 22 October): its two halves side by side make one wide bar for each hour; a whole-court
    booking spans both. */
 .turf-board[data-venue=turf] { column-gap: 3px; }
@@ -2326,7 +2326,7 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
   .input-clear input { padding-right: 36px !important; }
   .input-clear .icon-btn { right: 6px; width: 24px; height: 24px; margin-top: -12px; }
   .action { min-height: 56px; }
-  .turf-board { grid-template-columns: 62px repeat(var(--courts, 3), minmax(0, 1fr)); grid-template-rows: 40px; grid-auto-rows: 58px; gap: 6px; padding: 10px; }
+  .turf-board { grid-template-columns: 62px repeat(var(--courts, 3), minmax(0, 1fr)); --turf-row: 58px; grid-template-rows: 40px; grid-auto-rows: var(--turf-row); gap: var(--turf-row-gap); padding: 10px; }
   /* A narrow hour column: the start with its dash, the end under it. */
   .turf-hour-text { flex-wrap: wrap; }
   .turf-from, .turf-to { min-width: 0; text-align: right; }
@@ -2582,6 +2582,155 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 /* On a phone, the tab bar in condensed capitals; the sign-in button square in capitals. */
 :root[data-theme="manipal"] .tabbar button { font-family: var(--display); text-transform: uppercase; letter-spacing: 0.05em; }
 :root[data-theme="manipal"] .login-submit { border-radius: 2px; font-family: var(--display); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Every sheet: its top and its foot kept low so what is in the middle can be seen, the middle scrolling for the rest (owner,
+   10 November: "top parts and bottom parts all is written so big that middle information is literally hiding"). */
+.sheet-head { gap: 10px; padding: 10px 10px 8px 16px; }
+.sheet-head > .glyph { width: 32px; height: 32px; }
+.sheet-head > .glyph svg { width: 17px; height: 17px; }
+.sheet-head h2 { font-size: var(--text-lg); }
+.sheet-head p { margin-top: 0; font-size: var(--text-xs); }
+.sheet-body { padding: 4px 16px 12px; }
+.sheet-foot { gap: 6px; padding: 8px 16px 10px; }
+.foot-label { font-size: var(--text-xs); }
+.foot-total { font-size: var(--text-xl); }
+.sheet-foot .field > span { font-size: var(--text-xs); }
+.sheet-foot input[type=number] { min-height: 36px; font-size: var(--text-md); }
+.sheet-foot .btn, .sheet-foot .btn.block, .sheet-foot .seg.method button { min-height: 36px; font-size: var(--text-sm); }
+.sheet-foot .btn.primary.block { min-height: 40px; font-size: var(--text-sm); }
+.sheet-foot .actions { gap: 6px; }
+.sheet-foot .action { min-height: 36px; gap: 6px; padding: 2px 8px; font-size: var(--text-xs); }
+.sheet-foot .action svg { width: 16px; height: 16px; }
+.turf-collect { gap: 6px; }
+.turf-collect-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.turf-collect-label { font-size: var(--text-lg); line-height: 1.2; }
+.turf-collect .btn { min-height: 36px; font-size: var(--text-sm); }
+.turf-collect > .btn.primary { min-height: 40px; margin-top: 0; }
+.sheet-body .bill-head { gap: 10px; padding: 10px 12px; }
+.sheet-body .station-links { margin: 2px 0 10px; }
+.sheet-body .station-links .btn.quiet { min-height: 36px; gap: 6px; padding: 0 10px; font-size: var(--text-xs); }
+.sheet-body .turf-when { font-size: var(--text-lg); }
+
+/* A booking's sheet, neat (owner, 10 November: "have some fucking sense and do it neatly"): one box says it once, the tools on
+   one line under it, Collect and the ways to pay on one line, End Session under them. */
+.turf-head { padding: 8px 10px 8px 12px; margin-bottom: 6px; }
+.turf-when-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.turf-when-row .badge, .turf-collect-top .badge { min-height: 22px; gap: 4px; padding: 0 8px; font-size: var(--text-xs); }
+.turf-head-fee b { font-size: var(--text-lg); }
+.sheet-body .station-links:has(.settle-discount) { align-items: center; gap: 6px; }
+.sheet-body .station-links .btn.quiet { min-height: 32px; gap: 4px; padding: 0 8px; letter-spacing: 0.02em; }
+.sheet-body .station-links .btn.quiet svg { width: 15px; height: 15px; }
+.sheet-body .station-links .settle-discount { gap: 6px; font-size: var(--text-xs); white-space: nowrap; }
+.sheet-body .station-links .settle-discount input { width: 64px; min-height: 32px; padding: 0 8px; }
+.sheet-body .station-links + .summary { margin-top: 0; }
+.sheet-body .group-title { margin: 10px 0 6px; }
+.turf-collect[data-collect="1"] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.turf-collect[data-collect="1"] .turf-collect-top { flex: 0 0 auto; justify-content: flex-start; gap: 8px; }
+.turf-collect[data-collect="1"] .turf-pay { flex: 1 1 240px; gap: 6px; }
+.turf-collect[data-collect="1"] .turf-scanner, .turf-collect[data-collect="1"] > .btn.primary { flex: 1 0 100%; }
+.turf-collect .turf-pay .btn { min-height: 32px; gap: 4px; font-size: var(--text-xs); letter-spacing: 0.02em; }
+.turf-collect .turf-pay .btn svg { width: 15px; height: 15px; }
+.turf-collect > .btn.primary { min-height: 34px; font-size: var(--text-xs); }
+.turf-collect-label { font-size: var(--text-md); }
+
+/* A court card's items: one line and their total, + shows them (owner, 10 November). */
+.court-items-sum { align-items: center; font-weight: 600; }
+.court-items-end { display: inline-flex; align-items: center; gap: 8px; }
+.court-items-more { width: 28px; height: 28px; min-width: 28px; min-height: 28px; }
+.court-items-more svg { width: 15px; height: 15px; }
+
+/* Snacks and beverages folded on a booking: the heading, the total at the right, one + (owner, 10 November). */
+.group-title[data-snacks] .group-sum { margin-left: auto; font-family: var(--text); font-weight: 700; color: var(--ink); }
+.group-title[data-snacks] [hidden] { display: none; }
+.group-title[data-snacks] .court-items-more:first-of-type { margin-left: auto; }
+.group-title[data-snacks] .group-sum + .court-items-more { margin-left: 0; }
+.lines[hidden] { display: none; }
+
+/* A booking's sheet, as the owner's picture of 10 November: a card with who, the booking in its box and the tools; Rentals with a
+   tile on each line; Snacks & beverages folded to a card of its own; the foot as one white panel. */
+#sheet:has(.turf-top) { background: #f6f3fc; }
+#sheet:has(.turf-top) .sheet-head { margin: 10px 12px 0; padding: 12px 10px 8px 14px; border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; background: #ffffff; }
+#sheet:has(.turf-top) .sheet-head > .glyph { width: 38px; height: 38px; border-radius: var(--r-sm); border-color: transparent; background: var(--primary-soft); color: var(--primary); }
+#sheet:has(.turf-top) .sheet-head > .glyph svg { width: 20px; height: 20px; }
+#sheet:has(.turf-top) .sheet-head h2 { font-family: var(--text); font-size: var(--text-lg); font-weight: 700; letter-spacing: 0; }
+#sheet:has(.turf-top) .sheet-head p { font-size: var(--text-sm); }
+#sheet:has(.turf-top) #sheetClose { border-radius: var(--r-sm); }
+#sheet:has(.turf-top) .sheet-body { padding: 0 12px 12px; }
+.turf-top { margin-bottom: 12px; padding: 0 14px 12px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--r-lg) var(--r-lg); background: #ffffff; box-shadow: 0 8px 18px -14px rgba(76, 40, 140, 0.4); }
+.turf-top .turf-head { align-items: stretch; margin: 0 0 10px; padding: 8px 8px 8px 12px; border-color: rgba(122, 47, 208, 0.16); border-radius: var(--r-md); background: #f8f6fd; box-shadow: none; }
+.turf-top .turf-head .bill-who { align-self: center; gap: 4px; }
+.turf-top .turf-when { font-family: var(--text); font-size: var(--text-base); font-weight: 700; letter-spacing: 0; }
+.turf-when-row > svg { width: 17px; height: 17px; color: var(--primary-deep); }
+.turf-top .turf-when-row .badge { border-radius: var(--r-xs); border-color: transparent; background: rgba(40, 30, 70, 0.07); }
+.turf-top .turf-when-row .badge.good { background: var(--accent-soft, rgba(13, 138, 79, 0.1)); }
+.turf-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--ink-2); font-size: var(--text-xs); }
+.turf-facts > span { display: inline-flex; align-items: center; gap: 6px; }
+.turf-facts > span + span { padding-left: 10px; border-left: 1px solid var(--line-strong); }
+.turf-facts svg { width: 14px; height: 14px; color: var(--ink-2); }
+.turf-top .turf-head-fee { align-content: center; align-self: stretch; margin-left: auto; padding: 0 4px 0 14px; border-left: 1px solid var(--line-strong); }
+.turf-top .turf-head-fee b { font-family: var(--text); font-size: var(--text-xl); font-weight: 700; }
+.turf-top .bill-tools { align-self: center; }
+.turf-top .station-links { margin: 0; }
+#sheet:has(.turf-top) .turf-top .station-links .btn.quiet { border-color: rgba(40, 30, 70, 0.14); border-radius: var(--r-sm); background: #fbfafe; color: var(--ink); font-family: var(--text); font-weight: 600; letter-spacing: 0; }
+#sheet:has(.turf-top) .turf-top .settle-discount input { border-radius: var(--r-sm); }
+#sheet:has(.turf-top) .group-title { margin: 4px 2px 8px; font-family: var(--text); font-size: var(--text-md); font-weight: 700; }
+#sheet:has(.turf-top) .group-title > svg { color: var(--primary-deep); }
+#sheet:has(.turf-top) .lines { margin-bottom: 12px; padding: 0 12px; border-color: var(--line); border-radius: var(--r-md); background: #ffffff; box-shadow: 0 8px 18px -14px rgba(76, 40, 140, 0.4); }
+#sheet:has(.turf-top) .summary { margin-bottom: 12px; border-radius: var(--r-md); background: #ffffff; }
+#sheet:has(.turf-top) .line { min-height: 54px; gap: 10px; padding: 8px 0; }
+.item-tile { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--primary-soft); color: var(--primary-deep); }
+.item-tile svg { width: 19px; height: 19px; }
+#sheet:has(.turf-top) .line-main b { font-size: var(--text-md); }
+#sheet:has(.turf-top) .line.with-tools .line-amount { min-width: 62px; padding-left: 12px; border-left: 1px solid var(--line-strong); font-family: var(--text); font-weight: 700; text-align: right; }
+#sheet:has(.turf-top) .group-title.folded { margin: 0 0 12px; padding: 10px 10px 10px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: #ffffff; box-shadow: 0 8px 18px -14px rgba(76, 40, 140, 0.4); }
+#sheet:has(.turf-top) .group-title.folded > svg { width: 21px; height: 21px; }
+#sheet:has(.turf-top) .group-title .court-items-more { border-color: var(--primary-line); border-radius: var(--r-xs); background: var(--primary-soft); color: var(--primary-deep); }
+#sheet:has(.turf-top) .sheet-foot { padding: 12px 14px; border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-xl) var(--r-xl) 0 0; background: #ffffff; box-shadow: 0 -10px 22px -18px rgba(76, 40, 140, 0.45); }
+#sheet:has(.turf-top) .turf-collect-label { font-family: var(--text); font-size: var(--text-lg); font-weight: 700; }
+#sheet:has(.turf-top) .turf-collect-top .badge { border-radius: var(--r-xs); }
+#sheet:has(.turf-top) .turf-collect .turf-pay .btn { border-color: var(--primary-line); border-radius: var(--r-sm); background: #ffffff; color: var(--primary-deep); font-family: var(--text); font-weight: 600; letter-spacing: 0; }
+#sheet:has(.turf-top) .turf-collect .turf-pay .btn[aria-pressed=true] { border-color: var(--primary); background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary-line); }
+#sheet:has(.turf-top) .turf-collect > .btn.primary { min-height: 38px; border-radius: var(--r-sm); font-family: var(--text); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0; }
+#sheet:has(.turf-top) .turf-collect > .btn.primary:disabled { opacity: 0.62; }
+#sheet:has(.turf-top) .sheet-foot .actions { flex-wrap: wrap; }
+#sheet:has(.turf-top) .sheet-foot .action { border-radius: var(--r-sm); background: #ffffff; font-weight: 600; }
+@media (min-width: 600px) {
+  .turf-top .settle-discount { padding-left: 10px; border-left: 1px solid var(--line-strong); }
+  #sheet:has(.turf-top) .turf-collect[data-collect="1"] .turf-collect-top { padding-right: 10px; border-right: 1px solid var(--line-strong); }
+}
+#sheet:has(.turf-top) .turf-collect > .btn.primary:disabled { opacity: 1; background: linear-gradient(90deg, #bb8ce8 0%, #9a6bdc 100%); box-shadow: none; }
+#sheet:has(.turf-top) #sheetClose { border-color: var(--line); background: #f8f6fd; }
+.turf-top { padding: 0 12px 12px; }
+#sheet:has(.turf-top) .turf-top .station-links { gap: 6px; }
+#sheet:has(.turf-top) .turf-top .station-links .btn.quiet { gap: 4px; padding: 0 6px; }
+#sheet:has(.turf-top) .turf-top .station-links .btn.quiet svg { width: 14px; height: 14px; }
+#sheet:has(.turf-top) .turf-top .settle-discount { gap: 4px; }
+#sheet:has(.turf-top) .turf-top .settle-discount input { width: 52px; padding: 0 6px; }
+@media (max-width: 599px) {
+  .turf-facts > span + span { padding-left: 0; border-left: 0; }
+}
+
+/* Several courts on one bill (owner's picture of 10 November): the day, sport and courts in a strip under the time; Booked Courts as one
+   line, + showing each court. */
+.turf-top .turf-head.several { flex-wrap: wrap; row-gap: 8px; }
+.turf-top .turf-head.several .bill-who { flex: 1 1 0; }
+.turf-facts.strip { flex: 1 0 100%; padding: 6px 10px; border: 1px solid rgba(122, 47, 208, 0.1); border-radius: var(--r-sm); background: #ffffff; }
+.booked-courts { margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: #ffffff; box-shadow: 0 8px 18px -14px rgba(76, 40, 140, 0.4); }
+#sheet:has(.turf-top) .booked-courts > .group-title { margin: 0; padding: 8px 10px 8px 14px; }
+.booked-title { flex: 1; min-width: 0; }
+#sheet:has(.turf-top) .booked-courts .btn.quiet { min-height: 30px; gap: 4px; padding: 0 8px; border: 1px solid var(--primary-line); border-radius: var(--r-xs); background: #ffffff; color: var(--primary-deep); font-family: var(--text); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0; }
+#sheet:has(.turf-top) .booked-courts .btn.quiet svg { width: 14px; height: 14px; color: var(--primary-deep); }
+.booked-court { display: flex; align-items: center; gap: 10px; margin: 0 10px 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: #ffffff; }
+.booked-court .item-tile { width: 32px; height: 32px; }
+.booked-court-text { flex: 1; min-width: 0; color: var(--ink-2); font-size: var(--text-sm); }
+.booked-court-text b { color: var(--ink); }
+.booked-court-fee { padding: 4px 10px; border-radius: var(--r-xs); background: var(--primary-soft); color: var(--ink); font-size: var(--text-sm); }
+/* A court card's snacks line, as the owner's pictures of 10 November; the card itself is unchanged. */
+.court-items-name { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; }
+.court-items-name svg { width: 17px; height: 17px; color: var(--ink-2); }
+.court-items-name.none { color: var(--ink-3); font-size: 14px; font-weight: 500; }
+.court-items-name.none svg { color: var(--ink-3); }
+.court-links + .court-next { padding-top: 8px; border-top: 1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -2894,11 +3043,13 @@ var ArenaCore = (function () {
   }
   function pricesFor(state,category){return rateSetting(state,category).rates.slice();}
   // A bowling game's saved price: per person per game, with the players and games it was started for.
-  function bowlingRates(players, games) {
+  function bowlingRates(players, games, state) {
     var rules = ARENA_BRANCH.bowling;
     check(Number.isInteger(players) && players >= 1 && players <= rules.maxPlayers, 'Choose 1 to ' + rules.maxPlayers + ' players.');
     check(Number.isInteger(games) && games >= 1 && games <= rules.maxGames, 'Choose 1 to ' + rules.maxGames + ' games.');
-    return { perPersonPaise: rules.perPersonPaise, players: players, games: games };
+    // The price set on Settings → Rates, if there is one (owner, 10 November); a game keeps the price it started at.
+    var set = state ? (state.Settings || []).find(function (r) { return r.id === 'bowlingRate'; }) : null;
+    return { perPersonPaise: set ? Number(set.value) : rules.perPersonPaise, players: players, games: games };
   }
   // How long a lane is expected to be busy: 10 minutes a player and 5 minutes more, for each game.
   function bowlingMinutes(players, games) {
@@ -3010,7 +3161,7 @@ var ArenaApp=(function(){
     }else{check(occupants.length===0,'This unit is occupied.');controller=0;}
     // A start time earlier than the last session on this slot ended is allowed (owner, 21 October: "let me add regardless");
     // only a controller or unit in use now is refused, above.
-    var g={id:id,tabId:tabId,groupId:groupId,unitId:unitId,controller:controller,player:text(player,80),startMs:start,endMs:'',status:'active',ratesJson:JSON.stringify(unit.category==='Bowling'?ArenaCore.bowlingRates(bowling&&bowling.players,bowling&&bowling.games):ArenaCore.pricesFor(s,unit.category)),totalPaise:0,billableMinutes:0};s.Segments.push(g);return g;
+    var g={id:id,tabId:tabId,groupId:groupId,unitId:unitId,controller:controller,player:text(player,80),startMs:start,endMs:'',status:'active',ratesJson:JSON.stringify(unit.category==='Bowling'?ArenaCore.bowlingRates(bowling&&bowling.players,bowling&&bowling.games,s):ArenaCore.pricesFor(s,unit.category)),totalPaise:0,billableMinutes:0};s.Segments.push(g);return g;
   }
   // Money paid before the bill exists (a parent pays for an hour up front). It is received now, with its own receipt number,
   // comes off the bill when the bill is made, and anything over the bill is handed back at settlement (see SETTLE_REVIEW).
@@ -5066,7 +5217,7 @@ var ArenaReports = (function () {
    their own items, settled through the usual checkout. Every amount is an ordinary order on an ordinary tab. */
 var ArenaTurf = (function () {
   'use strict';
-  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE'];
+  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE'];
   // Items bought for Team A, Team B or everyone are kept once, as bought, and each player's part is one line on their bill.
   var SHARED = 'Shared items', GROUPS = ['A', 'B', 'all'];
   // Every court of every venue comes from the branch's settings (Branch.gs), switched-off ones included, so old bookings and
@@ -5479,6 +5630,22 @@ var ArenaTurf = (function () {
         if (saved) saved.value = value; else state.Settings.push({ id: 'turfRate-' + court, value: value });
       });
       return { message: 'Turf rates saved. Existing bookings keep their rate.' };
+    }
+    if (cmd.type === 'RATE_EXTRAS') {
+      // The rates that had nowhere to be set (owner, 10 November: "i am not able to find the rates of these"): bowling per person
+      // per game, each venue's rentals and its memberships. A game, a rental on a bill and a membership paid keep their price.
+      state.Settings = state.Settings || [];
+      var setRate = function (key, value) {
+        check(Number.isSafeInteger(value) && value > 0 && value <= 10000000, 'Every rate must be more than zero.');
+        var row = state.Settings.find(function (r) { return r.id === key; });
+        if (row) row.value = value; else state.Settings.push({ id: key, value: value });
+      };
+      if (cmd.bowlingPaise != null) setRate('bowlingRate', cmd.bowlingPaise);
+      VENUES.forEach(function (v) {
+        (v.rentals || []).forEach(function (g) { var value = cmd.rentals && cmd.rentals[v.key + '-' + g.id]; if (value != null) setRate('rentalPrice-' + v.key + '-' + g.id, value); });
+        (v.memberships || []).forEach(function (m) { var value = cmd.memberships && cmd.memberships[v.key + '-' + m.id]; if (value != null) setRate('memberPrice-' + v.key + '-' + m.id, value); });
+      });
+      return { message: 'Rates saved. Bills already made keep their rates.' };
     }
     if (cmd.type === 'TURF_FESTIVAL') {
       // Festival wishes for booking confirmations, in the owner's fixed wording. Diwali, Eid and Christmas: the dates for
@@ -9012,6 +9179,8 @@ const ICONS = {
   // A pin with its band and a ball with two finger holes (our own).
   Bowling: ['M8 2.5c-1.3 0-2 1-2 2.3 0 1.1.6 1.8.6 2.8 0 1.4-1.6 3-1.6 6.6 0 2.9.9 5.4 1.4 7.3h3.2c.5-1.9 1.4-4.4 1.4-7.3 0-3.6-1.6-5.2-1.6-6.6 0-1 .6-1.7.6-2.8 0-1.3-.7-2.3-2-2.3z', 'M6.4 9h3.2', 'c:17,16.5,4.5', 'M16 14.6h.01', 'M18.2 14.2h.01'],
   // A shuttlecock: its cork and feathers.
+  racket: ['c:15,9,6.5', 'M10.4 13.6 3.5 20.5', 'M11 5l8 8', 'M19 5l-8 8'],
+  pin: ['M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z', 'c:12,10,2.5'],
   badminton: ['c:12,18.5,2.5', 'M9.6 17.4 6 4h12l-3.6 13.4', 'M10 4l1.2 13', 'M14 4l-1.2 13', 'M7 9h10'],
   // A pickleball paddle and its ball.
   pickleball: ['r:4,2,12,12.5,6', 'M10 14.5V21', 'M8.5 21h3', 'c:19,18,2.4'],
@@ -9027,6 +9196,7 @@ const ICONS = {
   tabs: ['M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z', 'M14 8H8', 'M16 12H8', 'M13 16H8'],
   bills: ['M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z', 'M14 8H8', 'M16 12H8', 'M13 16H8'],
   sales: ['M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z', 'M3 6h18', 'M16 10a4 4 0 0 1-8 0'],
+  salesOff: ['M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z', 'M3 6h18', 'M16 10a4 4 0 0 1-8 0', 'M2 2l20 20'],
   credits: ['r:2,5,20,14,2', 'M2 10h20', 'M6 15h4'],
   customers: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'c:9,7,4', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
   reports: ['M3 3v16a2 2 0 0 0 2 2h16', 'M18 17V9', 'M13 17V5', 'M8 17v-3'],
@@ -9613,6 +9783,7 @@ function openSheet(config) {
       ui.foot.replaceChildren();
       sheet.primaryButton = null;
       config.build(ui);
+      if (config.drawn && $('sheet').open) config.drawn(ui);
       if (ui.body.scrollTop === 0) ui.body.scrollTop = top;
       const again = field && !document.activeElement.dataset.field ? $('sheet').querySelector('[data-field="' + field + '"]') : null;
       if (again && again.offsetParent) {
@@ -9623,7 +9794,10 @@ function openSheet(config) {
   };
   sheet.ui = ui;
   ui.redraw();
-  if (!$('sheet').open) $('sheet').showModal();
+  if (!$('sheet').open) {
+    $('sheet').showModal();
+    if (config.drawn) config.drawn(ui);
+  }
   $('sheetBody').scrollTop = again;
   // The cursor goes to the first box, or to the one the sheet names (focus: a selector), or nowhere (focus: false).
   const first = $('sheetBody').querySelector(typeof config.focus === 'string' ? config.focus : 'input:not([type=hidden]):not([hidden])');
@@ -14333,7 +14507,30 @@ function passwordSheet() {
     }
   });
 }
-const setupPage = {
+const settingsHead = (name, title, tone = '') => h('div', 'panel-head', glyph(name, tone), h('h2', { text: title }));
+// A panel of rates typed straight in, saved together.
+function ratePricesPanel(title, glyphName, action, rows, commandOf) {
+  const boxes = rows.map(r => h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(r.paise / 100), 'aria-label': r.label, data: { rateKey: r.key } }));
+  const save = () => {
+    const paise = boxes.map(box => toPaise(box.value));
+    if (paise.some(value => !(value > 0))) { notify('error', 'Every rate must be more than zero.'); return; }
+    runCommand(commandOf(Object.fromEntries(rows.map((r, i) => [r.key, paise[i]]))), () => {});
+  };
+  return h('section', { class: 'panel', data: { panel: action } }, settingsHead(glyphName, title, 'gold'), rows.map((r, i) => field(r.label, boxes[i])), btn('Save', save, '', { data: { action: 'save-' + action } }));
+}
+// Bowling, and each venue's rentals and memberships: the rates set nowhere else (owner, 10 November).
+function extraRatePanels() {
+  const panels = [];
+  if (ARENA_BRANCH.bowling) panels.push(ratePricesPanel('Bowling (₹)', 'Bowling', 'bowling-rate', [{ key: 'bowling', label: 'Per person, per game', paise: settingValue('bowlingRate', ARENA_BRANCH.bowling.perPersonPaise) }], values => ({ type: 'RATE_EXTRAS', bowlingPaise: values.bowling })));
+  for (const venue of ARENA_BRANCH.venues) {
+    if ((venue.rentals || []).length) panels.push(ratePricesPanel(venue.name + ' rentals (₹)', venue.icon, 'rentals-' + venue.key, venue.rentals.map(g => ({ key: venue.key + '-' + g.id, label: g.name + ', each', paise: settingValue('rentalPrice-' + venue.key + '-' + g.id, g.pricePaise) })), values => ({ type: 'RATE_EXTRAS', rentals: values })));
+    if ((venue.memberships || []).length) panels.push(ratePricesPanel(venue.name + ' membership (₹)', venue.icon, 'memberships-' + venue.key, venue.memberships.map(m => ({ key: venue.key + '-' + m.id, label: m.name, paise: settingValue('memberPrice-' + venue.key + '-' + m.id, m.pricePaise) })), values => ({ type: 'RATE_EXTRAS', memberships: values })));
+  }
+  return panels;
+}
+// Every rate in one place (owner, 10 November: "rates and setup make 2 tabs … all rates you put in one"); snacks and drinks keep
+// their prices on the Menu tab, each with its item.
+const ratesPage = {
   render(page) {
     const durations = [15, 30, 45, 60], inputs = {};
     const saved = category => { const row = state.Settings.find(r => r.id === 'gamingRates-' + category); return row ? JSON.parse(row.value) : { rates: RATE_DEFAULTS[category], revision: 0 }; };
@@ -14354,10 +14551,6 @@ const setupPage = {
       if (!commands.length) { notify('success', 'Rates are unchanged.'); return; }
       saveAll(commands, 'Rates saved. Sessions already running keep their old rates.');
     };
-    const horizon = h('input', { type: 'number', min: '0', max: '1440', step: '1', value: String(settingValue('reservationHorizonMinutes', 60)), 'aria-label': 'Warning window' });
-    const grace = h('input', { type: 'number', min: '0', max: '120', step: '1', value: String(settingValue('reservationGraceMinutes', 10)), 'aria-label': 'Late after' });
-    const dayStart = h('select', { 'aria-label': 'Business day starts' }, [0, 1, 2, 3, 4, 5, 6].map(hour => h('option', { value: String(hour * 60) }, hour === 0 ? 'Midnight' : hour + ':00 AM')));
-    dayStart.value = String(settingValue('businessDayStartMinutes', 0));
     // Turf: one rate per booked hour and court. A booking keeps the rate it was made with.
     const turfRates = RATE_COURTS.map(court => { const saved = state.Settings.find(r => r.id === 'turfRate-' + court); return h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String((saved ? Number(saved.value) : TURF_RATE_DEFAULTS[court]) / 100), 'aria-label': court + ' rate per hour', data: { turfRate: court } }); });
     const saveTurfRates = () => {
@@ -14366,14 +14559,26 @@ const setupPage = {
       if (Object.values(rates).some(r => !(r > 0))) { notify('error', 'Every turf rate must be more than zero.'); return; }
       runCommand({ type: 'TURF_RATES', rates }, () => {});
     };
-    const backupError = session.backupError ? JSON.parse(session.backupError) : null;
-    const head = (name, title, tone = '') => h('div', 'panel-head', glyph(name, tone), h('h2', { text: title }));
+    const head = settingsHead;
     page.append(
       h('section', 'panel', head('cash', 'Gaming rates (₹)', 'gold'), grid, h('div', { style: 'margin-top:16px' }, btn('Save rates', saveRates, 'primary', { data: { action: 'save-rates' } }))),
       h('div', 'panel-grid',
         h('section', 'panel', head('turf', 'Court rate per hour (₹)', 'gold'), RATE_COURTS.map((court, i) => field(venueOf(courtInfo(court).venue).name + ' · ' + courtLabel(court), turfRates[i])),
           btn('Save', saveTurfRates, '', { data: { action: 'save-turf-rates' } })),
-        academyPanel(head),
+        ...extraRatePanels(),
+        academyPanel(head)));
+  }
+};
+const setupPage = {
+  render(page) {
+    const horizon = h('input', { type: 'number', min: '0', max: '1440', step: '1', value: String(settingValue('reservationHorizonMinutes', 60)), 'aria-label': 'Warning window' });
+    const grace = h('input', { type: 'number', min: '0', max: '120', step: '1', value: String(settingValue('reservationGraceMinutes', 10)), 'aria-label': 'Late after' });
+    const dayStart = h('select', { 'aria-label': 'Business day starts' }, [0, 1, 2, 3, 4, 5, 6].map(hour => h('option', { value: String(hour * 60) }, hour === 0 ? 'Midnight' : hour + ':00 AM')));
+    dayStart.value = String(settingValue('businessDayStartMinutes', 0));
+    const backupError = session.backupError ? JSON.parse(session.backupError) : null;
+    const head = settingsHead;
+    page.append(
+      h('div', 'panel-grid',
         festivalPanel(head),
         h('section', 'panel', head('reservations', 'Reservations'), field('Warn about bookings due within (minutes)', horizon), field('Mark as overdue after (minutes)', grace),
           btn('Save', () => runCommand({ type: 'RESERVATION_SETTINGS', horizon: Number(horizon.value), grace: Number(grace.value) }, () => {}))),
@@ -14674,12 +14879,12 @@ const allBillsPage = {
 };
 
 // ---------- Settings: setup, reports, customers and the menu ----------
-let settingsMode = 'setup';
-const SETTINGS_PARTS = { setup: setupPage, reports: reportsPage, customers: customersPage, menu: menuPage };
+let settingsMode = 'rates';
+const SETTINGS_PARTS = { rates: ratesPage, setup: setupPage, reports: reportsPage, customers: customersPage, menu: menuPage };
 const settingsPage = {
   title: 'Settings',
   bar(bar) {
-    bar.append(h('div', 'bar-row', segmented([['setup', 'Rates & setup', 'setup'], ['reports', 'Reports', 'reports'], ['customers', 'Customers', 'customers'], ['menu', 'Menu', 'menu']], settingsMode, v => { if (settingsMode === 'reports' && v !== 'reports') leaveReports(); settingsMode = v; render(); }).node));
+    bar.append(h('div', 'bar-row', segmented([['rates', 'Rates', 'cash'], ['setup', 'Setup', 'setup'], ['reports', 'Reports', 'reports'], ['customers', 'Customers', 'customers'], ['menu', 'Menu', 'menu']], settingsMode, v => { if (settingsMode === 'reports' && v !== 'reports') leaveReports(); settingsMode = v; render(); }).node));
     const part = SETTINGS_PARTS[settingsMode];
     if (part.bar) part.bar(bar);
   },
@@ -15418,6 +15623,7 @@ function turfDetailSheet(id) {
   const back = () => turfAfter(b.id);
   openSheet({
     turfId: id,
+    drawn(ui) { if (ui.foldSnacks) ui.foldSnacks(); },
     title: b.customer,
     sub: turfPhone(b),
     icon: sportIcon(b.sport),
@@ -15430,7 +15636,6 @@ function turfDetailSheet(id) {
       const joinable = turfBookingsOn(b.dateKey).filter(x => x.id !== b.id && x.status === 'booked' && x.phone === b.phone && x.split !== 'yes' && !(b.tabId && x.tabId === b.tabId) && turfStatusOf(x.id).state === 'open' && !turfStatusOf(x.id).locked && !turfHoldOf(x) && !turfAccountOf(x.id));
       const actions = [
         ...(!ended && !status.locked ? [['Change booking', () => turfBookingSheet(b), false, 'pencil']] : []),
-        ...(together.length && !split && !status.locked && status.state === 'open' ? [['Pay each slot on its own', () => runCommand({ type: 'TURF_UNLINK', id: b.id, revision: b.revision }, () => { turfDetailSheet(b.id); return { text: 'Each slot is paid on its own.' }; }), false, 'split']] : []),
         ...(!together.length && joinable.length && !split && !status.locked && status.state === 'open' && !turfHoldOf(b) && !turfAccountOf(b.id) ? [['Pay with ' + joinable.map(x => courtLabel(x.court) + ' ' + hourLabel(Number(x.startHour))).join(', '), () => runCommand({ type: 'TURF_LINK', id: b.id, revision: b.revision, ids: joinable.map(x => x.id) }, () => {
           turfDetailSheet(b.id);
           return { text: 'Paid together: ' + (joinable.length + 1) + ' slots on one bill.' };
@@ -15440,19 +15645,25 @@ function turfDetailSheet(id) {
         ...(!ended && !turfHeld(b) && status.state === 'open' && !turfHasCharges(b) ? [['Hold (Pay)', () => turfHoldSheet(b), false, 'clock'], ['Hold', () => runCommand({ type: 'TURF_HOLD', id: b.id, revision: b.revision, maybe: true }, back), false, 'clock']] : []),
         ...(turfCancellable(b) || turfNoShowable(b) ? [['Cancel booking', () => turfCancelSheet(b, () => turfDetailSheet(b.id)), true, 'close']] : [])
       ];
-      ui.body.append(h('div', 'bill-head', glyph('turf', 'jade', 'lg'),
-        h('div', 'bill-who', h('div', { class: 'who turf-when', text: turfSpanOf(b) }), h('div', { class: 'small muted', text: [turfDayName(b.dateKey), turfLinkedOf(b).length ? [b, ...turfLinkedOf(b)].map(x => courtLabel(x.court)).join(', ') : courtLabel(b.court), b.sport].join(' · ') }),
-          h('div', 'turf-head-badge', h('span', { class: 'badge ' + (sent ? 'good' : turfHeld(b) ? 'hold' : ''), text: sent ? 'Confirmed' : turfMaybe(b) ? 'Hold' : turfHoldOf(b) ? 'Hold (Pay)' : 'Not confirmed' }))),
+      // The booking said once, in one box: its time and state, its day, court and sport, its price (owner, 10 November: "you can
+      // write as one right").
+      const severalCourts = turfLinkedOf(b).length > 0;
+      const whenFact = h('span', null, icon('reservations'), turfDayName(b.dateKey)), sportFact = h('span', null, icon(sportIcon(b.sport)), b.sport);
+      const courtFact = severalCourts ? h('span', null, icon('layers'), [b, ...turfLinkedOf(b)].map(x => courtLabel(x.court)).join(', ')) : h('span', null, icon('pin'), courtLabel(b.court));
+      const facts = severalCourts ? h('div', 'turf-facts strip', whenFact, sportFact, courtFact) : h('div', 'turf-facts', whenFact, courtFact, sportFact);
+      const topCard = h('div', 'turf-top', h('div', 'bill-head turf-head' + (severalCourts ? ' several' : ''),
+        h('div', 'bill-who', h('div', 'turf-when-row', icon('reservations'), h('div', { class: 'who turf-when', text: turfSpanOf(b) }), h('span', { class: 'badge ' + (sent ? 'good' : turfHeld(b) ? 'hold' : ''), text: sent ? 'Confirmed' : turfMaybe(b) ? 'Hold' : turfHoldOf(b) ? 'Hold (Pay)' : 'Not confirmed' })),
+          severalCourts ? null : facts),
         // The turf's amount (after discount) in this box, so the items and Collect come higher (owner, 22 October).
-        // Several slots: their total and "3 courts · 1 hour" here (owner, 22 October); one slot says its price once, below.
-        b.split === 'yes' || turfAccountOf(b.id) || !turfLinkedOf(b).length ? null : h('div', 'turf-head-fee', h('b', { class: 'num', data: { turfFee: '1' }, text: money(turfFee(b) + turfLinkedOf(b).filter(x => x.split !== 'yes').reduce((n, x) => n + turfFee(x), 0) - Number(b.discountPaise || 0)) }),
-          h('span', { class: 'small muted', text: turfSlotsText(b) })),
-        h('span', 'bill-tools', menu(actions, 'Booking actions'))));
+        // Several slots: their total here (owner, 22 October).
+        b.split === 'yes' || (turfAccountOf(b.id) && turfLinkedOf(b).length) ? null : h('div', 'turf-head-fee', h('b', { class: 'num', data: { turfFee: '1' }, text: money(turfFee(b) + turfLinkedOf(b).filter(x => x.split !== 'yes').reduce((n, x) => n + turfFee(x), 0) - Number(b.discountPaise || 0)) })),
+        h('span', 'bill-tools', menu(actions, 'Booking actions')),
+        severalCourts ? facts : null));
       // Moving the slot (another time, court or day, wherever it is free) is one tap, not hidden in the menu (owner, 20 October).
       // A booking left pending sends its reminder from here.
       // On hold: what confirms it, the message, and Confirm.
       // Held for someone not sure yet: no advance, the message asks them to let us know. Either can be cancelled from here.
-      if (turfHeld(b)) ui.body.append(h('div', { class: 'turf-hold' + (turfMaybe(b) ? ' maybe' : ''), data: { hold: turfMaybe(b) ? 'maybe' : String(turfHoldOf(b)) } }, icon('clock'),
+      if (turfHeld(b)) topCard.append(h('div', { class: 'turf-hold' + (turfMaybe(b) ? ' maybe' : ''), data: { hold: turfMaybe(b) ? 'maybe' : String(turfHoldOf(b)) } }, icon('clock'),
         h('span', 'turf-hold-text', h('b', { text: turfMaybe(b) ? 'Hold' : 'Hold (Pay)' }), h('span', { text: turfMaybe(b) ? 'No advance' : money(turfHoldOf(b)) + ' advance needed' })),
         ...(turfMaybe(b) ? [] : [btn([icon('whatsapp'), 'Message'], e => turfHoldAsk(b, e.currentTarget), 'quiet', { data: { action: 'turf-hold-message' } })]),
         btn([icon('check'), 'Confirm'], () => turfConfirmSheet(b), 'go', { data: { action: 'turf-confirm-hold' } }),
@@ -15469,7 +15680,8 @@ function turfDetailSheet(id) {
         quick.append(h('label', 'settle-discount', h('span', { text: 'Discount (₹)' }), box));
       }
       if (status.state === 'pending' && turfPhone(b)) quick.append(btn([icon('whatsapp'), 'Remind on WhatsApp'], () => whatsapp(turfPhone(b), pendingReminderText(b.customer, status.owedPaise, turfPendingWhat(b))), 'quiet', { data: { action: 'turf-remind' } }));
-      if (quick.childElementCount) ui.body.append(quick);
+      if (quick.childElementCount) topCard.append(quick);
+      ui.body.append(topCard);
       if (split) turfSplitBody(ui, b, status);
       else turfOnePayerBody(ui, b, status, main, mainOpen, mainPart);
       // Brought from an earlier booking of this customer, to be paid with this one.
@@ -15508,18 +15720,21 @@ function turfDetailSheet(id) {
             : n => runCommand({ type: 'UPDATE_ORDER', id: o.id, revision: o.revision, quantity: n, reason: n ? 'Quantity changed before billing' : 'Removed before billing' }, back);
           const editable = split ? !fixed : true;
           card.append(h('div', { class: 'line' + (editable ? ' with-tools' : ''), data: { order: o.id } },
+            h('span', 'item-tile', icon(rentalIdOf(o) === 'racket' ? 'racket' : rentalIdOf(o) ? 'badminton' : productIcon(o.category))),
             h('div', 'line-main', h('b', { text: o.label + (o.quantity > 1 && !editable ? ' × ' + o.quantity : '') }), h('span', { class: 'small muted', text: (split ? TURF_GROUP[group] + ' · ' : '') + money(o.unitPricePaise) + ' each' })),
             editable ? itemTools(o.label, Number(o.quantity), change) : null,
             h('span', { class: 'line-amount', text: money(o.totalPaise) }), fix));
         }
-        // Rackets and shuttlecocks under their own title, after the snacks (owner, 22 October).
+        // Rackets and shuttlecocks under their own title (owner, 22 October).
         const rentLines = [...card.children].filter(n => { const o = general.find(x => x.id === n.dataset.order); return o && rentalIdOf(o); });
         if (rentLines.length && !split) {
           const rentCard = h('div', 'lines');
           rentLines.forEach(n => rentCard.append(n));
-          if (card.children.length) ui.body.append(h('div', 'group-title', icon('sales'), 'Snacks & beverages'), card);
+          // Rentals first, then the items (owner, 10 November).
           ui.body.append(h('div', { class: 'group-title', data: { rentals: '' } }, icon('badminton'), 'Rentals'), rentCard);
-        } else ui.body.append(h('div', 'group-title', icon('sales'), split ? 'Shared items' : 'Snacks & beverages'), card);
+          if (card.children.length) ui.body.append(turfSnacksHead(b.id, ui, card, general.filter(o => !rentalIdOf(o)).reduce((sum, o) => sum + o.totalPaise, 0)), card);
+        } else if (split) ui.body.append(h('div', 'group-title', icon('sales'), 'Shared items'), card);
+        else ui.body.append(turfSnacksHead(b.id, ui, card, general.reduce((sum, o) => sum + o.totalPaise, 0)), card);
       }
       // Its bill closed (owner, 1 November: "that paid bill, let it show even the drinks and all like total bill. clicking view
       // bill and all takes time"): the items here, each once with its count, and, once paid in full, what the bill came to with
@@ -15534,9 +15749,12 @@ function turfDetailSheet(id) {
           row.total += Number(o.totalPaise);
           bought.set(key, row);
         }
-        if (bought.size) ui.body.append(h('div', 'group-title', icon('sales'), 'Snacks & beverages'), h('div', { class: 'lines', data: { paidItems: '1' } }, [...bought.values()].map(row => h('div', 'line',
-          h('div', 'line-main', h('b', { text: row.label + (row.quantity > 1 ? ' × ' + row.quantity : '') }), h('span', { class: 'small muted', text: money(row.unit) + ' each' })),
-          h('span', { class: 'line-amount', text: money(row.total) })))));
+        if (bought.size) {
+          const paidCard = h('div', { class: 'lines', data: { paidItems: '1' } }, [...bought.values()].map(row => h('div', 'line',
+            h('div', 'line-main', h('b', { text: row.label + (row.quantity > 1 ? ' × ' + row.quantity : '') }), h('span', { class: 'small muted', text: money(row.unit) + ' each' })),
+            h('span', { class: 'line-amount', text: money(row.total) }))));
+          ui.body.append(turfSnacksHead(b.id, ui, paidCard, [...bought.values()].reduce((sum, row) => sum + row.total, 0)), paidCard);
+        }
         if (status.state === 'settled') {
           const detail = (state.BillDetails || []).find(d => d.id === closedBill.id), pays = (state.Payments || []).filter(x => x.billId === closedBill.id);
           const undoOf = x => (state.Corrections || []).find(c => c.kind === 'payment_reversal' && c.targetId === x.id), undone = new Set(pays.map(undoOf).filter(Boolean).map(c => c.id));
@@ -15598,7 +15816,9 @@ function turfDetailSheet(id) {
       const toAccountNow = toAccount - atCounter, apart = split && toAccountNow > 0 && status.owedPaise > 0;
       const bigFigure = apart ? status.owedPaise : owedNow;
       const accountLine = apart ? h('span', { class: 'small muted', data: { accountApart: '1' }, text: '+ ' + money(toAccountNow) + ' to ' + (academyDue.map(x => x.name).join(', ') || 'the academy') + '’s account' }) : null;
-      ui.foot.append(h('div', 'foot-row', h('div', 'foot-label', totalShown ? 'Outstanding ' : '', h('span', { class: 'badge ' + stateTone, data: { turfState: status.state }, text: stateText }), accountParts(owedNow - itemsLeft), accountLine),
+      // A booking collected at its foot has its state on the Collect line (owner, 10 November).
+      const stateAtCollect = !split && !onAccount && mainOpen && collect > 0 && turfPaying !== 'all' && turfPaying !== 'split' && !totalShown;
+      if (!stateAtCollect) ui.foot.append(h('div', 'foot-row', h('div', 'foot-label', totalShown ? 'Outstanding ' : '', h('span', { class: 'badge ' + stateTone, data: { turfState: status.state }, text: stateText }), accountParts(owedNow - itemsLeft), accountLine),
         totalShown ? h('div', { class: 'foot-total' + (bigFigure ? '' : ' clear'), data: { turfOwed: '1' }, text: money(bigFigure) }) : null));
       // A one-payer bill closed with something left (part paid, pending): collected here, Cash, UPI or Cash + UPI.
       // Never for an academy's slot (owner, 1 November): its turf goes to its account, not the counter.
@@ -15688,7 +15908,7 @@ function turfDetailSheet(id) {
       // Cash or UPI only chooses; the booking closes with End Session, so a wrong tap is put right first (owner, 21 October).
       const oneKey = 'one:' + b.id, oneHow = turfPick.key === oneKey ? turfPick.method : '';
       if (!split && !onAccount && mainOpen && collect > 0 && turfPaying !== 'all' && turfPaying !== 'split') ui.foot.prepend(h('div', { class: 'turf-collect', data: { collect: '1' } },
-        h('span', { class: 'turf-collect-label', text: 'Collect ' + money(collect) }),
+        h('div', 'turf-collect-top', h('span', { class: 'turf-collect-label', text: 'Collect ' + money(collect) }), h('span', { class: 'badge ' + stateTone, data: { turfState: status.state }, text: stateText })),
         h('div', 'turf-pay',
           btn([icon('cash'), 'Cash'], () => { turfPick = { key: oneKey, method: 'cash' }; ui.redraw(); }, 'collect', { 'aria-pressed': String(oneHow === 'cash'), data: { action: 'turf-collect-cash' } }),
           btn([icon('upi'), 'UPI'], () => { turfPick = { key: oneKey, method: 'upi' }; ui.redraw(); }, 'collect', { 'aria-pressed': String(isUpi(oneHow)), data: { action: 'turf-collect-upi' } }),
@@ -15696,10 +15916,33 @@ function turfDetailSheet(id) {
         // UPI asks which scanner (owner, 23 October), instead of a CA button of its own.
         isUpi(oneHow) ? h('div', { class: 'turf-scanner', data: { field: 'turf-collect-scanner' } },
           segmented([['upi', 'Scanner'], ['upi:ca', 'CA']], oneHow, v => { turfPick = { key: oneKey, method: v }; ui.redraw(); }).node) : null,
-        btn([icon('stop'), oneHow ? 'End Session · Collect ' + money(collect) + ' · ' + methodText(oneHow) : 'End Session · choose Cash, UPI or Cash + UPI'], () => runCommand({ type: 'TURF_PAY_ALL', id: b.id, method: oneHow }, () => { turfPaying = ''; turfPick = { key: '', method: '' }; return turfAfter(b.id, 'Paid ' + money(collect) + ' · ' + methodText(oneHow) + ' · ' + b.customer + '’s booking settled.'); }), 'primary block', { disabled: !oneHow, data: { action: 'turf-collect-go' } })));
+        btn([icon('stop'), oneHow ? 'End Session · Collect ' + money(collect) + ' · ' + methodText(oneHow) : 'End Session'], () => runCommand({ type: 'TURF_PAY_ALL', id: b.id, method: oneHow }, () => { turfPaying = ''; turfPick = { key: '', method: '' }; return turfAfter(b.id, 'Paid ' + money(collect) + ' · ' + methodText(oneHow) + ' · ' + b.customer + '’s booking settled.'); }), 'primary block', { disabled: !oneHow, data: { action: 'turf-collect-go' } })));
     }
   });
   if (turfScroll.id === id) $('sheetBody').scrollTop = turfScroll.top;
+}
+// Snacks and beverages on a booking (owner, 10 November: "as long is it stays on the screen … let it be as it is … i need to
+// scroll … put snacks and beverages and total, if needed i will click plus"): listed while the sheet needs no scrolling; if
+// it would, the heading and their total, + showing them with their −, + and bin as ever. Once + or − is pressed that stays.
+const turfSnacksShown = new Map();
+function turfSnacksHead(bookingId, ui, card, totalPaise) {
+  const sum = h('span', { class: 'group-sum', hidden: true, text: money(totalPaise) });
+  const toggle = iconButton('plus', 'Show the snacks and beverages', () => { turfSnacksShown.set(bookingId, card.hidden); ui.redraw(); }, { class: 'court-items-more', hidden: true, data: { action: 'snacks-more' } });
+  const head = h('div', { class: 'group-title', data: { snacks: '' } }, icon('drink'), 'Snacks & beverages', sum, toggle);
+  const fold = folded => {
+    card.hidden = folded;
+    head.classList.toggle('folded', folded);
+    sum.hidden = false;
+    toggle.hidden = false;
+    toggle.replaceChildren(icon(folded ? 'plus' : 'minus'));
+    toggle.setAttribute('aria-expanded', String(!folded));
+  };
+  ui.foldSnacks = () => {
+    const chosen = turfSnacksShown.get(bookingId);
+    if (chosen !== undefined) fold(!chosen);
+    else if (ui.body.scrollHeight > ui.body.clientHeight + 1) fold(true);
+  };
+  return head;
 }
 // A booking can be cancelled while it is still to come or under way and nothing has been billed or bought on it.
 const turfCancellable = b => !turfEnded(b) && turfStatusOf(b.id).state === 'open' && !turfHasCharges(b);
@@ -15713,13 +15956,6 @@ function turfHasCharges(b) {
   const tabs = [b.tabId, ...turfPlayersOf(b).map(p => p.tabId)].filter(Boolean);
   return turfPooledOf(b).length > 0 || tabs.some(tabId => turfItemsOf(tabId).length || segmentsOf(tabId).length || (tabOf(tabId) && !['open', 'void'].includes(tabOf(tabId).status)));
 }
-// Slots on one bill, in words for the booking's top box (owner, 22 October): "3 courts · 1 hour", "1 court · 2 hours", or each
-// court and its hours when they differ.
-function turfSlotsText(b) {
-  const all = [b, ...turfLinkedOf(b)], hours = n => n + (n === 1 ? ' hour' : ' hours');
-  if (all.every(x => Number(x.hours) === Number(b.hours))) return all.length + (all.length === 1 ? ' court' : ' courts') + ' · ' + hours(Number(b.hours));
-  return all.map(x => courtLabel(x.court) + ' · ' + hours(Number(x.hours))).join(', ');
-}
 // The time of the slots on one bill: their common span, or from the first start to the last end.
 function turfSpanOf(b) {
   const all = [b, ...turfLinkedOf(b)];
@@ -15727,14 +15963,32 @@ function turfSpanOf(b) {
   const from = Math.min(...all.map(x => Number(x.startHour))), to = Math.max(...all.map(x => Number(x.startHour) + Number(x.hours)));
   return turfRange({ startHour: from, hours: to - from });
 }
+// Courts booked on one bill (owner, 10 November: "that booked courts again, make it one and plus sign to view"): one line, the
+// count, Pay separately beside it while nothing is settled, + showing each court, its hours and its price.
+const turfCourtsShown = new Set();
+function turfBookedCourts(ui, b, status) {
+  const all = [b, ...turfLinkedOf(b)].sort((x, y) => courtsHere().indexOf(x.court) - courtsHere().indexOf(y.court));
+  const shown = turfCourtsShown.has(b.id), differs = x => turfRange(x) !== turfSpanOf(b);
+  const toggle = () => {
+    if (shown) turfCourtsShown.delete(b.id);
+    else turfCourtsShown.add(b.id);
+    ui.redraw();
+  };
+  const separate = !status.locked && status.state === 'open' ? btn([icon('split'), 'Pay separately'], () => runCommand({ type: 'TURF_UNLINK', id: b.id, revision: b.revision }, () => { turfDetailSheet(b.id); return { text: 'Each slot is paid on its own.' }; }), 'quiet', { data: { action: 'turf-pay-separately' } }) : null;
+  return h('div', { class: 'booked-courts', data: { bookedCourts: String(all.length) } },
+    h('div', 'group-title', icon('layers'), h('span', { class: 'booked-title', text: 'Booked Courts (' + all.length + ')' }), separate,
+      iconButton(shown ? 'minus' : 'plus', shown ? 'Hide the courts' : 'Show the courts', toggle, { class: 'court-items-more', 'aria-expanded': String(shown), data: { action: 'booked-courts-more' } })),
+    shown ? all.map(x => h('div', { class: 'booked-court', data: { bookedCourt: x.id } }, h('span', 'item-tile', icon('turf')),
+      h('span', 'booked-court-text', h('b', { text: courtLabel(x.court) }), ' · ' + turfHours(x) + (differs(x) ? ' · ' + turfRange(x) : '')),
+      h('b', { class: 'booked-court-fee num', text: money(turfFee(x) - (x.id === b.id ? Number(b.discountPaise || 0) : 0)) }))) : null);
+}
 function turfOnePayerBody(ui, b, status, main, mainOpen, mainPart) {
   // Plain (owner, 24 October: "can you understand what has been paid?"): each slot and its price, then what was paid, by
   // whom it was paid in what way, and what is left. No rate lines, no badges to decode.
   const summary = h('div', 'summary');
-  const slotText = x => courtLabel(x.court) + ' · ' + turfHours(x) + (x.id !== b.id && turfRange(x) !== turfRange(b) ? ' · ' + turfRange(x) : '');
   // The turf at what it comes to after the discount typed above (owner, 22 October).
-  summary.append(h('div', 'kv', h('span', { text: slotText(b) }), h('b', { data: { turfFee: '1' }, text: money(turfFee(b) - Number(b.discountPaise || 0)) })));
-  for (const x of turfLinkedOf(b)) summary.append(h('div', 'kv', h('span', { text: slotText(x) }), h('b', { text: money(turfFee(x)) })));
+  // One slot is said in the top box; several are one line, Booked Courts, + showing each with its price (owner, 10 November).
+  if (turfLinkedOf(b).length) ui.body.append(turfBookedCourts(ui, b, status));
   const ahead = mainOpen && b.tabId ? heldFor([b.tabId]) : 0;
   if (ahead) summary.append(h('div', 'kv good', h('span', { text: 'Paid in advance' }), h('b', { data: { turfAdvance: '1' }, text: '−' + money(ahead) })));
   // Its bill closed with something still to pay: the bill's total when it is not the turf alone, each payment, what is left.
@@ -15756,7 +16010,7 @@ function turfOnePayerBody(ui, b, status, main, mainOpen, mainPart) {
     else if (Number(bill.paidPaise)) summary.append(h('div', { class: 'kv good', data: { turfPaidLine: '1' } }, h('span', { text: 'Paid' }), h('b', { text: '−' + money(Number(bill.paidPaise)) })));
     summary.append(h('div', { class: 'kv total', data: { turfLeft: '1' } }, h('span', { text: 'Left to pay' }), h('b', { text: money(mainPart.owedPaise) })));
   }
-  ui.body.append(h('div', 'group-title', icon('turf'), 'Turf'), summary);
+  if (summary.childElementCount) ui.body.append(summary);
   if (!mainOpen && mainPart && !bill) {
     const [text, tone] = TURF_PART[mainPart.state] || ['', ''];
     // Moved: where to, "Moved · PS5 2" (the bill it went to, or the balance's line there).
@@ -16464,7 +16718,7 @@ function turfShareSheet(key, list, kindFirst = 'day') {
 }
 
 // ---------- The board ----------
-function turfBlock(b, row, column, rows) {
+function turfBlock(b, row, column, rows, exact = rows) {
   const sent = b.confirmSent === 'yes', ended = turfEnded(b), settled = turfStatusOf(b.id).state;
   // A settled booking shows a tick; one partly settled shows a clock in amber.
   const mark = settled === 'settled' ? h('span', { class: 'turf-mark ok', title: 'Settled' }, icon('checkCircle')) : settled === 'part' || settled === 'pending' ? h('span', { class: 'turf-mark part', title: settled === 'pending' ? 'Pending' : 'Part settled' }, icon('clock')) : null;
@@ -16492,9 +16746,11 @@ function turfBlock(b, row, column, rows) {
   const paidChip = ahead ? h('span', { class: 'chip-paid turf-paid', title: 'Paid in advance', data: { turfPaid: b.id } }, icon('wallet'), h('span', { class: 'turf-paid-word', text: 'Paid' }), money(ahead)) : null;
   // A hold in a colour of its own, the same for both kinds (owner, 27 October); its tag says which.
   // Paid green and pending or over-and-unpaid orange come before the hold's plum.
+  // Ending on the half hour (3:00pm - 4:30pm), the card stops halfway down its last hour (owner, 10 November: "why full is covered, just 4:30 right").
+  const partRow = exact > 1 && exact % 1 ? ';align-self:start;height:calc(var(--turf-row) * ' + exact + ' + var(--turf-row-gap) * ' + Math.floor(exact) + ')' : '';
   // Written as the owner's picture of 3 November: a person beside the name, the sport in its chip, then a clock and the
   // hours; a booking of two hours or more is larger.
-  return h('div', { class: 'turf-block' + tone + (onAccount ? ' on-account' : '') + (tone ? '' : maybe ? ' maybe' : hold ? ' hold' : '') + (rows > 1 ? ' tall' : ''), style: 'grid-row:' + row + ' / span ' + rows + ';grid-column:' + column, data: { booking: b.id, settled }, onclick: () => turfOpenBooking(b.id) },
+  return h('div', { class: 'turf-block' + tone + (onAccount ? ' on-account' : '') + (tone ? '' : maybe ? ' maybe' : hold ? ' hold' : '') + (rows > 1 ? ' tall' : ''), style: 'grid-row:' + row + ' / span ' + rows + ';grid-column:' + column + partRow, data: { booking: b.id, settled }, onclick: () => turfOpenBooking(b.id) },
     h('span', 'turf-block-top', h('span', { class: 'turf-who', 'aria-hidden': 'true' }, icon('user')), h('button', { type: 'button', class: 'turf-name', 'aria-label': b.customer + ', ' + courtLabel(b.court) + ', ' + b.sport + ', ' + turfRange(b), text: b.customer }), onAccount ? null : send, paidChip, accountWords, onAccount ? null : mark, cancel),
     h('span', 'turf-block-sub', h('span', { class: 'turf-sport ' + sportIcon(b.sport) }, icon(sportIcon(b.sport)), b.sport), hold ? h('button', { type: 'button', class: 'turf-hold-tag', title: maybe ? 'Hold: message, confirm or cancel' : 'Hold (Pay): advance needed, message, confirm or cancel', 'aria-label': (maybe ? 'Hold' : 'Hold (Pay)') + ': ' + b.customer, data: { action: 'turf-hold-ask' }, onclick: e => { e.stopPropagation(); turfHoldAsk(b, e.currentTarget); } }, icon('clock'), h('span', { text: maybe ? 'Hold' : 'Hold (Pay)' })) : null, h('span', 'turf-time', icon('clock'), h('span', { text: turfRange(b) }))));
 }
@@ -16543,7 +16799,7 @@ function turfBoard(key, all) {
       // A booking is drawn once, from its first hour on the board, across every column it takes (the whole court: both halves).
       if (taken) {
         const span = taken.court === court ? [i] : cols.map((c, k) => (courtsMeet(taken.court, c) ? k : -1)).filter(k => k >= 0);
-        if (span[0] === i && (Number(taken.startHour) === hour || hours[index - 1] !== hour - 1)) board.append(turfBlock(taken, row, (i + 2) + ' / span ' + span.length, Math.ceil(Number(taken.startHour) + Number(taken.hours) - hour)));
+        if (span[0] === i && (Number(taken.startHour) === hour || hours[index - 1] !== hour - 1)) board.append(turfBlock(taken, row, (i + 2) + ' / span ' + span.length, Math.ceil(Number(taken.startHour) + Number(taken.hours) - hour), Number(taken.startHour) + Number(taken.hours) - hour));
         return;
       }
       // A free hour whose time has gone: red, never offered.
@@ -16704,7 +16960,8 @@ function turfExtendSheet(b) {
       ui.primary(room ? 'Extend to ' + hourLabel(end + add) : 'Done', !room);
     },
     command: () => ({ type: 'TURF_EXTEND', id: b.id, revision: b.revision, hours: add }),
-    then(result) { turfDetailSheet(b.id); return { text: result.message }; }
+    // Extended, it closes where it was (owner, 10 November: "it directly takes me to paying tab").
+    then(result) { closeSheet(); return { text: result.message }; }
   });
 }
 // ---------- Court cards (owner, 22 October): a card per court above the board ----------
@@ -16712,6 +16969,8 @@ function turfExtendSheet(b) {
 // owed, and the booking's own tools. ‹ and › move to the court's previous or next booking, so a group that plays now and pays
 // later is found again. The turf's halves are two cards; a whole-court booking (or a free turf) is one wide card.
 const courtPick = new Map();
+// The bookings whose items are shown line by line on their card.
+const courtItemsOpen = new Set();
 const courtList = (list, court) => list.filter(b => courtsMeet(b.court, court)).sort((a, b) => Number(a.startHour) - Number(b.startHour));
 // What a card steps through with ‹ › (owner, 22 October: "free means free"): the court's whole day, hour by hour, each hour its
 // booking (a booking of several hours is one step) or Free.
@@ -16793,9 +17052,18 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
   // The items taken, then the rentals with − and + (badminton).
   const rentalsHere = (venue.rentals || []).length && !split;
   const items = tab ? ordersOf(tab.id).filter(o => o.category !== 'Turf' && o.category !== 'Rentals' && !(rentalsHere && rentalIdOf(o)) && onThisCourt(o)) : [];
+  // Snacks and beverages as one line and their total; + shows them when needed (owner, 10 November: "just mention items and their total").
+  const itemsOpen = !!b && courtItemsOpen.has(b.id), itemsTotal = items.reduce((sum, o) => sum + o.totalPaise, 0);
+  const toggleItems = () => {
+    if (itemsOpen) courtItemsOpen.delete(b.id);
+    else courtItemsOpen.add(b.id);
+    render();
+  };
   body.append(h('div', { class: 'court-items', data: { courtItems: String(items.length) } }, items.length
-    ? items.map(o => h('div', 'court-line', h('span', { text: o.label + (Number(o.quantity) > 1 ? ' × ' + o.quantity : '') }), h('b', { class: 'num', text: money(o.totalPaise) }), paidUp ? icon('check', 'paid-tick') : null))
-    : h('span', { class: 'small muted', text: 'No items' })));
+    ? [h('div', 'court-line court-items-sum', h('span', 'court-items-name', icon('sales'), 'Snacks & beverages'), h('span', 'court-items-end', h('b', { class: 'num', text: money(itemsTotal) }), paidUp ? icon('check', 'paid-tick') : null,
+      iconButton(itemsOpen ? 'minus' : 'plus', itemsOpen ? 'Hide the items' : 'Show the items', toggleItems, { class: 'court-items-more', 'aria-expanded': String(itemsOpen), data: { action: 'court-items-more' } }))),
+      ...(itemsOpen ? items.map(o => h('div', 'court-line', h('span', { text: o.label + (Number(o.quantity) > 1 ? ' × ' + o.quantity : '') }), h('b', { class: 'num', text: money(o.totalPaise) }))) : [])]
+    : h('span', 'court-items-name none', icon('salesOff'), 'No snacks & beverages')));
   if (rentalsHere) body.append(h('div', 'court-rent', venue.rentals.map(g => {
     // Every line of this rental on the bill: those added here and a menu item of its name; − takes one off the card's own line first.
     const lines = tab ? ordersOf(tab.id).filter(o => rentalIdOf(o) === g.id && onThisCourt(o)) : [], n = lines.reduce((sum, o) => sum + Number(o.quantity), 0);
@@ -17285,7 +17553,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "f2f0cd44f22f";
+const APP_BUILD = "df80393b0c1d";
 function reloadIfOld(build) {
   if (!build || build === APP_BUILD || outbox.length || flow.saving() || $('sheet').open) return;
   let tried = '';
