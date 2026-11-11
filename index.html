@@ -1507,10 +1507,6 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .chip-reserved { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold); font-size: 13px; font-weight: 600; }
 .chip-reserved svg { width: 14px; height: 14px; }
 /* Someone is here and a unit is free: who is next, with Seat and Skip. */
-.next-up { display: grid; gap: 8px; margin-bottom: 16px; }
-.next-up-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border: 1px solid var(--gold-line); border-radius: 12px; background: var(--gold-soft); }
-.next-up-row > svg { width: 18px; height: 18px; color: var(--gold); flex: none; }
-.next-up-text { flex: 1 1 220px; font-size: 14px; }
 .res-view { margin-bottom: 14px; }
 /* Up next or Cancelled: the chosen one filled in slate teal. */
 .res-switch { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--raised); box-shadow: var(--hi); }
@@ -2842,6 +2838,8 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 /* A booking card keeps everything inside it: its column never wider than the card, its buttons shrinking to fit. */
 .res-card { grid-template-columns: minmax(0, 1fr); }
 .res-list .res-tools > .btn { padding-inline: 10px; }
+.res-expect-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.res-expect-row .icon-btn { flex: none; }
 /* A lane's booking on its start sheet when the game chosen runs into it, as the owner's picture of 11 November (the app's own
    colours): a tile, a fine divider and the words; the end of this game in a box of its own; then Start anyway. */
 .lane-clash { display: grid; gap: 10px; padding: 14px; margin-bottom: 18px; border: 1px solid var(--warn-line); border-radius: var(--r-lg); background: var(--warn-soft); }
@@ -9336,6 +9334,14 @@ function minutes(ms) { return inWords(ms / 60000); }
 // A time on a bill: the day too when it was not today.
 const timeOn = ms => (dayKey(ms) === dayKey(nowMs()) ? '' : day(ms) + ', ') + clock(ms);
 // A timer on a bill, plainly (owner, 24 October): when it started, how long it was paused, when it ended, the time charged.
+// A lane is charged per person per game: "3 players · 2 games" where another timer says how long it ran (owner, 11 November:
+// "bowling why is 1hour 30 minutes?? instead write how many players and games"); '' for anything else.
+function laneParty(g) {
+  let lane = null;
+  try { lane = JSON.parse(g.ratesJson || 'null'); } catch (e) { lane = null; }
+  if (!lane || Array.isArray(lane) || lane.perPersonPaise == null) return '';
+  return lane.players + (Number(lane.players) === 1 ? ' player' : ' players') + ' · ' + lane.games + (Number(lane.games) === 1 ? ' game' : ' games');
+}
 function timerWords(g, pauses, quote) {
   const away = pauses.filter(p => p.segmentId === g.id).reduce((sum, p) => sum + Math.max(0, (p.endMs || nowMs()) - p.startMs), 0);
   const running = g.status === 'active';
@@ -9343,7 +9349,7 @@ function timerWords(g, pauses, quote) {
     started: running ? 'Playing since ' + timeOn(g.startMs) : 'Started ' + timeOn(g.startMs),
     paused: away >= 60000 ? 'Paused ' + minutes(away) : '',
     ended: running ? '' : 'Ended ' + timeOn(g.endMs),
-    charged: quote ? 'Charged so far ' + inWords(quote.billableMinutes) : running ? '' : 'Charged ' + inWords(g.billableMinutes)
+    charged: laneParty(g) || (quote ? 'Charged so far ' + inWords(quote.billableMinutes) : running ? '' : 'Charged ' + inWords(g.billableMinutes))
   };
 }
 // A timer in one short line, not a sentence (owner, 10 November: "because its written like a sentence, this box looks big"):
@@ -9352,6 +9358,8 @@ function timerShort(g, said) {
   const shorter = words => words.replace(/ minutes?/, ' min').replace(/ hours?/, ' hr');
   const day_ = dayKey(g.startMs) === dayKey(nowMs()) ? '' : day(g.startMs) + ', ';
   const when = g.status === 'active' ? 'Since ' + clock(g.startMs) : day_ + clock(g.startMs) + ' – ' + clock(g.endMs);
+  // A lane: its players and games after the times, never a length of time.
+  if (laneParty(g)) return [when, laneParty(g)].join(' · ');
   const charged = shorter(said.charged.replace(/^Charged so far (.*)$/, '$1 so far').replace(/^Charged /, ''));
   return [when, charged, shorter(said.paused.toLowerCase())].filter(Boolean).join(' · ');
 }
@@ -10708,7 +10716,7 @@ const floorPage = {
   bar: floorBar,
   render(page) {
     if (!floorCategory) { page.append(h('div', 'cats', FLOOR_GROUPS.map(categoryTile))); return; }
-    page.append(floorSummary(floorCategory), nextUpStrip((FLOOR_GROUPS.find(g => g.key === floorCategory) || { kinds: [] }).kinds.filter(k => RES_KINDS.includes(k))) || '', h('div', { class: 'stations', data: { category: floorCategory } }, unitsIn(floorCategory).map(safeStationCard)));
+    page.append(floorSummary(floorCategory), h('div', { class: 'stations', data: { category: floorCategory } }, unitsIn(floorCategory).map(safeStationCard)));
     tick();
   }
 };
@@ -13397,10 +13405,10 @@ function freedNotice(r, before, undo) {
   if (offer) return said(head + ' · ' + offer.unit.name + ' is free — ' + waitingText(offer.r) + ', Seat?', { label: 'Seat', run: () => checkInSheet(offer.r, offer.unit.id), data: { action: 'seat-freed' } });
   return said(head + '.', null);
 }
-// Someone is here and a unit is free (owner, 22 October): "Pool 3 is free — next: Waiting #2 Rahul (3)", with Seat and Skip.
+// Someone is here and a unit is free: said only after a cancellation (the strip with Seat and Skip went on 11 November, the owner:
+// "this no need anywhere").
 // Bookings already here come first, then bookings due within the reminder time, then the waiting list by token; on the lanes,
-// the plan's next game on a lane free now. Skip hides one offer on this device.
-const skippedOffers = new Set();
+// the plan's next game on a lane free now.
 function nextUpOffers(kinds) {
   const now = nowMs(), offers = [], soon = resMinutes('remind') * 60000;
   for (const kind of kinds) {
@@ -13424,15 +13432,7 @@ function nextUpOffers(kinds) {
       offers.push({ unit, r });
     }
   }
-  return offers.filter(o => !skippedOffers.has(o.unit.id + '|' + o.r.id));
-}
-function nextUpStrip(kinds) {
-  const offers = nextUpOffers(kinds);
-  if (!offers.length) return null;
-  return h('section', { class: 'next-up', data: { nextUp: '' } }, offers.map(o => h('div', { class: 'next-up-row', data: { offer: o.r.id } }, icon('bell'),
-    h('span', 'next-up-text', h('b', { text: o.unit.name + ' is free' }), ' — next: ' + waitingText(o.r) + (isWalkIn(o.r) ? '' : ' (reservation ' + clock(o.r.arrivalMs) + ')')),
-    btn([icon('play'), 'Seat'], () => checkInSheet(o.r, o.unit.id), 'go', { data: { action: 'seat-next' } }),
-    btn('Skip', () => { skippedOffers.add(o.unit.id + '|' + o.r.id); render(); }, 'quiet', { data: { action: 'skip-next' } }))));
+  return offers;
 }
 // Fewer players is not a cancellation (owner, 22 October): a booking, or the game on a lane, is shortened.
 // The same for the games of a lane game (owner, 23 October), with label 'Games'.
@@ -13479,7 +13479,6 @@ const reservationsPage = {
     const gone = state.Reservations.filter(r => r.category === kind && RES_GONE.includes(r.status) && (dayKey(Number(r.closedMs || r.arrivalMs)) === today || resCurrent(r))).sort((a, b) => Number(b.closedMs || b.arrivalMs) - Number(a.closedMs || a.arrivalMs));
     const choose = (value, name, text) => h('button', { type: 'button', 'aria-pressed': String(resView === value), data: { value }, onclick: () => { resView = value; render(); } }, icon(name), h('span', { text }));
     const view = { node: h('div', { class: 'res-switch', role: 'group' }, choose('next', 'list', 'Up next'), choose('gone', 'ban', 'Cancelled' + (gone.length ? ' · ' + gone.length : ''))) };
-    page.append(nextUpStrip(RES_KINDS) || '');
     if (plan && resView === 'next') page.append(laneHeader(plan));
     page.append(h('div', { class: 'res-view', data: { resView } }, view.node));
     if (resView === 'gone') { page.append(h('div', { class: 'res-list', data: { resList: kind } }, gone.length ? gone.map(r => reservationCard(r, plan)) : h('p', { class: 'res-none', text: 'Nothing cancelled' }))); return; }
@@ -13499,8 +13498,21 @@ function reservationCard(r, plan) {
   const meta = (name2, text) => (text ? h('span', 'res-meta-item', icon(name2), h('span', { text })) : null);
   let expect = null;
   if (place && walk) expect = h('span', { class: 'res-expect' }, icon('clock'), h('span', { text: place.waitMs >= 60000 ? 'Est. wait ' + minutes(place.waitMs) + ' · about ' + clock(place.expectedMs) : 'Lane free now' }));
-  else if (place && Math.abs(late) >= resMinutes('show')) expect = h('span', { class: 'res-expect ' + (late < 0 ? 'early' : 'late'), data: { expect: late < 0 ? 'early' : 'late' } }, icon('clock'), h('span', { text: 'Expected ' + clock(place.expectedMs) + ' · ' + (late < 0 ? 'early by ' + -late : 'late by ' + late) + ' min' }));
-  const tell = r.phone && pending && (walk ? 'Hi ' + r.customer + ', your ' + what + ' at City Arena is ready.' : place && Math.abs(late) >= resMinutes('tell') ? 'Hi ' + r.customer + ', your bowling lane will be ready at about ' + clock(place.expectedMs) + '.' : '');
+  // Why a booking is off its time, one reason only (owner, 11 November: "differentiate between late because of previous game or
+  // customer coming late"; "dont add together … only if lane is free and they have not come write that not here"): the lane
+  // still busy with the game before, and how late they start; otherwise, the lane free, the customer not here yet past their
+  // time; here early with a lane free.
+  const now = nowMs(), here = r.status === 'waiting', show = resMinutes('show');
+  const pastBy = place && !walk && !here && r.arrivalMs < now ? Math.floor((now - r.arrivalMs) / 60000) : 0;
+  const laneLate = place && !walk ? Math.floor((place.expectedMs - Math.max(r.arrivalMs, here || pastBy ? now : r.arrivalMs)) / 60000) : 0;
+  const busy = laneLate >= show ? name(place.unitId) + ' busy till ~' + clock(place.expectedMs) : '';
+  const startsLate = place ? Math.floor((place.expectedMs - r.arrivalMs) / 60000) : 0;
+  const why = (kind, glyphName, text) => h('span', { class: 'res-expect ' + kind, data: { expect: kind } }, icon(glyphName), h('span', { text }));
+  if (place && !walk && busy) expect = why('late', 'Bowling', busy + ' · they start ' + inWords(startsLate) + ' late');
+  else if (place && !walk && pastBy >= show) expect = why('late', 'user', 'Not here yet · ' + inWords(pastBy) + ' past their time');
+  else if (place && !walk && here && late <= -show) expect = why('early', 'user', 'Here ' + inWords(-late) + ' early · ' + name(place.unitId) + ' free ' + (place.expectedMs <= now + 60000 ? 'now' : 'at ' + clock(place.expectedMs)));
+  // WhatsApp only when the lane makes them wait, never to someone who is late themselves.
+  const tell = r.phone && pending && (walk ? 'Hi ' + r.customer + ', your ' + what + ' at City Arena is ready.' : laneLate >= resMinutes('tell') && !pastBy ? 'Hi ' + r.customer + ', your bowling lane will be ready at about ' + clock(place.expectedMs) + '.' : '');
   const other = place && !walk && late >= resMinutes('tell') && plan.lanes.some(l => l.unitId !== place.unitId && l.freeMs < place.expectedMs);
   // A lane free before this booking (a cancellation, an early finish), on any lane it may take: ask them to come sooner, and
   // Move earlier when they agree.
@@ -13511,7 +13523,8 @@ function reservationCard(r, plan) {
   const closed = RES_GONE.includes(r.status) && r.closedMs ? h('span', { class: 'small muted', data: { closed: r.status }, text: CLOSED_LABEL[r.status] + ' ' + when(Number(r.closedMs)) + (r.closeReason && r.closeReason !== CLOSED_LABEL[r.status] ? ' · ' + r.closeReason : '') }) : null;
   return h('div', { class: 'res-card' + (walk ? ' walkin' : ''), data: { reservation: r.id } },
     h('div', 'res-top', walk ? h('b', { class: 'num res-token', text: '#' + r.token }) : h('b', { class: 'num res-time', text: when(r.arrivalMs) }), reservationStatus(r)),
-    expect,
+    // WhatsApp to say when the lane is ready sits at the end of the line that says it (owner, 11 November), the buttons one row.
+    expect && tell ? h('div', 'res-expect-row', expect, iconButton('whatsapp', 'WhatsApp ' + r.customer, () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } })) : expect,
     person(r.customer, [r.phone, r.notes].filter(Boolean).join(' · ')),
     h('div', 'res-meta', meta(r.category === 'Bowling' ? 'Bowling' : r.category, unitText), meta(pads ? 'PS5' : 'users', partyText)),
     walk && pending ? h('div', 'res-meta', meta('user', 'Arrived ' + clock(r.arrivalMs) + ' · waiting ' + minutes(nowMs() - r.arrivalMs))) : null,
@@ -13522,7 +13535,6 @@ function reservationCard(r, plan) {
     pending ? h('div', 'res-tools',
       btn([icon(walk ? 'user' : 'check'), walk ? 'Seat' : 'Check In'], () => checkInSheet(r), 'primary', { data: { action: 'check-in' } }),
       btn([icon(walk ? 'logout' : 'close'), walk ? 'Left' : 'Cancel'], () => cancelSheet(r), 'outline', { data: { action: walk ? 'left' : 'cancel' } }),
-      tell ? iconButton('whatsapp', 'WhatsApp ' + r.customer, () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } }) : null,
       menu(walk ? [
         ['Edit', () => waitingSheet(r.category, r), false, 'pencil']
       ] : [
@@ -17857,7 +17869,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "dd3626dc783c";
+const APP_BUILD = "02955bb3994f";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
