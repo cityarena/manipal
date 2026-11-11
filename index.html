@@ -13508,7 +13508,9 @@ function reservationCard(r, plan) {
   const busy = laneLate >= show ? name(place.unitId) + ' busy till ~' + clock(place.expectedMs) : '';
   const startsLate = place ? Math.floor((place.expectedMs - r.arrivalMs) / 60000) : 0;
   const why = (kind, glyphName, text) => h('span', { class: 'res-expect ' + kind, data: { expect: kind } }, icon(glyphName), h('span', { text }));
-  if (place && !walk && busy) expect = why('late', 'Bowling', busy + ' · they start ' + inWords(startsLate) + ' late');
+  // Past their time, the lane line says only until when it is busy: how late they start would count their own lateness too
+  // (owner, 11 November: "i told you both not required right?"); the Overdue tag says they are late.
+  if (place && !walk && busy) expect = why('late', 'Bowling', busy + (pastBy ? '' : ' · they start ' + inWords(startsLate) + ' late'));
   else if (place && !walk && pastBy >= show) expect = why('late', 'user', 'Not here yet · ' + inWords(pastBy) + ' past their time');
   else if (place && !walk && here && late <= -show) expect = why('early', 'user', 'Here ' + inWords(-late) + ' early · ' + name(place.unitId) + ' free ' + (place.expectedMs <= now + 60000 ? 'now' : 'at ' + clock(place.expectedMs)));
   // WhatsApp only when the lane makes them wait, never to someone who is late themselves.
@@ -17869,7 +17871,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "02955bb3994f";
+const APP_BUILD = "7dce79352da5";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
