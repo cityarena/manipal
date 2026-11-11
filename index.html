@@ -15532,7 +15532,7 @@ function turfBookingSheet(existing, preset) {
     tone: 'jade',
     focus: false,
     build(ui) {
-      who = who || customerFields(existing ? existing.customer : '', existing ? turfPhone(existing) : '', true, () => late.paint());
+      who = who || customerFields(existing ? existing.customer : '', existing ? turfPhone(existing) : '', true, () => { late.paint(); turfFollowClub(clubs, forWho, who, () => ui.redraw()); });
       late = late || turfLateNote(who);
       late.paint();
       sport = sport || segmented(venueSports(), existing ? existing.sport : venueHere().sports.length === 1 ? venueHere().sports[0] : null);
@@ -15636,6 +15636,21 @@ const turfShareLines = b => state.Orders.filter(o => o.category === 'Turf' && o.
   .filter(x => x && x.m.bookingId === b.id && x.m.part === 'share' && !x.m.account).map(x => ({ amount: x.o.totalPaise, team: x.m.team || '' }));
 const turfSharesOf = b => turfShareLines(b).map(x => x.amount);
 // ---------- Academies: a coaching team on a credit account, with its own rates (the same rules as Turf.gs) ----------
+// An academy picked from the name's suggestions, or its name typed in full, books as that academy (owner, 11 November: "when i
+// start typing vict, that victoria comes but it saves as normal customer"); another name typed over it is a customer again.
+function turfFollowClub(clubs, forWho, who, redraw) {
+  if (!forWho) return;
+  const typed = who.name.value.trim().toLowerCase();
+  const club = clubs.find(a => a.name.trim().toLowerCase() === typed) || null, chosen = String(forWho.value() || '');
+  if (club && chosen !== club.accountId) {
+    forWho.set(club.accountId);
+    if (creditPhone(club.accountId)) who.phone.value = creditPhone(club.accountId);
+    redraw();
+  } else if (!club && chosen) {
+    forWho.set('');
+    redraw();
+  }
+}
 function turfAcademies() {
   return (state.Settings || []).filter(r => String(r.id).startsWith('academy-')).map(r => {
     let saved = {};
@@ -16594,7 +16609,7 @@ function turfBulkSheet() {
     tone: 'jade',
     focus: false,
     build(ui) {
-      who = who || customerFields('', '', true, () => late.paint());
+      who = who || customerFields('', '', true, () => { late.paint(); turfFollowClub(clubs, forWho, who, () => ui.redraw()); });
       late = late || turfLateNote(who);
       late.paint();
       sport = sport || segmented(venueSports(), venueHere().sports.length === 1 ? venueHere().sports[0] : null);
@@ -17707,7 +17722,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "1d12f63f71ed";
+const APP_BUILD = "7c7388ebca27";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
