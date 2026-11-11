@@ -2824,6 +2824,10 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 #sheet:has([data-so-far]) #sheetClose { border-radius: var(--r-sm); background: #ffffff; }
 #sheet:has([data-so-far]) .sheet-foot { padding: 10px 14px 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-xl) var(--r-xl) 0 0; background: #ffffff; box-shadow: 0 -10px 22px -18px rgba(76, 40, 140, 0.45); }
 #sheet:has([data-so-far]) .sheet-foot .action, #sheet:has([data-so-far]) .sheet-foot .btn:not(.primary) { border-radius: var(--r-sm); background: #ffffff; }
+
+/* A heading's total: "Total ₹240" in a soft chip, apart from the amounts under it (owner, 11 November). */
+#sheet:has(.bill-group) .bill-group > .group-title .group-sum.total { display: inline-flex; align-items: baseline; gap: 6px; margin-left: auto; padding: 3px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-deep); font-family: var(--text); font-size: var(--text-sm); font-weight: 700; }
+#sheet:has(.bill-group) .bill-group > .group-title .group-sum.total .sum-label { color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -11457,7 +11461,7 @@ function drawLines(body, lines) {
     const playing = list.some(g => g.status === 'active'), part = closedEarlierHere ? ' · Closed earlier' : byUnit.has(unitId + ':earlier') ? (playing ? ' · Playing' : ' · Ended now') : '';
     const worth = g => (g.status !== 'active' ? Number(g.totalPaise || 0) : lines.quotes && lines.quotes[g.id] ? lines.quotes[g.id].totalPaise : null);
     // With more than one timer the system's total stands on its heading (owner, 10 November); one timer already says it.
-    const partTotal = (part || list.length > 1) && list.every(g => worth(g) !== null) ? h('span', { class: 'group-sum', text: money(list.reduce((total, g) => total + worth(g), 0)) }) : null;
+    const partTotal = (part || list.length > 1) && list.every(g => worth(g) !== null) ? headTotal(list.reduce((total, g) => total + worth(g), 0)) : null;
     for (const g of list) {
       const running = g.status === 'active', quote = running && lines.quotes ? lines.quotes[g.id] : null;
       // Started, paused, ended and charged, in words (owner, 24 October), so a question about the time is answered here.
@@ -11547,7 +11551,7 @@ function drawLines(body, lines) {
     const firstRental = [...card.children].find(n => { const o = goods.find(x => x.id === (n.dataset && n.dataset.order)); return o && isRental(o); });
     if (firstRental) card.insertBefore(h('div', { class: 'group-title rent-title', data: { rentals: '' } }, icon('badminton'), 'Rentals'), firstRental);
     const onlyRentals = goods.every(isRental);
-    own.append(h('section', 'bill-group', onlyRentals ? null : h('div', 'group-title', icon('sales'), 'Snacks & beverages', byUnit.size ? h('span', { class: 'group-sum', text: money(goods.reduce((total, o) => total + Number(o.totalPaise || 0), 0)) }) : null), card));
+    own.append(h('section', 'bill-group', onlyRentals ? null : h('div', 'group-title', icon('sales'), 'Snacks & beverages', byUnit.size && card.querySelectorAll('[data-order]').length > 1 ? headTotal(goods.reduce((total, o) => total + Number(o.totalPaise || 0), 0)) : null), card));
   }
   // The own part in its outline (left out when it holds nothing), then each moved bill.
   if (hasMoved) body.append(...[own.childNodes.length ? own : null].filter(Boolean), ...movedOut);
@@ -11555,6 +11559,9 @@ function drawLines(body, lines) {
 }
 // One system moved onto a bill: a single timer with nothing else is one line, its time and amount (and its tick); with more
 // it is the system's name and its total, folded, its timers and items shown when opened (owner, 4 November).
+// A heading's total reads as a total, never as one more line beside the amounts under it (owner, 11 November: "this 240 looks
+// like an item along with controllers rather than total").
+const headTotal = paise => h('span', { class: 'group-sum total' }, h('span', { class: 'sum-label', text: 'Total' }), h('b', { text: money(paise) }));
 function movedGroup(unit, unitId, timers, card, items, tickBox, lines, inside = null) {
   const name = unit ? unit.name : unitId, total = timers.reduce((sum, g) => sum + Number(g.totalPaise || 0), 0) + items.reduce((sum, o) => sum + Number(o.totalPaise || 0), 0);
   // One tick for the whole move on a bill being settled: its time and its items together.
@@ -17722,7 +17729,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "7c7388ebca27";
+const APP_BUILD = "8503aa99e211";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
