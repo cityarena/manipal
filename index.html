@@ -948,6 +948,11 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .station-actions.three .wide { grid-column: 1 / 3; }
 /* A lane in use: Add Items, Repeat and End Session on one row (owner, 23 October: Repeat for another round). */
 .station-actions.lane-actions { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.station-actions.lane-actions.with-switch { grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr); }
+@media (max-width: 560px) { .station-actions.lane-actions.with-switch { grid-template-columns: 1fr 1fr; } }
+.swap-plan { display: grid; gap: 8px; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.swap-plan-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.swap-plan-row svg { flex: none; width: 18px; height: 18px; color: var(--primary); }
 .station-actions .end-all { padding: 0 10px; }
 /* End all in red (owner, 23 October): it ends every controller at once. */
 .btn.stop.end-all, .btn.stop.end-all:hover { border-color: var(--danger); background: linear-gradient(180deg, #d0605a 0%, var(--danger) 55%, #a8362f 100%); }
@@ -3009,6 +3014,9 @@ var ARENA_BRANCH = (function () {
     // Bowling is charged per person per game, never by the clock. The clock only estimates when a lane is free:
     // 10 minutes a player and 5 minutes more a game (4 players, one game: 45 minutes).
     bowling: { perPersonPaise: 15000, minutesPerPlayer: 10, minutesPerGame: 5, maxPlayers: 6, maxGames: 5 },
+    // A 10-minute price after each full hour (owner, 13 November: "from 1.07 to 1:10 → 1 hour + 10 minutes"), the fifth rate of a
+    // kind; changed on Settings → Rates. A kind without one is charged in 15-minute steps only.
+    tenMinutePaise: { PS5: 1000, Pool: 1500, Snooker: 2500 },
     // The Reservations page's tabs, in the owner's order (only kinds switched on are shown).
     reservationKinds: ['Bowling', 'Snooker', 'Pool', 'PS5'],
     // Minutes, each one a setting: remind before a booking; ask "No-show?" after; a lane chosen by the app is kept from this
@@ -3197,7 +3205,11 @@ var ArenaCore = (function () {
   function rateSetting(state,category){
     check(Object.prototype.hasOwnProperty.call(rates,category),'Invalid equipment category.');
     var row=(state.Settings||[]).find(function(r){return r.id==='gamingRates-'+category;});
-    return row?JSON.parse(row.value):{rates:rates[category].slice(),revision:0};
+    var saved=row?JSON.parse(row.value):{rates:rates[category].slice(),revision:0};
+    // Rates saved before the 10-minute price take the branch's (owner, 13 November).
+    var ten=ARENA_BRANCH.tenMinutePaise&&ARENA_BRANCH.tenMinutePaise[category];
+    if(saved.rates.length===4&&ten)saved.rates=saved.rates.concat([ten]);
+    return saved;
   }
   function pricesFor(state,category){return rateSetting(state,category).rates.slice();}
   // A bowling game's saved price: per person per game, with the players and games it was started for.
@@ -3223,7 +3235,17 @@ var ArenaCore = (function () {
       check(Number.isSafeInteger(flat) && flat >= 0, 'Invalid saved rates.');
       return { actualMilliseconds: duration, billableMinutes: Math.ceil(duration / 60000), totalPaise: flat };
     }
-    check(Array.isArray(prices) && prices.length === 4 && prices.every(function(p){return Number.isSafeInteger(p) && p >= 0;}), 'Invalid saved rates.');
+    check(Array.isArray(prices) && (prices.length === 4 || prices.length === 5) && prices.every(function(p){return Number.isSafeInteger(p) && p >= 0;}), 'Invalid saved rates.');
+    // After each full hour, with a 10-minute price (the fifth; owner, 13 November): up to 6 minutes over is the hour, 7 to 10
+    // minutes the 10-minute price, 11 to 20 the 15-minute price, and on from there as before. A game started before keeps
+    // its four prices and the 15-minute steps.
+    var hours = Math.floor(duration / 3600000), over = duration - hours * 3600000;
+    if (prices.length === 5 && hours >= 1 && over < 1260000) {
+      var step = over < 420000 ? 0 : over < 660000 ? 10 : 15;
+      var stepAmount = hours * prices[3] + (step === 10 ? prices[4] : step === 15 ? prices[0] : 0);
+      check(Number.isSafeInteger(stepAmount), 'Charge exceeds supported amount.');
+      return { actualMilliseconds: duration, billableMinutes: hours * 60 + step, totalPaise: stepAmount };
+    }
     var minutes = 15 * Math.max(1, Math.ceil((duration - 300000) / 900000));
     var remainder = minutes % 60;
     var amount = Math.floor(minutes / 60) * prices[3] + (remainder ? prices[remainder / 15 - 1] : 0);
@@ -3252,7 +3274,7 @@ var ArenaCore = (function () {
     if(cmd.type==='SAVE_RATES'){
       var previous=rateSetting(state,cmd.category);
       check(cmd.revision===previous.revision,'This price setting changed on another device. Refresh before editing.');
-      check(Array.isArray(cmd.rates)&&cmd.rates.length===4&&cmd.rates.every(function(p){return Number.isSafeInteger(p)&&p>0&&p<=100000000;}),'Enter four positive rates in paise.');
+      check(Array.isArray(cmd.rates)&&(cmd.rates.length===4||cmd.rates.length===5)&&cmd.rates.every(function(p){return Number.isSafeInteger(p)&&p>0&&p<=100000000;}),'Enter positive rates in paise.');
       state.Settings=state.Settings||[];var setting=state.Settings.find(function(r){return r.id==='gamingRates-'+cmd.category;}),saved={rates:cmd.rates.slice(),revision:previous.revision+1};
       if(setting)setting.value=JSON.stringify(saved);else state.Settings.push({id:'gamingRates-'+cmd.category,value:JSON.stringify(saved)});
       return {message:cmd.category+' rates saved. Existing segments and orders keep their saved prices.',previousRates:previous.rates,rates:saved.rates,revision:saved.revision};
@@ -3408,15 +3430,22 @@ var ArenaApp=(function(){
       // Swap system (owner, 21 October): everything on a system in use moves to a free one of the same kind. The timers run on
       // from when they started (never stopped and billed twice); items, the bill, money paid ahead, pauses and the reminder go
       // with them; a table's closed games on the same bill too, so its card still shows them.
-      var from=row(s.Equipment,c.unitId),to=row(s.Equipment,c.toUnitId),moving=active(s,from.id);
+      // A lane in use can swap with another lane in use (owner, 12 November: "if lane 1 needs to be switched to 2 … switch 1 and
+      // 2"): with swap, each one's games, bills, pauses and reminder change places, both times running on.
+      var from=row(s.Equipment,c.unitId),to=row(s.Equipment,c.toUnitId),moving=active(s,from.id),swapping=c.swap===true,back=swapping?active(s,to.id):[];
       check(moving.length>0,'Nothing is running on '+from.name+'.');
       check(to.id!==from.id&&to.category===from.category,'Choose another '+from.category+' to move to.');
-      check(!active(s,to.id).length&&!s.Sessions.some(function(x){return x.unitId===to.id&&x.status==='active';}),to.name+' is in use. Choose a free one.');
-      var bills=moving.map(function(g){return g.tabId;});
-      moving.forEach(function(g){g.unitId=to.id;});
-      if(['Pool','Snooker'].indexOf(from.category)>=0)s.Segments.forEach(function(g){if(g.unitId===from.id&&g.status==='ended'&&bills.indexOf(g.tabId)>=0)g.unitId=to.id;});
-      (s.Reminders||[]).forEach(function(r){if(r.unitId===from.id&&r.status==='set')r.unitId=to.id;});
-      result={unitId:to.id,fromUnitId:from.id,tabIds:bills.filter(function(t,i){return bills.indexOf(t)===i;}),message:'Moved from '+from.name+' to '+to.name+'.'};
+      check(!s.Sessions.some(function(x){return x.unitId===to.id&&x.status==='active';}),to.name+' is in use. Choose a free one.');
+      check(swapping?back.length>0:!active(s,to.id).length,swapping?'Nothing is running on '+to.name+' now. Refresh and try again.':to.name+' is in use. Choose a free one.');
+      var bills=moving.map(function(g){return g.tabId;}),backBills=back.map(function(g){return g.tabId;});
+      var table=['Pool','Snooker'].indexOf(from.category)>=0;
+      var closedThere=table?s.Segments.filter(function(g){return g.unitId===from.id&&g.status==='ended'&&bills.indexOf(g.tabId)>=0;}):[];
+      var closedBack=table?s.Segments.filter(function(g){return g.unitId===to.id&&g.status==='ended'&&backBills.indexOf(g.tabId)>=0;}):[];
+      var remindThere=(s.Reminders||[]).filter(function(r){return r.unitId===from.id&&r.status==='set';}),remindBack=swapping?(s.Reminders||[]).filter(function(r){return r.unitId===to.id&&r.status==='set';}):[];
+      moving.concat(closedThere,remindThere).forEach(function(g){g.unitId=to.id;});
+      back.concat(closedBack,remindBack).forEach(function(g){g.unitId=from.id;});
+      var all=bills.concat(backBills);
+      result={unitId:to.id,fromUnitId:from.id,swapped:swapping,tabIds:all.filter(function(t,i){return all.indexOf(t)===i;}),message:swapping?from.name+' and '+to.name+' switched.':'Moved from '+from.name+' to '+to.name+'.'};
     }else if(c.type==='CLEAR_REMINDER'){
       (s.Reminders||[]).forEach(function(r){if(r.unitId===c.unitId&&r.status==='set')r.status='done';});
       result={unitId:c.unitId,message:'Reminder cleared.'};
@@ -10321,6 +10350,18 @@ function laneConflict(unit, startMs, players, games, checkingIn = '') {
   if (!hit) return null;
   return { r: hit.r, at: hit.r.arrivalMs, lateMs: hit.is.expectedMs - Math.max(hit.was.expectedMs, hit.r.arrivalMs), ends: startMs + ArenaCore.bowlingMinutes(players, games) * 60000 };
 }
+// Switching a lane's game to another lane (owner, 12 November): the evening played out with the game moved there (and the game
+// there, if any, moved here) and as it is; the first booking it would make start a minute or more later, how late, or null.
+function laneSwitchConflict(g, toUnit) {
+  const now = nowMs(), before = ArenaReservations.lanes(state, now);
+  const copy = structuredClone(state), there = activeOn(toUnit.id).map(x => x.id);
+  copy.Segments = copy.Segments.map(x => (x.id === g.id ? Object.assign({}, x, { unitId: toUnit.id }) : there.includes(x.id) ? Object.assign({}, x, { unitId: g.unitId }) : x));
+  const after = ArenaReservations.lanes(copy, now);
+  const hit = Object.keys(after.bookings).map(id => ({ r: state.Reservations.find(x => x.id === id), was: before.bookings[id], is: after.bookings[id] }))
+    .filter(x => x.r && !isWalkIn(x.r) && x.was && x.is.expectedMs - x.was.expectedMs >= 60000)
+    .sort((a, b) => a.r.arrivalMs - b.r.arrivalMs)[0];
+  return hit ? { r: hit.r, lateMs: hit.is.expectedMs - hit.was.expectedMs } : null;
+}
 // Only when the game chosen runs into the booking (owner, 11 November: "give the warning … only if i choose 3 and above"), laid out
 // as the owner's picture: a calendar tile, who, when and how many, the time before them and what fits; then a box with a clock,
 // when this game will end and how far into their booking; then Start anyway, the choice the owner's. Nothing when it fits.
@@ -10711,10 +10752,14 @@ function stationCardBody(unit) {
   card.append(stationHead(unit, tone, null, statePill(held ? 'held' : 'live'), laneMenu || sessionMenu(g, [costItem, ...extraItems(unit)])), stationArt());
   // A lane is charged per person per game; its pause (a technical glitch) and +5 / +10 only move when it should be free.
   if (unit.category === 'Bowling') {
+    // Switch, always on the card (owner, 12 November: "switch button needs to be there regardless"): to a free lane, or the two
+    // lanes in use change places.
+    const otherFree = state.Equipment.some(u => u.category === 'Bowling' && u.id !== unit.id);
     card.append(laneInfo(tab, who, g, [...stationExtras(unit), laneReserved(unit)]),
-      h('div', 'station-actions lane-actions',
+      h('div', 'station-actions lane-actions' + (otherFree ? ' with-switch' : ''),
         btn([icon('plus'), 'Add Items'], () => addItemsFor(unit), '', { data: { action: 'items' } }),
         btn([icon('refresh'), 'Repeat'], () => laneRepeatSheet(unit, g), '', { data: { action: 'lane-repeat' } }),
+        otherFree ? btn([icon('transfer'), 'Switch'], () => swapSheet(unit), '', { title: 'Switch ' + unit.name + ' with another lane', data: { action: 'lane-switch' } }) : null,
         btn([icon('stop'), 'End Session'], () => endSheet([g]), 'stop', { data: { action: 'end' } })));
     return card;
   }
@@ -12239,27 +12284,48 @@ function manualChargeSheet(tab) {
 // Swap system (owner, 21 October): a customer waiting for a particular console plays on another meanwhile; when theirs is
 // free, everything moves there (controllers with their time running on, items, the bill, money paid ahead, the reminder).
 function swapSheet(unit) {
-  const free = state.Equipment.filter(u => u.category === unit.category && u.id !== unit.id && !inUse(u));
-  let to = '', acked = false;
+  // A lane switches (owner, 12 November): the game, its players and games, items and time move on, to a free lane or changing
+  // places with a lane in use; with one other lane it is chosen already.
+  const lane = unit.category === 'Bowling', game = lane ? activeOn(unit.id)[0] : null;
+  const free = state.Equipment.filter(u => u.category === unit.category && u.id !== unit.id && (lane || !inUse(u)));
+  let to = lane && free.length === 1 ? free[0].id : '', acked = false;
+  const gameWords = g => { const x = ArenaReservations.gameEnd(state, g, nowMs()); return x.players + (x.players === 1 ? ' player' : ' players') + (x.games > 1 ? ' · ' + x.games + ' games' : ''); };
+  const whoOn = g => { const t = tabOf(g.tabId); return (t && t.customer) || g.player || 'Walk-in'; };
   openSheet({
-    title: 'Swap ' + unit.name,
+    title: (lane ? 'Switch ' : 'Swap ') + unit.name,
     sub: groupNames(activeOn(unit.id)),
     icon: 'transfer',
     focus: false,
     build(ui) {
       if (!free.length) { ui.body.append(h('p', { class: 'muted', text: 'No other ' + catName(unit.category) + ' is free.' })); return; }
-      ui.body.append(h('div', 'group-title', icon(unit.category), 'Move everything to'), h('div', 'chips', free.map(u => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(to === u.id), data: { unit: u.id },
-        onclick: () => { to = u.id; acked = false; current.ack.reservation = false; ui.redraw(); } }, u.name))));
+      ui.body.append(h('div', 'group-title', icon(unit.category), lane ? 'Switch with' : 'Move everything to'), h('div', 'chips', free.map(u => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(to === u.id), data: { unit: u.id },
+        onclick: () => { to = u.id; acked = false; current.ack.reservation = false; ui.redraw(); } }, lane ? u.name + ' · ' + (inUse(u) ? whoOn(activeOn(u.id)[0]) : 'Free') : u.name))));
       // A free one someone has booked soon: said here, before the move.
-      const target = to ? unitOf(to) : null, clashes = target ? bookingClash(target) : [];
-      if (clashes.length) ui.body.append(h('div', { style: 'margin-top:16px' }, clashNotice(target, clashes, acked, on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; })));
-      ui.primary(target ? 'Move everything to ' + target.name : 'Choose where', !target || (clashes.length > 0 && !acked));
+      const target = to ? unitOf(to) : null, late = lane && target && game ? laneSwitchConflict(game, target) : null, clashes = target && !lane ? bookingClash(target) : [];
+      const other = lane && target ? activeOn(target.id)[0] : null;
+      // What goes where, said once more before they move (owner, 12 November: "ask confirmation again and then switch").
+      if (game && target) ui.body.append(h('div', { class: 'swap-plan', data: { swapPlan: other ? 'swap' : 'move' } },
+        h('div', 'swap-plan-row', h('span', { text: whoOn(game) + ' · ' + gameWords(game) }), icon('right'), h('b', { text: target.name })),
+        other ? h('div', 'swap-plan-row', h('span', { text: whoOn(other) + ' · ' + gameWords(other) }), icon('right'), h('b', { text: unit.name })) : null,
+        h('span', { class: 'small muted', text: other ? 'Both games keep their time.' : 'The game keeps its time.' })));
+      const tick = on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; };
+      if (clashes.length) ui.body.append(h('div', { style: 'margin-top:16px' }, clashNotice(target, clashes, acked, tick)));
+      // A lane only warns when the switch makes someone booked start later, and by how much.
+      if (late) {
+        const box = h('input', { type: 'checkbox', checked: acked, data: { field: 'booking-ack' }, onchange: () => tick(box.checked) });
+        ui.body.append(h('div', { class: 'clash', style: 'margin-top:16px', data: { laneSwitchLate: late.r.id } }, icon('reservations'), h('div', 'clash-main',
+          h('b', { text: late.r.customer + ' · Booked ' + clock(late.r.arrivalMs) }),
+          h('span', { class: 'small', text: (other ? 'Switching ' + unit.name + ' and ' + target.name : 'Switching to ' + target.name) + ' makes them start ' + inWords(Math.ceil(late.lateMs / 60000)) + ' late.' }),
+          h('label', 'clash-ack', box, h('span', { text: 'Switch anyway' })))));
+      }
+      const warned = clashes.length > 0 || !!late;
+      ui.primary(target ? (other ? 'Switch ' + unit.name + ' and ' + target.name : (lane ? 'Switch to ' : 'Move everything to ') + target.name) : 'Choose where', !target || (warned && !acked));
     },
     command() {
       if (!to) throw new Error('Choose where to move.');
-      return { type: 'MOVE_UNIT', unitId: unit.id, toUnitId: to };
+      return { type: 'MOVE_UNIT', unitId: unit.id, toUnitId: to, ...(lane && inUse(unitOf(to)) ? { swap: true } : {}) };
     },
-    then() { closeSheet(); render(); return { text: 'Moved from ' + unit.name + ' to ' + unitOf(to).name + '. The time runs on.' }; }
+    then(result) { closeSheet(); render(); return { text: result && result.swapped ? unit.name + ' and ' + unitOf(to).name + ' switched. Both games run on.' : (lane ? 'Switched from ' : 'Moved from ') + unit.name + ' to ' + unitOf(to).name + (lane ? '. The game runs on.' : '. The time runs on.') }; }
   });
 }
 // One Move (owner, 21 October), three places: a system playing now (this bill goes onto theirs, nobody starts playing),
@@ -14862,13 +14928,15 @@ function extraRatePanels() {
 // their prices on the Menu tab, each with its item.
 const ratesPage = {
   render(page) {
-    const durations = [15, 30, 45, 60], inputs = {};
-    const saved = category => { const row = state.Settings.find(r => r.id === 'gamingRates-' + category); return row ? JSON.parse(row.value) : { rates: RATE_DEFAULTS[category], revision: 0 }; };
+    // The 10-minute price (the fifth rate) is charged after each full hour, 7 to 10 minutes over (owner, 13 November).
+    const durations = [[10, 4], [15, 0], [30, 1], [45, 2], [60, 3]], inputs = {};
+    const saved = category => ArenaCore.rateSetting(state, category);
     const grid = h('table', 'rates',
       h('thead', null, h('tr', null, h('th'), TIMED_KINDS.map(c => h('th', null, h('span', null, icon(c), catName(c)))))),
-      h('tbody', null, durations.map((d, i) => h('tr', null, h('th', { text: d + ' min' }), TIMED_KINDS.map(c => {
+      h('tbody', null, durations.filter(([, i]) => TIMED_KINDS.some(c => saved(c).rates[i] != null)).map(([d, i]) => h('tr', null, h('th', { text: d === 10 ? '10 min after an hour' : d + ' min' }), TIMED_KINDS.map(c => {
+        if (saved(c).rates[i] == null) return h('td');
         const input = h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(saved(c).rates[i] / 100), 'aria-label': c + ' ' + d + ' minutes', data: { rate: c + '-' + i } });
-        (inputs[c] = inputs[c] || []).push(input);
+        (inputs[c] = inputs[c] || [])[i] = input;
         return h('td', null, input);
       })))));
     const saveRates = () => {
@@ -17911,7 +17979,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "f631604e9c4f";
+const APP_BUILD = "17fbfd9952d5";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
