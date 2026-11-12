@@ -81,6 +81,12 @@
   --edge-paid: #18512f;
   --edge-owing: #a35610;
   --edge-hold: #4f2244;
+  /* A membership slot: a clear blue outlined in navy with a navy Member tag, its own look on the board, unlike booked (grey
+     teal) (owner, 12 November: "give a unique colour, dont put some fancy but a good professional and classy"; "navy blue
+     and normal look similar … also write membership"). */
+  --member-top: #dce7fc;
+  --member-bottom: #c6d8f7;
+  --edge-member: #1c3a78;
   /* An academy's slot on its account: green, outlined in deep gold (owner, 3 November). */
   --edge-account: #9c6a12;
   --card: #fcfaf5;
@@ -1692,9 +1698,11 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .turf-day-word { display: inline-flex; align-items: baseline; gap: 8px; padding: 0 6px; font-family: var(--display); white-space: nowrap; }
 .turf-day-word b { font-weight: 600; }
 /* The date field shows only its calendar icon; the day is written beside it. */
-.turf-day input { width: 34px; min-height: 34px; padding: 0 8px; border-color: transparent; background: transparent; color: var(--ink-2); cursor: pointer; }
-.turf-day input::-webkit-datetime-edit { display: none; }
-.turf-day input::-webkit-calendar-picker-indicator { margin: 0; cursor: pointer; opacity: 1; }
+.turf-cal { position: relative; flex: none; display: inline-grid; place-items: center; width: 44px; height: 36px; border: 1px solid var(--primary); border-radius: var(--r-xs); background: var(--primary); color: #ffffff; cursor: pointer; box-shadow: 0 2px 8px -2px rgb(var(--tint) / 0.45); transition: filter 170ms ease; }
+.turf-cal:hover { filter: brightness(1.08); }
+.turf-cal svg { width: 22px; height: 22px; }
+.turf-day .turf-cal input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.turf-day .turf-cal input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; cursor: pointer; }
 /* Share availability: WhatsApp's own green beside the words. */
 .page-bar .btn[data-action=turf-availability] svg { color: #25d366; width: 18px; height: 18px; }
 /* An hour is tall enough for a one-hour booking's two lines: the name and its time. */
@@ -1813,6 +1821,10 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
    unbooked red. Nothing leaves the board. */
 .turf-block.paid { --edge: var(--edge-paid); background: linear-gradient(180deg, #e3efe2 0%, #d6e8d4 100%); }
 .turf-block.paid.on-account { --edge: var(--edge-account); }
+.turf-block.member { --edge: var(--edge-member); background: linear-gradient(180deg, var(--member-top) 0%, var(--member-bottom) 100%); }
+.turf-sport.turf-member-tag { border-color: var(--edge-member); background: var(--edge-member); color: #ffffff; }
+.turf-sport.turf-member-tag svg { color: #ffffff; }
+.turf-key.member i { border: 1px solid var(--edge-member); box-shadow: inset 0 0 0 0.5px var(--edge-member); background: var(--member-bottom); }
 .turf-block.owing { --edge: var(--edge-owing); background: linear-gradient(180deg, #fbebd6 0%, #f6dfc0 100%); }
 .turf-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--text-xs); color: var(--ink-2); }
 /* The top of the Turf page at its earlier, compact size (owner, 3 November: "revert back to earlier size so i can see more
@@ -2258,6 +2270,9 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
   .turf-player.cleared { grid-template-columns: auto minmax(0, 1fr) auto auto; }
   .turf-player.cleared .turf-player-tools { grid-column: auto; gap: 2px; }
   .page-bar .turf-day { order: 5; flex-basis: 100%; justify-content: space-between; }
+  /* All bookings, Bulk booking and the WhatsApp of Availability on one line above the day (owner, 12 November). */
+  .page-bar:has(.turf-day) { gap: 8px 4px; }
+  .page-bar:has(.turf-day) > .btn.quiet { padding: 0 6px; letter-spacing: 0.02em; }
   .row-tools .btn { padding: 0 12px; }
   /* A phone or a tablet upright: the lounge and the logo at the top, fading into cream; the form below. */
   .login { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; background: rgb(var(--w-f6f1e7)); }
@@ -5948,8 +5963,10 @@ var ArenaTurf = (function () {
       check(!!plan2, 'Choose the membership.');
       var person2 = who(Object.assign({}, cmd, { sport: courtOf(cmd.court).venue.sports[0] }));
       check(validKey(cmd.from) && cmd.from >= dateKeyOf(now), 'Choose the first day.');
-      var days2 = Array.isArray(cmd.days) && cmd.days.length ? cmd.days : [0, 1, 2, 3, 4, 5, 6];
+      // Monday to Saturday only: no membership hours on a Sunday (owner, 12 November: "we do not give on sundays").
+      var days2 = Array.isArray(cmd.days) && cmd.days.length ? cmd.days : [1, 2, 3, 4, 5, 6];
       check(days2.every(function (d) { return Number.isInteger(d) && d >= 0 && d <= 6; }) && new Set(days2).size === days2.length, 'Choose the days.');
+      check(days2.indexOf(0) < 0, 'Memberships run Monday to Saturday.');
       var openHours = hoursOf(cmd.court);
       check(Number.isSafeInteger(cmd.startHour) && Number.isSafeInteger(cmd.hours) && cmd.hours >= 1 && cmd.startHour >= openHours.open && cmd.startHour + cmd.hours <= openHours.close, hoursWords(cmd.court));
       ArenaCore.payParts(state, Array.isArray(cmd.payments) && cmd.payments.length ? cmd : { amountPaise: 1, method: cmd.method });
@@ -17069,6 +17086,8 @@ function turfBlock(b, row, column, rows, exact = rows) {
   const academy = turfAccountOf(b.id), onAccount = !!academy && settled === 'settled';
   const overOrange = ended && ARENA_BRANCH.boardOverOrange !== false;
   const tone = academy ? (onAccount ? ' paid' : ended ? ' owing' : '') : settled === 'settled' ? ' paid' : settled === 'pending' || settled === 'part' || overOrange ? ' owing' : '';
+  // A membership slot in its own colour (owner, 12 November), unless something on it is still owed.
+  const look = ArenaTurf.memberOf(b) && tone !== ' owing' ? ' member' : tone;
   const accountWords = onAccount ? h('span', { class: 'turf-account', title: 'On ' + academy.name + '’s account', data: { turfOnAccount: b.id }, text: 'On account' }) : null;
   // Money paid in advance, on the card beside the name (owner, 2 November: "if advance is paid show like nicely so and so is
   // paid"), as a station's card shows it; on a narrow card the wallet and the amount.
@@ -17080,9 +17099,10 @@ function turfBlock(b, row, column, rows, exact = rows) {
   const partRow = exact > 1 && exact % 1 ? ';align-self:start;height:calc(var(--turf-row) * ' + exact + ' + var(--turf-row-gap) * ' + Math.floor(exact) + ')' : '';
   // Written as the owner's picture of 3 November: a person beside the name, the sport in its chip, then a clock and the
   // hours; a booking of two hours or more is larger.
-  return h('div', { class: 'turf-block' + tone + (onAccount ? ' on-account' : '') + (tone ? '' : maybe ? ' maybe' : hold ? ' hold' : '') + (rows > 1 ? ' tall' : ''), style: 'grid-row:' + row + ' / span ' + rows + ';grid-column:' + column + partRow, data: { booking: b.id, settled }, onclick: () => turfOpenBooking(b.id) },
+  return h('div', { class: 'turf-block' + look + (onAccount ? ' on-account' : '') + (look ? '' : maybe ? ' maybe' : hold ? ' hold' : '') + (rows > 1 ? ' tall' : ''), style: 'grid-row:' + row + ' / span ' + rows + ';grid-column:' + column + partRow, data: { booking: b.id, settled }, onclick: () => turfOpenBooking(b.id) },
     h('span', 'turf-block-top', h('span', { class: 'turf-who', 'aria-hidden': 'true' }, icon('user')), h('button', { type: 'button', class: 'turf-name', 'aria-label': b.customer + ', ' + courtLabel(b.court) + ', ' + b.sport + ', ' + turfRange(b), text: b.customer }), onAccount ? null : send, paidChip, accountWords, onAccount ? null : mark, cancel),
-    h('span', 'turf-block-sub', h('span', { class: 'turf-sport ' + sportIcon(b.sport) }, icon(sportIcon(b.sport)), b.sport), hold ? h('button', { type: 'button', class: 'turf-hold-tag', title: maybe ? 'Hold: message, confirm or cancel' : 'Hold (Pay): advance needed, message, confirm or cancel', 'aria-label': (maybe ? 'Hold' : 'Hold (Pay)') + ': ' + b.customer, data: { action: 'turf-hold-ask' }, onclick: e => { e.stopPropagation(); turfHoldAsk(b, e.currentTarget); } }, icon('clock'), h('span', { text: maybe ? 'Hold' : 'Hold (Pay)' })) : null, h('span', 'turf-time', icon('clock'), h('span', { text: turfRange(b) }))));
+    // A membership slot says so in its sport's chip, in navy (owner, 12 November: "also write membership"); the venue says the sport.
+    h('span', 'turf-block-sub', look === ' member' ? h('span', { class: 'turf-sport turf-member-tag', title: b.sport + ' membership', data: { turfMember: b.id } }, icon(sportIcon(b.sport)), 'Member') : h('span', { class: 'turf-sport ' + sportIcon(b.sport) }, icon(sportIcon(b.sport)), b.sport), hold ? h('button', { type: 'button', class: 'turf-hold-tag', title: maybe ? 'Hold: message, confirm or cancel' : 'Hold (Pay): advance needed, message, confirm or cancel', 'aria-label': (maybe ? 'Hold' : 'Hold (Pay)') + ': ' + b.customer, data: { action: 'turf-hold-ask' }, onclick: e => { e.stopPropagation(); turfHoldAsk(b, e.currentTarget); } }, icon('clock'), h('span', { text: maybe ? 'Hold' : 'Hold (Pay)' })) : null, h('span', 'turf-time', icon('clock'), h('span', { text: turfRange(b) }))));
 }
 // The board keeps the hours still to come, and any earlier hour of a booking not yet settled (it stays until it is).
 // Every hour of the day stays on the board (owner, 20 October): nothing leaves it, its colour says what it is.
@@ -17170,8 +17190,9 @@ function turfBoard(key, all) {
 }
 // The day's board opens from a card (Book, or All bookings) and goes back to the cards; each time it opens, today's board starts
 // at the hour now, and a redraw keeps the page where it is.
+// From the top bar's All bookings it stays at the top, by the dates (owner, 12 November: "let it stay on top so i can click the dates").
 let turfBoardOpening = false;
-function openTurfBoard() { turfView = 'board'; turfBoardOpening = true; render(); }
+function openTurfBoard(toNow = true) { turfView = 'board'; turfBoardOpening = toNow; render(); if (!toNow) $('main').scrollTo({ top: 0 }); }
 // Opened on today, the board starts an hour before the hour now, or earlier at the start of a booking of two hours or more
 // under way then, so it shows whole, that hour right under the headings (Mangalore, 3 November: "2 hours no need, 1 is fine");
 // after that the page stays where it is when an hour is picked or anything is saved (owner, 22 October).
@@ -17191,19 +17212,7 @@ function turfOpenAt(board, list) {
 }
 // What each colour on the board means.
 function turfLegend() {
-  return h('div', { class: 'turf-legend', 'aria-hidden': 'true' }, [['free', 'Free'], ['booked', 'Booked'], ['paid', 'Paid'], ['owing', 'Pending · part paid'], ['hold', 'Hold · Hold (Pay)'], ['missed', 'Time gone, not booked']].map(([k, t]) => h('span', 'turf-key ' + k, h('i'), t)));
-}
-// Every booking still to come, soonest first.
-function turfUpcoming(target) {
-  const list = (state.TurfBookings || []).filter(b => !turfEnded(b) && courtInfo(b.court).venue === turfVenue).sort((a, b) => hourStart(a.dateKey, Number(a.startHour)) - hourStart(b.dateKey, Number(b.startHour)));
-  target.append(table(
-    [{ label: 'When' }, { label: 'Customer' }, { label: 'Court', class: 'hide-s' }, { label: '' }],
-    list.map(b => h('tr', { class: 'click', data: { booking: b.id }, onclick: () => turfOpenBooking(b.id) },
-      h('td', null, h('div', 'cell-text', h('b', { text: turfDayWord(b.dateKey) }), h('span', { class: 'small muted num', text: turfRange(b) }))),
-      h('td', null, person(b.customer, turfPhone(b))),
-      h('td', { class: 'hide-s' }, h('span', 'cell', icon(sportIcon(b.sport)), h('span', { text: courtLabel(b.court) + ' · ' + b.sport }))),
-      h('td', { class: 'r' }, turfHeld(b) ? h('span', { class: 'badge hold', text: turfMaybe(b) ? 'Hold' : 'Hold (Pay)' }) : h('span', { class: 'badge ' + (b.confirmSent === 'yes' ? 'good' : 'warn'), text: b.confirmSent === 'yes' ? 'Sent' : 'Not sent' })))),
-    'No bookings to come.', 'turf'));
+  return h('div', { class: 'turf-legend', 'aria-hidden': 'true' }, [['free', 'Free'], ['booked', 'Booked'], ['paid', 'Paid'], ['owing', 'Pending · part paid'], ['hold', 'Hold · Hold (Pay)'], (venueHere().memberships || []).length ? ['member', 'Membership'] : null, ['missed', 'Time gone, not booked']].filter(Boolean).map(([k, t]) => h('span', 'turf-key ' + k, h('i'), t)));
 }
 // Two small round arrows at the bottom right (owner, 3 November): up, back to the top to choose another day, once the page is
 // scrolled down ("keep one small button once i come to end of screen, if i click it should automatically take me to top to
@@ -17228,7 +17237,7 @@ function turfJumpButtons() {
 // (Cash, UPI or CA). Every slot of the period is booked at once.
 function turfMemberSheet() {
   const venue = venueHere(), plans = venue.memberships, today = dayKey(nowMs());
-  let who, plan = plans[0].id, court = courtsHere()[0], start = Math.min(Math.max(18, venue.open), venue.close - 1), hours = 1, from = today, days = new Set([0, 1, 2, 3, 4, 5, 6]), date;
+  let who, plan = plans[0].id, court = courtsHere()[0], start = Math.min(Math.max(18, venue.open), venue.close - 1), hours = 1, from = today, days = new Set([1, 2, 3, 4, 5, 6]), date;
   const priceOf = id => { const saved = settingValue('memberPrice-' + venue.key + '-' + id, 0); return saved || plans.find(p => p.id === id).pricePaise; };
   openSheet({
     title: venue.name + ' membership',
@@ -17251,7 +17260,7 @@ function turfMemberSheet() {
           startHours.map(([v, text]) => h('option', { value: String(v), selected: v === start }, text)))),
         h('div', 'field', h('span', { text: 'For' }), chips([1, 2].filter(n => start + n <= venue.close).map(n => [n, n === 1 ? '1 hour' : n + ' hours']), v => v === hours, v => { hours = v; }, 'member-hours')),
         h('div', 'foot-row', field('From', date), h('div', 'field', h('span', { text: 'Until' }), h('b', { class: 'member-until', text: turfDayName(until) }))),
-        h('div', 'field', h('span', { text: 'Days' }), chips(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => [i, d]), v => days.has(v), v => { if (days.has(v) && days.size > 1) days.delete(v); else days.add(v); }, 'member-days')));
+        h('div', 'field', h('span', { text: 'Days' }), chips(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => [i + 1, d]), v => days.has(v), v => { if (days.has(v) && days.size > 1) days.delete(v); else days.add(v); }, 'member-days')));
       // Paid the one way money is taken on the courts (master, 23 October): Cash, UPI (Scanner / CA), or Cash + UPI.
       ui.foot.append(turfPayChoice(priceOf(plan), 'member-pay', way => {
         if (who.phone.value.replace(/\D/g, '').length < 10) { sheetStatus('error', 'Enter a 10-digit mobile number.'); return; }
@@ -17460,25 +17469,27 @@ const turfPage = {
     // A tab per venue inside Courts, as the gaming floor's category bar (owner, 22 October): Turf | Badminton | Pickleball.
     bar.append(h('div', { class: 'cat-tabs venue-tabs', role: 'group', 'aria-label': ARENA_BRANCH.courtsName }, VENUES.map(v =>
       h('button', { type: 'button', class: 'chip', 'aria-pressed': String(v.key === turfVenue), data: { venue: v.key }, onclick: () => { turfVenue = v.key; turfPicked = { day: '', cells: new Set() }; render(); } }, icon(v.icon), h('span', { text: v.name })))));
-    const view = segmented([['day', 'Day'], ['upcoming', 'Upcoming']], turfView === 'board' ? 'day' : turfView, value => { turfView = value; render(); });
+    // No Day / Upcoming switch (owner, 12 November: "whats the need of upcoming?? … waste right"): the cards, the date box and All bookings.
     if (turfView === 'board') bar.append(btn([icon('back'), 'Cards'], () => { turfView = 'day'; render(); }, 'outline', { data: { action: 'turf-cards' } }));
-    else bar.append(view.node);
-    if (turfView === 'day' || turfView === 'board') {
+    {
       // The calendar opens from its own icon; the day itself is written once, in words.
       const date = h('input', { type: 'date', value: turfDay, title: 'Choose a day', 'aria-label': 'Choose a day', data: { field: 'turf-day' }, onchange: () => { if (date.value) { turfDay = date.value; render(); } } });
       const word = turfDayWord(turfDay), name = turfDayName(turfDay);
       bar.append(h('div', 'turf-day',
         iconButton('back', 'Previous day', () => { turfDay = shiftDay(turfDay, -1); render(); }, { data: { action: 'turf-prev' } }),
-        date,
+        // The calendar a large tile in the main colour (owner, 12 November: "make it big and highlight it, people cannot see it").
+        h('label', { class: 'turf-cal', title: 'Choose a day', onclick: () => { try { date.showPicker(); } catch (e) { /* the input's own picker opens */ } } }, icon('reservations'), date),
         h('span', 'turf-day-word', h('b', { text: word }), word === name ? null : h('span', { class: 'muted', text: name })),
         iconButton('right', 'Next day', () => { turfDay = shiftDay(turfDay, 1); render(); }, { data: { action: 'turf-next' } }),
         // Back to today in one tap from any other day (Mangalore, 3 November); on today the box already says Today.
         turfDay === dayKey(nowMs()) ? null : btn('Today', () => { turfDay = dayKey(nowMs()); turfBoardOpening = turfView === 'board'; render(); }, 'turf-today', { title: 'Back to today', data: { action: 'turf-today' } })));
       const list = turfBookingsOn(turfDay);
+      // All bookings of the day, as the calendar on a court card opens them (owner, 12 November), before Bulk booking.
+      if (turfView !== 'board') bar.append(btn([icon('list'), 'All bookings'], () => openTurfBoard(false), 'quiet', { data: { action: 'turf-all' } }));
       bar.append(btn([icon('reservations'), 'Bulk booking'], () => turfBulkSheet(), 'quiet', { data: { action: 'turf-bulk' } }));
       // Memberships (owner, 22 October), beside Bulk booking, where the venue has them.
       if ((venueHere().memberships || []).length) bar.append(btn([icon('users'), 'Membership'], () => turfMemberSheet(), 'quiet', { data: { action: 'turf-member' } }));
-      if (list) bar.append(btn([icon('whatsapp'), h('span', { class: 'desk-only', text: 'Share availability' })], () => turfShareSheet(turfDay, list), 'quiet', { title: 'Share availability', 'aria-label': 'Share availability', data: { action: 'turf-availability' } }));
+      if (list) bar.append(btn([icon('whatsapp'), h('span', { class: 'desk-only', text: 'Availability' })], () => turfShareSheet(turfDay, list), 'quiet', { title: 'Share availability', 'aria-label': 'Share availability', data: { action: 'turf-availability' } }));
     }
     // Exports are a desk job; a phone does not show them.
     bar.append(h('span', 'spacer desk-only'), btn([icon('download'), 'Export CSV'], () => exportCsv('turf'), 'outline desk-only'));
@@ -17891,7 +17902,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "bfbb70e43d19";
+const APP_BUILD = "6537c831891f";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
