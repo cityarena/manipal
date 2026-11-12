@@ -17362,7 +17362,9 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
   const paidUp = !!b && status.state === 'settled', owing = !!b && ended && !paidUp, goneHour = !b && !!entry && hourStart(key, Number(entry.startHour) + 1) <= now, goneFree = goneHour;
   // An academy's slot gone to its account reads On account, never Paid, as on the board (owner, 12 November).
   const onAccount = paidUp && !!turfAccountOf(b.id);
-  const pill = !b ? (goneHour ? ['Not booked', 'bad'] : ['Free', 'good']) : onAccount ? ['On account', 'account'] : paidUp ? ['Paid', 'good'] : playing ? ['Playing', 'live'] : ended ? ['Pending', 'warn'] : ['Booked', ''];
+  // A membership slot, paid with the membership, reads Settled, never Paid, before, during and after (owner, 12 November).
+  const paidWord = b && ArenaTurf.memberOf(b) ? 'Settled' : 'Paid';
+  const pill = !b ? (goneHour ? ['Not booked', 'bad'] : ['Free', 'good']) : onAccount ? ['On account', 'account'] : paidUp ? [paidWord, 'good'] : playing ? ['Playing', 'live'] : ended ? ['Pending', 'warn'] : ['Booked', ''];
   const card = h('article', { class: 'court-card' + (wide ? ' wide' : '') + (playing ? ' live' : '') + (paidUp ? ' paid' : owing ? ' owing' : goneFree ? ' missed' : '') + (onAccount ? ' on-account' : ''), data: { court, booking: b ? b.id : '' } },
     h('div', 'court-photo', h('div', 'court-photo-top', h('span', { class: 'court-chip', text: venue.name }),
       iconButton('reservations', 'All bookings of the day', openTurfBoard, { class: 'court-all', data: { action: 'court-all' } })), h('div', 'court-photo-foot',
@@ -17425,7 +17427,7 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
   const later = !open;
   body.append(h('div', 'court-actions',
     btn([icon('plus'), 'Add Items'], () => (later ? go('sales') : turfItemsSheet(b, null, true)), 'outline', { data: { action: 'court-items' } }),
-    btn([icon(onAccount ? 'credits' : paidUp ? 'checkCircle' : 'wallet'), owed > 0 ? 'Pay ' + money(owed) : onAccount ? 'On account' : paidUp ? 'Paid' : 'Open'], () => turfOpenBooking(b.id), owed > 0 ? 'primary' : paidUp ? 'outline paid' : 'outline', { data: { action: 'court-pay' } })));
+    btn([icon(onAccount ? 'credits' : paidUp ? 'checkCircle' : 'wallet'), owed > 0 ? 'Pay ' + money(owed) : onAccount ? 'On account' : paidUp ? paidWord : 'Open'], () => turfOpenBooking(b.id), owed > 0 ? 'primary' : paidUp ? 'outline paid' : 'outline', { data: { action: 'court-pay' } })));
   const links = h('div', 'court-links');
   if (!split && !turfAccountOf(b.id) && open && owed > 0) {
     links.append(btn([icon('credits'), 'Credit'], () => (b.tabId ? turfCreditSheet(b, null, { owedPaise: owed, billId: '' }) : runCommand({ type: 'TURF_CHECKOUT', id: b.id }, () => turfCreditSheet(b, null, { owedPaise: turfStatusOf(b.id).owedPaise, billId: '' }))), 'quiet', { data: { action: 'court-credit' } }));
@@ -17909,7 +17911,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "ee8b18a95f71";
+const APP_BUILD = "f631604e9c4f";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
