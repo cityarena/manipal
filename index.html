@@ -3913,6 +3913,8 @@ var ArenaReservations=(function(){
  function gameEnd(s,g,now){
   var saved=JSON.parse(g.ratesJson),extra=(s.Settings||[]).find(function(x){return x.id==='laneExtra-'+g.id;});
   var estimate=g.startMs+ArenaCore.bowlingMinutes(saved.players,saved.games)*MIN+ArenaCore.pausedMs(s,g,now)+(extra?Number(extra.value):0)*MIN;
+  // Still playing past its estimate: free at this very minute, moving on with the clock; nothing is added unless +5 / +10 is
+  // pressed (owner, 12 November: "do not change the reservation time unless i do it … mention now time, keep changing").
   return {segmentId:g.id,startMs:g.startMs,players:saved.players,games:saved.games,estimateMs:estimate,endMs:Math.max(estimate,now),overMs:Math.max(0,now-estimate)};
  }
  // The bowling plan (owner, 22 October), one calculation for the lane cards and the Reservations page. Each lane: the game on it,
@@ -4015,8 +4017,10 @@ var ArenaReservations=(function(){
    var g=(s.Segments||[]).find(function(x){return x.id===c.segmentId;});
    check(!!g&&g.status==='active'&&s.Equipment.some(function(u){return u.id===g.unitId&&u.category==='Bowling';}),'This lane is not in use.');
    check(c.minutes===5||c.minutes===10,'Add 5 or 10 minutes.');
+   // A game already past its estimate: 5 or 10 minutes from now, not from the time it was due (owner, 12 November).
+   var due=gameEnd(s,g,now),add=c.minutes+(due.estimateMs<now?Math.floor((now-due.estimateMs)/MIN):0);
    s.Settings=s.Settings||[];var extra=s.Settings.find(function(x){return x.id==='laneExtra-'+g.id;});
-   if(extra)extra.value=Number(extra.value)+c.minutes;else s.Settings.push({id:'laneExtra-'+g.id,value:c.minutes});
+   if(extra)extra.value=Number(extra.value)+add;else s.Settings.push({id:'laneExtra-'+g.id,value:add});
    return {segmentId:g.id,message:c.minutes+' min more on '+s.Equipment.find(function(u){return u.id===g.unitId;}).name+'.'};
   }
   if(c.type==='LANE_GAMES'||c.type==='LANE_REPEAT'){
@@ -10213,6 +10217,7 @@ function timer(source, small) {
   return h('span', { class: 'timer' + (small ? ' small' : '') + (paused.since ? ' held' : ''), data: { start: String(start), paused: String(paused.total), since: paused.since ? String(paused.since) : '' } },
     h('span'), h('i', { text: ':' }), h('span'), h('i', { text: ':' }), h('span'));
 }
+let laneMinute = 0;
 function tick() {
   // A reminder whose time has come: its station, its chip, its category and the menu entry start to blink.
   const now = nowMs();
@@ -10229,6 +10234,17 @@ function tick() {
     const left = Math.ceil((Number(node.dataset.left) - now) / 60000);
     node.textContent = left >= 0 ? left + ' min left' : 'Over by ' + -left + ' min';
     node.classList.toggle('warn-text', left < 0);
+    // Always "Free at ~", the same time as Reservations (owner, 12 November: "this is confusing"): its estimate, or once past it,
+    // the current minute until +5 / +10 is pressed.
+    const freeAt = node.parentElement && node.parentElement.querySelector('[data-lane=free-at]');
+    if (freeAt) freeAt.textContent = 'Free at ~' + clock(Math.max(Number(node.dataset.left), now));
+  }
+  // A lane playing past its time is free at the current minute (owner, 12 November: "keep changing to current time"): the
+  // Reservations page is drawn again as each minute turns, unless a sheet is open.
+  const minute = Math.floor(now / 60000);
+  if (minute !== laneMinute) {
+    laneMinute = minute;
+    if (page === 'reservations' && !$('sheet').open && document.querySelector('[data-lane-over]')) render();
   }
   lockLanes();
 }
@@ -10467,7 +10483,7 @@ function laneInfo(tab, name, g, extras) {
     h('div', 'card-who lane-who', icon('user'), h('span', { class: 'station-who', text: name }),
       phone ? iconButton('whatsapp', 'WhatsApp ' + name, e => { e.stopPropagation(); whatsapp(phone, ''); }, { class: 'card-wa', data: { action: 'whatsapp-customer' } }) : null,
       h('span', { class: 'lane-who-more', text: game.players + (game.players === 1 ? ' player' : ' players') + (game.games > 1 ? ' · ' + game.games + ' games' : '') + ' · since ' + clock(g.startMs) })),
-    h('div', 'lane-time', icon('clock'), h('b', { data: { lane: 'free-at' }, text: 'Free at ~' + clock(game.estimateMs) }), h('span', { class: 'lane-left', data: { left: String(game.estimateMs) } }),
+    h('div', 'lane-time', icon('clock'), h('b', { data: { lane: 'free-at' }, text: 'Free at ~' + clock(Math.max(game.estimateMs, nowMs())) }), h('span', { class: 'lane-left', data: { left: String(game.estimateMs) } }),
       h('span', 'lane-tools', pauseButton([g], 'Lane'), extra(5), extra(10))),
     extras.some(Boolean) ? h('div', 'card-extras', extras) : null);
 }
@@ -13314,17 +13330,20 @@ function laneHeader(plan) {
   const now = nowMs();
   return h('section', { class: 'lane-head', data: { laneFree: '' } }, plan.lanes.map(lane => {
     const playing = !!lane.game;
-    const gap = lane.gaps.find(g => g.toMs - Math.max(g.fromMs, now) >= 15 * 60000) || null;
-    const openAt = gap ? Math.max(gap.fromMs, now) : lane.freeMs, freeNow = openAt <= now + 60000;
+    // A game running past its estimate keeps the lane in use: never Free now, and no gap from now (owner, 11 November: "if its
+    // still going on, how … is it free now??").
+    const overTime = playing && lane.game.overMs >= 60000;
+    const gap = overTime ? null : lane.gaps.find(g => g.toMs - Math.max(g.fromMs, now) >= 15 * 60000) || null;
+    const openAt = gap ? Math.max(gap.fromMs, now) : lane.freeMs, freeNow = !overTime && openAt <= now + 60000;
     const byGame = playing && Math.abs(openAt - lane.game.endMs) < 60000;
     const fits = gap ? bowlingFits(gap.toMs - openAt) : 0;
     const fact = (glyphName, text) => h('span', 'lane-why', icon(glyphName), h('span', { text }));
     const facts = [
-      playing ? fact('Bowling', 'Game ends ~' + clock(lane.game.estimateMs)) : null,
+      playing ? fact('Bowling', overTime ? 'Game was due ~' + clock(lane.game.estimateMs) + ' · running ' + Math.floor(lane.game.overMs / 60000) + ' min over' : 'Game ends ~' + clock(lane.game.estimateMs)) : null,
       ...lane.blocks.slice(0, 2).map(b => { const who = state.Reservations.find(x => x.id === b.id); return fact('flag', (who ? who.customer + ' · ' : '') + clock(b.startMs) + ' – ' + clock(b.endMs)); }),
       lane.blocks.length > 2 ? h('span', { class: 'lane-why', text: '+' + (lane.blocks.length - 2) + ' more' }) : null,
       gap && lane.blocks.length ? fact('clock', 'Free again ' + clock(lane.freeMs)) : null].filter(Boolean);
-    return h('div', { class: 'lane-tile', data: { laneTile: lane.unitId } },
+    return h('div', { class: 'lane-tile', data: { laneTile: lane.unitId, ...(overTime ? { laneOver: '1' } : {}) } },
       h('span', { class: 'lane-tile-art', 'aria-hidden': 'true' }),
       h('div', 'lane-tile-text',
         h('span', { class: 'lane-tile-name', text: lane.name }),
@@ -13521,7 +13540,8 @@ function reservationCard(r, plan) {
   const soonAt = place && !walk && r.status !== 'waiting' ? laneNowFor(r) || soonestPlace(r) : null, soon = soonAt ? soonAt.ms : 0;
   const sooner = soon && Math.floor(r.arrivalMs / 60000) * 60000 - soon >= resMinutes('show') * 60000 ? soon : 0;
   // Which lane, and now or from when (owner, 11 November).
-  const soonerText = sooner ? (unitOf(soonAt.unitId) || {}).name + ' free ' + (sooner <= nowMs() + 60000 ? 'now' : 'from ' + clock(sooner)) : '';
+  const soonBusy = !!soonAt && inUse(unitOf(soonAt.unitId) || {}) && soonAt.ms <= nowMs() + 60000;
+  const soonerText = sooner && !soonBusy ? (unitOf(soonAt.unitId) || {}).name + ' free ' + (sooner <= nowMs() + 60000 ? 'now' : 'from ' + clock(sooner)) : '';
   const closed = RES_GONE.includes(r.status) && r.closedMs ? h('span', { class: 'small muted', data: { closed: r.status }, text: CLOSED_LABEL[r.status] + ' ' + when(Number(r.closedMs)) + (r.closeReason && r.closeReason !== CLOSED_LABEL[r.status] ? ' · ' + r.closeReason : '') }) : null;
   return h('div', { class: 'res-card' + (walk ? ' walkin' : ''), data: { reservation: r.id } },
     h('div', 'res-top', walk ? h('b', { class: 'num res-token', text: '#' + r.token }) : h('b', { class: 'num res-time', text: when(r.arrivalMs) }), reservationStatus(r)),
@@ -13531,7 +13551,7 @@ function reservationCard(r, plan) {
     h('div', 'res-meta', meta(r.category === 'Bowling' ? 'Bowling' : r.category, unitText), meta(pads ? 'PS5' : 'users', partyText)),
     walk && pending ? h('div', 'res-meta', meta('user', 'Arrived ' + clock(r.arrivalMs) + ' · waiting ' + minutes(nowMs() - r.arrivalMs))) : null,
     closed,
-    sooner ? h('div', { class: 'res-sooner', data: { sooner: '' } }, h('span', { text: soonerText }),
+    soonerText ? h('div', { class: 'res-sooner', data: { sooner: '' } }, h('span', { text: soonerText }),
       r.phone ? iconButton('whatsapp', 'Ask ' + r.customer + ' to come sooner', () => whatsapp(r.phone, 'Hi ' + r.customer + ', a lane opened up early. Can you come at ' + clock(sooner) + ' instead of ' + clock(r.arrivalMs) + '?'), { data: { action: 'whatsapp-sooner' } }) : null,
       btn('Move earlier', () => runCommand({ type: 'RESERVATION_TIME', id: r.id, revision: r.revision, arrivalMs: sooner }, () => {}), 'quiet', { data: { action: 'move-earlier' } })) : null,
     pending ? h('div', 'res-tools',
@@ -17871,7 +17891,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "7dce79352da5";
+const APP_BUILD = "bfbb70e43d19";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
