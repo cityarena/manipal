@@ -1793,6 +1793,11 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .court-line { align-items: center; }
 .court-actions .btn.paid { border-color: rgba(31, 125, 74, 0.45); background: #dcefe0; color: var(--accent); }
 .court-actions .btn.paid svg { color: var(--accent); }
+/* An academy's slot on its account: the green card outlined in deep gold, On account in a white chip outlined in it, as on the board (owner, 12 November). */
+.court-card.paid.on-account { border-color: var(--edge-account); }
+.badge.account { color: var(--edge-account); border-color: var(--edge-account); background: #ffffff; }
+.court-card.on-account .court-actions .btn.paid { border-color: var(--edge-account); background: #ffffff; color: var(--edge-account); }
+.court-card.on-account .court-actions .btn.paid svg { color: var(--edge-account); }
 /* A member's slot on a court card. */
 .court-member { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 2px 10px; border: 1px solid var(--accent-line); border-radius: 999px; background: rgba(31, 125, 74, 0.08); color: var(--accent); font-size: 13px; font-weight: 600; }
 .court-member svg { width: 14px; height: 14px; }
@@ -17355,8 +17360,10 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
   const gone = !b && !!entry && hourStart(key, Number(entry.startHour) + 1) <= now;
   // The card's colour says how the hour stands (owner, 22 October): paid green, over and still owing orange, gone by unbooked red.
   const paidUp = !!b && status.state === 'settled', owing = !!b && ended && !paidUp, goneHour = !b && !!entry && hourStart(key, Number(entry.startHour) + 1) <= now, goneFree = goneHour;
-  const pill = !b ? (goneHour ? ['Not booked', 'bad'] : ['Free', 'good']) : paidUp ? ['Paid', 'good'] : playing ? ['Playing', 'live'] : ended ? ['Pending', 'warn'] : ['Booked', ''];
-  const card = h('article', { class: 'court-card' + (wide ? ' wide' : '') + (playing ? ' live' : '') + (paidUp ? ' paid' : owing ? ' owing' : goneFree ? ' missed' : ''), data: { court, booking: b ? b.id : '' } },
+  // An academy's slot gone to its account reads On account, never Paid, as on the board (owner, 12 November).
+  const onAccount = paidUp && !!turfAccountOf(b.id);
+  const pill = !b ? (goneHour ? ['Not booked', 'bad'] : ['Free', 'good']) : onAccount ? ['On account', 'account'] : paidUp ? ['Paid', 'good'] : playing ? ['Playing', 'live'] : ended ? ['Pending', 'warn'] : ['Booked', ''];
+  const card = h('article', { class: 'court-card' + (wide ? ' wide' : '') + (playing ? ' live' : '') + (paidUp ? ' paid' : owing ? ' owing' : goneFree ? ' missed' : '') + (onAccount ? ' on-account' : ''), data: { court, booking: b ? b.id : '' } },
     h('div', 'court-photo', h('div', 'court-photo-top', h('span', { class: 'court-chip', text: venue.name }),
       iconButton('reservations', 'All bookings of the day', openTurfBoard, { class: 'court-all', data: { action: 'court-all' } })), h('div', 'court-photo-foot',
       h('div', 'court-photo-name', h('h3', { text: wide && (!b || b.court !== court) ? venue.name : courtLabel(court) }), b && venue.sports.length > 1 ? h('span', { class: 'court-sport', text: b.sport }) : null),
@@ -17418,7 +17425,7 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
   const later = !open;
   body.append(h('div', 'court-actions',
     btn([icon('plus'), 'Add Items'], () => (later ? go('sales') : turfItemsSheet(b, null, true)), 'outline', { data: { action: 'court-items' } }),
-    btn([icon(paidUp ? 'checkCircle' : 'wallet'), owed > 0 ? 'Pay ' + money(owed) : paidUp ? 'Paid' : 'Open'], () => turfOpenBooking(b.id), owed > 0 ? 'primary' : paidUp ? 'outline paid' : 'outline', { data: { action: 'court-pay' } })));
+    btn([icon(onAccount ? 'credits' : paidUp ? 'checkCircle' : 'wallet'), owed > 0 ? 'Pay ' + money(owed) : onAccount ? 'On account' : paidUp ? 'Paid' : 'Open'], () => turfOpenBooking(b.id), owed > 0 ? 'primary' : paidUp ? 'outline paid' : 'outline', { data: { action: 'court-pay' } })));
   const links = h('div', 'court-links');
   if (!split && !turfAccountOf(b.id) && open && owed > 0) {
     links.append(btn([icon('credits'), 'Credit'], () => (b.tabId ? turfCreditSheet(b, null, { owedPaise: owed, billId: '' }) : runCommand({ type: 'TURF_CHECKOUT', id: b.id }, () => turfCreditSheet(b, null, { owedPaise: turfStatusOf(b.id).owedPaise, billId: '' }))), 'quiet', { data: { action: 'court-credit' } }));
@@ -17902,7 +17909,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "6537c831891f";
+const APP_BUILD = "ee8b18a95f71";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
