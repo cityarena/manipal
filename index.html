@@ -13284,9 +13284,12 @@ function reservationSheet(r, kind) {
         const base = structuredClone(state), now = nowMs();
         if (r) base.Reservations = base.Reservations.filter(x => x.id !== r.id);
         // Each time says which lane gets free then (owner, 22 October), as on the lane tiles; lanes free in the same minute share one.
-        const slots = [];
-        for (const l of ArenaReservations.lanes(base, now).lanes.slice().sort((a, b) => a.freeMs - b.freeMs)) {
-          const ms = Math.floor(Math.max(l.freeMs, now) / 60000) * 60000, same = slots.find(x => x.ms === ms);
+        // A lane's time is the first free time this game fits before the next booking there, else after its last booking (owner,
+        // 13 November: "how is lane free at 9:55 in the entry", Lane 1 being free 8:13 to 9:00).
+        const slots = [], wants = party.value(), needs = ArenaCore.bowlingMinutes(Number(wants.players) || 1, Number(wants.games) || 1) * 60000;
+        const laneFrom = l => { const fit = l.gaps.find(g => g.toMs - Math.max(g.fromMs, now) >= needs); return fit ? Math.max(fit.fromMs, now) : Math.max(l.freeMs, now); };
+        for (const l of ArenaReservations.lanes(base, now).lanes.map(x => ({ name: x.name, from: laneFrom(x) })).sort((a, b) => a.from - b.from)) {
+          const ms = Math.floor(l.from / 60000) * 60000, same = slots.find(x => x.ms === ms);
           if (same) same.names.push(l.name); else slots.push({ ms, names: [l.name] });
         }
         const free = slots.map(x => x.ms);
@@ -17990,7 +17993,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "b90cd27a06f2";
+const APP_BUILD = "cc417dda1042";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
