@@ -2879,6 +2879,20 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 /* The time they will get the lane, big; the booked time small beside it when they differ (owner, 13 November). */
 .res-when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
 .res-booked { color: var(--ink-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Switch lane on a booking card and its small box (owner, 13 November). */
+.res-meta-lane { display: inline-flex; align-items: center; gap: 10px; }
+.res-lane-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border: 1px solid var(--primary-line); border-radius: 999px; background: var(--primary-soft); color: var(--primary); font: inherit; font-size: var(--text-xs); font-weight: 600; cursor: pointer; transition: background-color 170ms ease; }
+.res-lane-switch:hover { background: rgb(255 255 255 / 0.9); }
+.res-lane-switch svg { width: 14px; height: 14px; }
+.lane-switch-list { display: grid; gap: 8px; }
+.lane-switch-opt { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: #ffffff; color: var(--ink); text-align: left; cursor: pointer; transition: border-color 170ms ease, background-color 170ms ease; }
+.lane-switch-opt:hover { border-color: var(--primary-line); background: var(--primary-soft); }
+.lane-switch-name { display: inline-flex; align-items: center; gap: 8px; }
+.lane-switch-name svg { width: 18px; height: 18px; color: var(--primary); }
+.lane-switch-when { color: var(--ink-2); font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+.lane-switch-when.now { color: var(--accent); }
+.lane-switch-warn { grid-column: 1 / -1; color: var(--warn); font-size: var(--text-xs); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .lane-switch-opt { transition: none; } }
 .res-expect-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .res-expect-row .icon-btn { flex: none; }
 /* A lane's booking on its start sheet when the game chosen runs into it, as the owner's picture of 11 November (the app's own
@@ -13711,6 +13725,32 @@ const reservationsPage = {
 };
 // One booking or walk-in: when, how it stands, who, where and how many, then Check In or Seat. A lane booking shows the time
 // it is now expected, when that is 5 minutes or more from the booked time, and WhatsApp to tell them from 10 minutes.
+// Switch a lane booking to another lane from its card (owner, 13 November: "madhumita has come and lane 1 is still in use but
+// lane 2 is free i can switch him to that right"): a small box with each other lane, when they would start there, and anyone
+// the move makes start later; one tap moves the booking to that lane, the time kept.
+function laneSwitchBox(anchor, r) {
+  const now = nowMs(), before = lanePlan(), mineNow = before.bookings[r.id] || {};
+  const lanes = state.Equipment.filter(u => u.category === 'Bowling' && u.id !== (mineNow.unitId || r.unitId));
+  const options = lanes.map(u => {
+    const copy = structuredClone(state), moved = copy.Reservations.find(x => x.id === r.id);
+    moved.unitId = u.id;
+    moved.anyLane = '';
+    const after = ArenaReservations.lanes(copy, now), mine = after.bookings[r.id];
+    const hit = Object.keys(after.bookings).filter(id => id !== r.id).map(id => ({ who: state.Reservations.find(x => x.id === id), was: before.bookings[id], is: after.bookings[id] }))
+      .filter(x => x.who && !isWalkIn(x.who) && x.was && x.is.expectedMs - x.was.expectedMs >= 60000).sort((x, y) => x.who.arrivalMs - y.who.arrivalMs)[0];
+    return { unit: u, at: mine ? mine.expectedMs : 0, hit };
+  });
+  const move = o => runCommand({ type: 'EDIT_RESERVATION', id: r.id, revision: r.revision, customer: r.customer, phone: r.phone, category: r.category, arrivalMs: r.arrivalMs, notes: r.notes || '', players: Number(r.players) || 1, games: Number(r.games) || 1, unitId: o.unit.id }, () => {
+    closePopover();
+    return { text: r.customer + ' moved to ' + o.unit.name + '.' };
+  });
+  popover(anchor, h('b', { class: 'popover-title', text: 'Switch ' + r.customer + '’s lane' }),
+    h('div', 'lane-switch-list', options.map(o => h('button', { type: 'button', class: 'lane-switch-opt', data: { switchTo: o.unit.id }, onclick: () => move(o) },
+      h('span', 'lane-switch-name', icon('Bowling'), h('b', { text: o.unit.name })),
+      h('span', { class: 'lane-switch-when' + (o.at <= now + 60000 ? ' now' : ''), text: o.at <= now + 60000 ? 'Free now' : 'From ' + clock(o.at) }),
+      o.hit ? h('span', { class: 'lane-switch-warn', text: o.hit.who.customer + ' would start ' + inWords(Math.ceil((o.hit.is.expectedMs - o.hit.was.expectedMs) / 60000)) + ' late' }) : null))),
+    h('div', 'popover-foot', btn('Keep ' + ((unitOf(mineNow.unitId || r.unitId) || {}).name || 'this lane'), closePopover, 'quiet', { data: { action: 'keep-lane' } })));
+}
 function reservationCard(r, plan) {
   const pending = RES_PENDING.includes(r.status), walk = isWalkIn(r), place = pending && plan ? plan.bookings[r.id] : null;
   const setStatus = status => runCommand({ type: 'RESERVATION_STATUS', id: r.id, revision: r.revision, status });
@@ -13764,7 +13804,10 @@ function reservationCard(r, plan) {
     // WhatsApp to say when the lane is ready sits at the end of the line that says it (owner, 11 November), the buttons one row.
     expect && tell ? h('div', 'res-expect-row', expect, iconButton('whatsapp', 'WhatsApp ' + r.customer, () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } })) : expect,
     person(r.customer, [r.phone, r.notes].filter(Boolean).join(' · ')),
-    h('div', 'res-meta', meta(r.category === 'Bowling' ? 'Bowling' : r.category, unitText), meta(pads ? 'PS5' : 'users', partyText)),
+    h('div', 'res-meta', h('span', 'res-meta-lane', meta(r.category === 'Bowling' ? 'Bowling' : r.category, unitText),
+      r.category === 'Bowling' && pending && !walk && state.Equipment.filter(u => u.category === 'Bowling').length > 1
+        ? h('button', { type: 'button', class: 'res-lane-switch', title: 'Switch ' + r.customer + ' to another lane', data: { action: 'switch-lane' }, onclick: e => laneSwitchBox(e.currentTarget, r) }, icon('transfer'), 'Switch') : null),
+      meta(pads ? 'PS5' : 'users', partyText)),
     walk && pending ? h('div', 'res-meta', meta('user', 'Arrived ' + clock(r.arrivalMs) + ' · waiting ' + minutes(nowMs() - r.arrivalMs))) : null,
     closed,
     soonerText ? h('div', { class: 'res-sooner', data: { sooner: '' } }, h('span', { text: soonerText }),
@@ -18107,7 +18150,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "90b56fffeade";
+const APP_BUILD = "d3551395e19a";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
