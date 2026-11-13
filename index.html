@@ -13781,7 +13781,9 @@ function reservationCard(r, plan) {
   // (owner, 11 November: "i told you both not required right?"); the Overdue tag says they are late.
   // The big time is when they will get the lane, the booked time small beside it, and under it how late or early and why
   // (owner, 13 November: "that 8:02 should be the time he will get which is 8:17 … below you write late by so and so").
-  const getsAt = place && !walk && (overBy || busy || (here && late <= -show)) ? Math.floor(place.expectedMs / 60000) * 60000 : 0;
+  // Always the same time the lane box shows for them, not here yet included (owner, 13 November: "why 9 for madhumitha?? its
+  // already past 9.09").
+  const getsAt = place && !walk ? Math.floor(place.expectedMs / 60000) * 60000 : 0;
   const offBy = getsAt ? Math.floor(getsAt / 60000) - Math.floor(r.arrivalMs / 60000) : 0;
   if (place && !walk && overBy) expect = why('late', 'Bowling', 'Late by ' + inWords(offBy) + ' · ' + name(place.unitId) + ' still in use');
   else if (place && !walk && busy) expect = why('late', 'Bowling', pastBy ? 'Not here yet · ' + name(place.unitId) + ' busy till then' : 'Late by ' + inWords(offBy) + ' · the game before on ' + name(place.unitId));
@@ -18150,7 +18152,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "d3551395e19a";
+const APP_BUILD = "998bdd49e095";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
