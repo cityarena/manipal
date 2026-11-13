@@ -2876,6 +2876,9 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 /* A booking card keeps everything inside it: its column never wider than the card, its buttons shrinking to fit. */
 .res-card { grid-template-columns: minmax(0, 1fr); }
 .res-list .res-tools > .btn { padding-inline: 10px; }
+/* The time they will get the lane, big; the booked time small beside it when they differ (owner, 13 November). */
+.res-when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.res-booked { color: var(--ink-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .res-expect-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .res-expect-row .icon-btn { flex: none; }
 /* A lane's booking on its start sheet when the game chosen runs into it, as the owner's picture of 11 November (the app's own
@@ -13532,6 +13535,8 @@ function laneHeader(plan) {
     const shown = items.slice(0, 4), rows = [];
     const row = (time, tone, what, note) => rows.push(h('div', { class: 'lane-step ' + tone, data: { laneStep: tone } }, h('span', { class: 'lane-step-time', text: time }), h('span', 'lane-step-mark', h('i')),
       h('span', 'lane-step-what', h('span', { text: what }), note ? h('small', { text: note }) : null)));
+    // The game on the lane comes first when the big time is something else (a booking straight after it), so nothing is missing.
+    if (playing && !overTime && !byGame) row(clock(lane.game.estimateMs), 'game', 'Current game ends', '');
     for (const item of shown) {
       if (item.gap) {
         const fits = bowlingFits(item.gap.toMs - item.at), length = Math.round((item.gap.toMs - Math.floor(item.at / 60000) * 60000) / 60000);
@@ -13716,7 +13721,12 @@ function reservationCard(r, plan) {
   const partyText = (pads ? pads + (pads === 1 ? ' controller' : ' controllers') : players ? players + (players === 1 ? ' player' : ' players') : '') + (Number(r.games) > 1 ? ' · ' + r.games + ' games' : '');
   const meta = (name2, text) => (text ? h('span', 'res-meta-item', icon(name2), h('span', { text })) : null);
   let expect = null;
-  if (place && walk) expect = h('span', { class: 'res-expect' }, icon('clock'), h('span', { text: place.waitMs >= 60000 ? 'Est. wait ' + minutes(place.waitMs) + ' · about ' + clock(place.expectedMs) : 'Lane free now' }));
+  // Their lane's game past its time and nothing else before them: the lane is still in use, never free now and never no delay
+  // (owner, 13 November: "how … is it still showing 8 … delayed or expected early … everything is connected").
+  const ownLane = place && plan ? plan.lanes.find(l => l.unitId === place.unitId) : null;
+  const overBy = ownLane && ownLane.game && ownLane.game.overMs >= 60000 && place.expectedMs <= nowMs() + 60000 ? Math.floor(ownLane.game.overMs / 60000) : 0;
+  const stillInUse = overBy ? name(place.unitId) + ' still in use · game over by ' + overBy + ' min' : '';
+  if (place && walk) expect = h('span', { class: 'res-expect' + (overBy ? ' late' : ''), data: overBy ? { expect: 'late' } : {} }, icon('clock'), h('span', { text: overBy ? 'Waiting for ' + stillInUse : place.waitMs >= 60000 ? 'Est. wait ' + minutes(place.waitMs) + ' · about ' + clock(place.expectedMs) : 'Lane free now' }));
   // Why a booking is off its time, one reason only (owner, 11 November: "differentiate between late because of previous game or
   // customer coming late"; "dont add together … only if lane is free and they have not come write that not here"): the lane
   // still busy with the game before, and how late they start; otherwise, the lane free, the customer not here yet past their
@@ -13729,9 +13739,14 @@ function reservationCard(r, plan) {
   const why = (kind, glyphName, text) => h('span', { class: 'res-expect ' + kind, data: { expect: kind } }, icon(glyphName), h('span', { text }));
   // Past their time, the lane line says only until when it is busy: how late they start would count their own lateness too
   // (owner, 11 November: "i told you both not required right?"); the Overdue tag says they are late.
-  if (place && !walk && busy) expect = why('late', 'Bowling', busy + (pastBy ? '' : ' · they start ' + inWords(startsLate) + ' late'));
+  // The big time is when they will get the lane, the booked time small beside it, and under it how late or early and why
+  // (owner, 13 November: "that 8:02 should be the time he will get which is 8:17 … below you write late by so and so").
+  const getsAt = place && !walk && (overBy || busy || (here && late <= -show)) ? Math.floor(place.expectedMs / 60000) * 60000 : 0;
+  const offBy = getsAt ? Math.floor(getsAt / 60000) - Math.floor(r.arrivalMs / 60000) : 0;
+  if (place && !walk && overBy) expect = why('late', 'Bowling', 'Late by ' + inWords(offBy) + ' · ' + name(place.unitId) + ' still in use');
+  else if (place && !walk && busy) expect = why('late', 'Bowling', pastBy ? 'Not here yet · ' + name(place.unitId) + ' busy till then' : 'Late by ' + inWords(offBy) + ' · the game before on ' + name(place.unitId));
   else if (place && !walk && pastBy >= show) expect = why('late', 'user', 'Not here yet · ' + inWords(pastBy) + ' past their time');
-  else if (place && !walk && here && late <= -show) expect = why('early', 'user', 'Here ' + inWords(-late) + ' early · ' + name(place.unitId) + ' free ' + (place.expectedMs <= now + 60000 ? 'now' : 'at ' + clock(place.expectedMs)));
+  else if (place && !walk && here && late <= -show) expect = why('early', 'user', 'Early by ' + inWords(-offBy) + ' · here, ' + name(place.unitId) + ' free');
   // WhatsApp only when the lane makes them wait, never to someone who is late themselves.
   const tell = r.phone && pending && (walk ? 'Hi ' + r.customer + ', your ' + what + ' at City Arena is ready.' : laneLate >= resMinutes('tell') && !pastBy ? 'Hi ' + r.customer + ', your bowling lane will be ready at about ' + clock(place.expectedMs) + '.' : '');
   const other = place && !walk && late >= resMinutes('tell') && plan.lanes.some(l => l.unitId !== place.unitId && l.freeMs < place.expectedMs);
@@ -13744,7 +13759,8 @@ function reservationCard(r, plan) {
   const soonerText = sooner && !soonBusy ? (unitOf(soonAt.unitId) || {}).name + ' free ' + (sooner <= nowMs() + 60000 ? 'now' : 'from ' + clock(sooner)) : '';
   const closed = RES_GONE.includes(r.status) && r.closedMs ? h('span', { class: 'small muted', data: { closed: r.status }, text: CLOSED_LABEL[r.status] + ' ' + when(Number(r.closedMs)) + (r.closeReason && r.closeReason !== CLOSED_LABEL[r.status] ? ' · ' + r.closeReason : '') }) : null;
   return h('div', { class: 'res-card' + (walk ? ' walkin' : ''), data: { reservation: r.id } },
-    h('div', 'res-top', walk ? h('b', { class: 'num res-token', text: '#' + r.token }) : h('b', { class: 'num res-time', text: when(r.arrivalMs) }), reservationStatus(r)),
+    h('div', 'res-top', walk ? h('b', { class: 'num res-token', text: '#' + r.token }) : h('span', 'res-when', h('b', { class: 'num res-time', data: { getsAt: String(getsAt || r.arrivalMs) }, text: when(getsAt || r.arrivalMs) }),
+      getsAt && offBy ? h('span', { class: 'res-booked', text: 'Booked ' + when(r.arrivalMs) }) : null), reservationStatus(r)),
     // WhatsApp to say when the lane is ready sits at the end of the line that says it (owner, 11 November), the buttons one row.
     expect && tell ? h('div', 'res-expect-row', expect, iconButton('whatsapp', 'WhatsApp ' + r.customer, () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } })) : expect,
     person(r.customer, [r.phone, r.notes].filter(Boolean).join(' · ')),
@@ -18091,7 +18107,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "f38b61decaa7";
+const APP_BUILD = "90b56fffeade";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
