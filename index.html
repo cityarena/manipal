@@ -3116,9 +3116,10 @@ var ARENA_BRANCH = (function () {
     // Approved devices (owner, 24 October: staff phones kept out): a device signs in for the first time only with the owner's
     // PIN, and is listed in Settings → Devices to be named or removed; limit 0 means no limit until the owner sets one there.
     devices: { limit: 0 },
-    // On the turf board a booking turns orange once its time is over and it is not paid (Mangalore, 24 October); Manipal
-    // keeps its board as it was (the owner's second message for the Manipal chat).
-    boardOverOrange: false,
+    // On the turf board a booking turns orange once its time is over and it is not paid (Mangalore, 24 October; Manipal too,
+    // owner 22 October #257 "once the time is passed, keep it orange meaning pending" and 13 November "why is all this colour
+    // nothing happened?"). The merge of 24 October had kept Manipal's board teal after the time; no longer.
+    boardOverOrange: true,
     // A moment is typed as a time and a date in two boxes, the cursor in the time (owner, 24 October: "when I type the time
     // the cursor goes to the date").
     splitWhen: true,
@@ -17328,7 +17329,8 @@ function turfBlock(b, row, column, rows, exact = rows) {
   // is past no, it should be orange"), as when pending or part paid; green once paid.
   // An academy's slot: orange once its time is over, until it goes to its account (by hand, or by itself two hours after); then
   // green, "On account" on the card (Mangalore, 3 November).
-  // A branch may keep a booking teal after its time until it is paid or left pending (Branch.gs boardOverOrange: false, Manipal).
+  // A branch may keep a booking teal after its time until it is paid or left pending (Branch.gs boardOverOrange: false; Manipal
+  // turns orange too since 13 November).
   const academy = turfAccountOf(b.id), onAccount = !!academy && settled === 'settled';
   const overOrange = ended && ARENA_BRANCH.boardOverOrange !== false;
   const tone = academy ? (onAccount ? ' paid' : ended ? ' owing' : '') : settled === 'settled' ? ' paid' : settled === 'pending' || settled === 'part' || overOrange ? ' owing' : '';
@@ -18152,7 +18154,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "998bdd49e095";
+const APP_BUILD = "499af5dd569a";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
