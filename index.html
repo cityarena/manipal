@@ -3131,9 +3131,13 @@ var ARENA_BRANCH = (function () {
     venues: [
       // emoji: beside the venue's name in the availability message; share: the message's columns, each ✅ when any of its
       // courts is free (owner, 23 October: the turf as Full court and Half court), short: its two letters on the Timings line
-      // (owner, 1 November: FC and HC).
+      // (owner, 1 November: FC and HC). shareOne: one sign an hour instead (owner, 14 November: ✅ full court, ✅❌ half
+      // court, ❌ not available; no FC and HC heading), the first column the full court, the second its halves. shareKey: the
+      // lines under the table and a plain Timings line with no court names, the courts' signs written together (owner,
+      // 14 November: the turf, badminton and pickleball as the owner's pictures).
       { key: 'turf', name: 'Turf', icon: 'football', emoji: '⚽', open: 6, close: 22, sports: ['Football', 'Cricket'], board: ['left', 'right'],
-        share: [{ name: 'Full court', short: 'FC', courts: ['full'] }, { name: 'Half court', short: 'HC', courts: ['left', 'right'] }],
+        share: [{ name: 'Full court', short: 'FC', courts: ['full'] }, { name: 'Half court', short: 'HC', courts: ['left', 'right'] }], shareOne: true,
+        shareKey: ['✅ : Full court available', '✅❌ : Half court available', '❌ : Not available'],
         courts: [
           { id: 'full', name: 'Full court', ratePaise: 260000, takes: ['left', 'right'] },
           { id: 'left', name: 'Court 1', ratePaise: 130000 },
@@ -3143,7 +3147,8 @@ var ARENA_BRANCH = (function () {
           { id: '1v1', name: '1V1', ratePaise: 50000, off: true }
         ] },
       // Rackets and shuttlecocks are rented for the game (owner, 22 October); placeholder prices until the owner sets them.
-      { key: 'badminton', name: 'Badminton', icon: 'badminton', emoji: '🏸', open: 6, close: 24, sports: ['Badminton'], board: ['bad-1', 'bad-2', 'bad-3'],
+      // Badminton and pickleball close at 11 PM for now (owner, 14 November: "remove 11pm to 12 am slot for now").
+      { key: 'badminton', name: 'Badminton', icon: 'badminton', emoji: '🏸', open: 6, close: 23, sports: ['Badminton'], board: ['bad-1', 'bad-2', 'bad-3'],
         // menuNames: a menu item of one of these names, added with Add Items, counts as that rental on a court card.
         // Memberships (owner, 22 October): the same court and hours every chosen day for the period, paid at once. Placeholder
         // prices until the owner sets them in Settings.
@@ -3151,8 +3156,11 @@ var ARENA_BRANCH = (function () {
           { id: '6m', name: '6 months', months: 6, pricePaise: 1500000 }, { id: '12m', name: 'Full year', months: 12, pricePaise: 2800000 }],
         rentals: [{ id: 'racket', name: 'Racket', pricePaise: 5000, menuNames: ['racket', 'rackets', 'racquet', 'racquets'] },
           { id: 'shuttle', name: 'Shuttlecock', pricePaise: 3000, menuNames: ['shuttlecock', 'shuttlecocks', 'shuttle', 'shuttles', 'shuttle cock', 'shuttle cocks', 'cock', 'cocks'] }],
+        shareKey: ['✅ : Court Available', '❌ : Not available'],
         courts: [{ id: 'bad-1', name: 'Court 1', ratePaise: 40000 }, { id: 'bad-2', name: 'Court 2', ratePaise: 40000 }, { id: 'bad-3', name: 'Court 3', ratePaise: 40000 }] },
-      { key: 'pickleball', name: 'Pickleball', icon: 'pickleball', emoji: '🏓', open: 6, close: 24, sports: ['Pickleball'], board: ['pb-1', 'pb-2'],
+      // Its emoji the green ball (owner, 14 November: "please use that emoji for pickleball").
+      { key: 'pickleball', name: 'Pickleball', icon: 'pickleball', emoji: '🥎', open: 6, close: 23, sports: ['Pickleball'], board: ['pb-1', 'pb-2'],
+        shareKey: ['✅ : Available', '✅❌ : Single court available', '❌ : Not available'],
         courts: [{ id: 'pb-1', name: 'Court 1', ratePaise: 50000 }, { id: 'pb-2', name: 'Court 2', ratePaise: 50000 }] }
     ]
   };
@@ -15554,7 +15562,7 @@ function ordinalDate(key) {
 }
 function paddedHour(hour) { const whole = Math.floor(hour); return String(whole % 12 || 12).padStart(2, '0') + (hour % 1 ? ':30 ' : ':00 ') + (whole < 12 ? 'AM' : 'PM'); }
 // Each sport its own emoji; any other sport a target. Nothing football-specific is written for another sport.
-const SPORT_EMOJI = { Football: '⚽', Cricket: '🏏', Basketball: '🏀', Badminton: '🏸', Volleyball: '🏐', Tennis: '🎾' };
+const SPORT_EMOJI = { Football: '⚽', Cricket: '🏏', Basketball: '🏀', Badminton: '🏸', Volleyball: '🏐', Tennis: '🎾', Pickleball: '🥎' };
 // ---------- Festival wishes, at the end of a booking confirmation ----------
 // Diwali, Eid and Christmas: on the dates set in Settings, the confirmation asks whether to add the wishes.
 // New Year: added without asking on 31 December (in advance) and from 1 to 4 January, every year.
@@ -15778,22 +15786,26 @@ function turfAvailabilityText(key, list) {
   // step ahead").
   const columns = venue.share || courtsHere().map(c => ({ name: courtLabel(c), courts: [c] }));
   const lines = ['*City Arena - ' + ARENA_BRANCH.place + '*', '', (venue.emoji ? venue.emoji + ' ' : '') + '*' + venue.name + '*',
-    'Slot availability on *' + ordinalDate(key) + ' ' + day + '*', '', '*Timings' + ' '.repeat(17) + columns.map(shareShort).join('\u2009|\u2009') + '*'];
+    'Slot availability on *' + ordinalDate(key) + ' ' + day + '*', '', venue.shareKey ? '*Timings*' : '*Timings' + ' '.repeat(17) + columns.map(shareShort).join('\u2009|\u2009') + '*'];
   // Every hour as "06:00am - 07:00am", then a sign for each column (✅ ❌), single spaces only, so every row is the same
   // width and the signs stand in straight lines. Midnight is 12:00am (badminton and pickleball close then).
   const clock = hour => String(hour % 12 || 12).padStart(2, '0') + ':00' + (hour % 24 < 12 ? 'am' : 'pm');
   const slot = hour => sameWidthHalf(sameWidthDigits(clock(hour) + ' - ' + clock(hour + 1)));
   const mark = (column, hour) => (column.courts.some(court => !bookingAt(list, court, hour)) ? '✅' : '❌');
+  // One sign an hour (owner, 14 November): ✅ the full court free, ✅❌ only a half free, ❌ neither.
+  const oneMark = hour => (mark(columns[0], hour) === '✅' ? '✅' : mark(columns[1], hour) === '✅' ? '✅❌' : '❌');
   let rows = 0;
   for (let hour = venue.open; hour < venue.close; hour++) {
     // An hour is left out from one minute past its start (Mangalore, 25 October: "once its 2:01 pm do not send 2-3").
     if (hourStart(key, hour) + 60000 <= nowMs()) continue;
-    lines.push(slot(hour) + ' ' + columns.map(column => mark(column, hour)).join(' '));
+    lines.push(slot(hour) + ' ' + (venue.shareOne ? oneMark(hour) : columns.map(column => mark(column, hour)).join(venue.shareKey ? '' : ' ')));
     rows++;
   }
   if (!rows) lines.push('No hours left on this day.');
   const named = columns.filter(column => shareShort(column) !== column.name).map(column => shareShort(column) + ' : ' + column.name);
-  lines.push('', '✅ : Slot available', '❌ : Not available', ...named, '', ...(ARENA_BRANCH.contact ? ['*For bookings,*', '*Contact 📱: ' + ARENA_BRANCH.contact + '*', ''] : []), '*#PlayAtCityArena*');
+  // A venue's own lines under the table (Branch.gs shareKey; owner, 14 November), otherwise the signs and the court names.
+  const signs = venue.shareKey || ['✅ : Slot available', '❌ : Not available', ...named];
+  lines.push('', ...signs, '', ...(ARENA_BRANCH.contact ? ['*For bookings,*', '*Contact 📱: ' + ARENA_BRANCH.contact + '*', ''] : []), '*#PlayAtCityArena*');
   return lines.join('\n');
 }
 
@@ -18154,7 +18166,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "499af5dd569a";
+const APP_BUILD = "39b74b8f85f4";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
