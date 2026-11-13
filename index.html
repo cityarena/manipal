@@ -2857,11 +2857,12 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .lane-tile-why { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 6px; color: var(--ink-2); font-size: var(--text-xs); }
 .lane-why { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lane-why svg { flex: none; width: 15px; height: 15px; color: var(--ink-2); }
+/* A free time in the lane box's list, in green (owner, 13 November). */
+.lane-why.free, .lane-why.free svg { color: var(--accent); font-weight: 600; }
 /* The words stay left of the pins picture, wrapping before it (the picture is the right 46%, fading in from its left). */
 .lane-tile-text { max-width: 62%; }
 /* Under the bold time: until when it is open and how many it fits, in the lane's own green (owner, 11 November). */
-.lane-tile-until { margin-top: -2px; color: var(--accent); font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
-.lane-tile-why { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.lane-tile-why { flex-direction: column; align-items: flex-start; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
 /* A booking card keeps everything inside it: its column never wider than the card, its buttons shrinking to fit. */
 .res-card { grid-template-columns: minmax(0, 1fr); }
 .res-list .res-tools > .btn { padding-inline: 10px; }
@@ -13426,19 +13427,27 @@ function laneHeader(plan) {
     const gap = overTime ? null : lane.gaps.find(g => g.toMs - Math.max(g.fromMs, now) >= 15 * 60000) || null;
     const openAt = gap ? Math.max(gap.fromMs, now) : lane.freeMs, freeNow = !overTime && openAt <= now + 60000;
     const byGame = playing && Math.abs(openAt - lane.game.endMs) < 60000;
-    const fits = gap ? bowlingFits(gap.toMs - openAt) : 0;
-    const fact = (glyphName, text) => h('span', 'lane-why', icon(glyphName), h('span', { text }));
+    const fact = (glyphName, text, tone = '') => h('span', 'lane-why' + tone, icon(glyphName), h('span', { text }));
+    // In the order they happen (owner, 13 November: "go in order"): the game on it, each free time (how long, and how many
+    // players fit when it is too short for a full lane), each booking, then free again.
+    const freeFact = g => {
+      const from = Math.max(g.fromMs, now), fits = bowlingFits(g.toMs - from);
+      return fact('checkCircle', (from <= now + 60000 ? 'Free now' : 'Free ' + clock(from)) + ' – ' + clock(g.toMs) + ' · ' + inWords(Math.round((g.toMs - Math.floor(from / 60000) * 60000) / 60000)) + (fits < ARENA_BRANCH.bowling.maxPlayers ? ' · up to ' + fits + (fits === 1 ? ' player' : ' players') : ''), ' free');
+    };
+    const steps = [
+      ...(overTime ? [] : lane.gaps.filter(g => g.toMs - Math.max(g.fromMs, now) >= 15 * 60000).map(g => ({ at: Math.max(g.fromMs, now), node: freeFact(g) }))),
+      ...lane.blocks.map(b => { const who = state.Reservations.find(x => x.id === b.id); return { at: b.startMs, node: fact('flag', (who ? who.customer + ' · ' : '') + clock(b.startMs) + ' – ' + clock(b.endMs)) }; })
+    ].sort((x, y) => x.at - y.at);
     const facts = [
       playing ? fact('Bowling', overTime ? 'Game was due ~' + clock(lane.game.estimateMs) + ' · running ' + Math.floor(lane.game.overMs / 60000) + ' min over' : 'Game ends ~' + clock(lane.game.estimateMs)) : null,
-      ...lane.blocks.slice(0, 2).map(b => { const who = state.Reservations.find(x => x.id === b.id); return fact('flag', (who ? who.customer + ' · ' : '') + clock(b.startMs) + ' – ' + clock(b.endMs)); }),
-      lane.blocks.length > 2 ? h('span', { class: 'lane-why', text: '+' + (lane.blocks.length - 2) + ' more' }) : null,
-      gap && lane.blocks.length ? fact('clock', 'Free again ' + clock(lane.freeMs)) : null].filter(Boolean);
+      ...steps.slice(0, 4).map(s => s.node),
+      steps.length > 4 ? h('span', { class: 'lane-why', text: '+' + (steps.length - 4) + ' more' }) : null,
+      lane.blocks.length ? fact('clock', 'Free again ' + clock(lane.freeMs)) : null].filter(Boolean);
     return h('div', { class: 'lane-tile', data: { laneTile: lane.unitId, ...(overTime ? { laneOver: '1' } : {}) } },
       h('span', { class: 'lane-tile-art', 'aria-hidden': 'true' }),
       h('div', 'lane-tile-text',
         h('span', { class: 'lane-tile-name', text: lane.name }),
         h('b', { class: 'lane-tile-free' + (freeNow ? ' now' : ''), data: { laneFreeAt: lane.unitId }, text: freeNow ? 'Free now' : 'Free at ' + (byGame ? '~' : '') + clock(openAt) }),
-        gap ? h('span', { class: 'lane-tile-until', data: { laneUntil: lane.unitId }, text: 'Until ' + clock(gap.toMs) + ' · up to ' + fits + (fits === 1 ? ' player' : ' players') }) : null,
         facts.length ? h('div', { class: 'lane-tile-why', data: { laneWhy: lane.unitId } }, facts) : null),
       h('span', { class: 'state ' + (playing ? 'live' : 'free') }, h('i'), playing ? 'In Use' : 'Available'));
   }));
@@ -17981,7 +17990,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "20dbfa5011fe";
+const APP_BUILD = "b90cd27a06f2";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
