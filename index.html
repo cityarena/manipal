@@ -3328,6 +3328,9 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .recon-balance-table tr.after { background: var(--primary-soft); }
 .recon-balance-table td.changed { color: var(--primary); }
 @media (max-width: 640px) { .recon-balances { padding: 12px; } .recon-balance-table th, .recon-balance-table td { padding: 10px 12px; } }
+/* Any lane (owner, 14 November): the lanes' times in one column, and the line saying the best lane is given when they come. */
+.when-cols.one { grid-template-columns: minmax(0, 1fr); }
+.when-best { margin-left: auto; padding: 2px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: var(--text-xs); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -3540,7 +3543,7 @@ var ARENA_BRANCH = (function () {
         // prices until the owner sets them in Settings.
         memberships: [{ id: '1m', name: '1 month', months: 1, pricePaise: 300000 }, { id: '3m', name: '3 months', months: 3, pricePaise: 800000 },
           { id: '6m', name: '6 months', months: 6, pricePaise: 1500000 }, { id: '12m', name: 'Full year', months: 12, pricePaise: 2800000 }],
-        rentals: [{ id: 'racket', name: 'Racket', pricePaise: 5000, menuNames: ['racket', 'rackets', 'racquet', 'racquets'] },
+        rentals: [{ id: 'racket', name: 'Racket', pricePaise: 5000, perHour: true, menuNames: ['racket', 'rackets', 'racquet', 'racquets'] },
           { id: 'shuttle', name: 'Shuttlecock', pricePaise: 3000, menuNames: ['shuttlecock', 'shuttlecocks', 'shuttle', 'shuttles', 'shuttle cock', 'shuttle cocks', 'cock', 'cocks'] }],
         shareKey: ['✅ : Court Available', '❌ : Not available'],
         courts: [{ id: 'bad-1', name: 'Court 1', ratePaise: 40000 }, { id: 'bad-2', name: 'Court 2', ratePaise: 40000 }, { id: 'bad-3', name: 'Court 3', ratePaise: 40000 }] },
@@ -6353,7 +6356,9 @@ var ArenaTurf = (function () {
     var c = courtOf(court), gear = c ? (c.venue.rentals || []).find(function (r) { return r.id === item; }) : null;
     if (!gear) return null;
     var saved = (state.Settings || []).find(function (r) { return r.id === 'rentalPrice-' + c.venue.key + '-' + gear.id; });
-    return { id: gear.id, name: gear.name, pricePaise: saved ? Number(saved.value) : gear.pricePaise };
+    // A racket is rented by the hour (owner, 14 November: "racket rent price is for an hour so 2 hours mean it should be double,
+    // shuttle is fine"): its price is an hour's, the line the booking's hours.
+    return { id: gear.id, name: gear.name, pricePaise: saved ? Number(saved.value) : gear.pricePaise, perHour: gear.perHour === true };
   }
   // A venue's membership plan, at the price set in Settings if there is one.
   function memberPlan(state, court, planId) {
@@ -6644,8 +6649,17 @@ var ArenaTurf = (function () {
   }
   function voidLine(order, why) { order.status = 'void'; order.reason = why; order.revision = Number(order.revision || 1) + 1; }
   // Puts the turf amounts where they belong: the whole fee on the booking's bill for one payer, or one share per player.
+  // One rental for the booking: an hour's price times its hours for a racket (to the rupee), the price itself for a shuttlecock.
+  function rentFor(gear, booking) { return gear.perHour ? Math.round(gear.pricePaise * Number(booking.hours) / 100) * 100 : gear.pricePaise; }
   function sync(state, booking, now, id, alone) {
     if (locked(state, booking)) return;
+    // A racket rented by the hour follows the booking's hours when it is extended or changed, at the hour's price it was rented at.
+    (state.Orders || []).forEach(function (o) {
+      var m = o.status === 'active' && o.category === 'Rentals' ? meta(o) : {};
+      if (m.bookingId !== booking.id || !m.hourPaise) return;
+      var unit = rentFor({ perHour: true, pricePaise: Number(m.hourPaise) }, booking);
+      if (unit !== Number(o.unitPricePaise)) { o.unitPricePaise = unit; o.totalPaise = unit * Number(o.quantity); o.revision = Number(o.revision || 1) + 1; }
+    });
     // Every slot on a shared bill puts its own fee there.
     if (!alone && booking.split !== 'yes') linked(state, booking).forEach(function (other) { if (other.split !== 'yes') sync(state, other, now, id + '-' + other.id, true); });
     state.Orders = state.Orders || [];
@@ -7142,7 +7156,7 @@ var ArenaTurf = (function () {
         else { rented.quantity = count; rented.totalPaise = count * Number(rented.unitPricePaise); rented.revision = Number(rented.revision || 1) + 1; }
       } else {
         check(cmd.delta > 0, 'Nothing to take back.');
-        state.Orders.push({ id: id + '-rent', tabId: on.id, productId: '', label: gear.name + (linked(state, booking).length ? ' · ' + (COURT_NAMES[booking.court] || booking.court) : ''), category: 'Rentals', quantity: 1, unitPricePaise: gear.pricePaise, totalPaise: gear.pricePaise, createdMs: now, status: 'active', purchaser: booking.customer, durationMinutes: '', ratesJson: JSON.stringify({ bookingId: booking.id, rental: gear.id }), reason: 'Rental', revision: 1 });
+        state.Orders.push({ id: id + '-rent', tabId: on.id, productId: '', label: gear.name + (linked(state, booking).length ? ' · ' + (COURT_NAMES[booking.court] || booking.court) : ''), category: 'Rentals', quantity: 1, unitPricePaise: rentFor(gear, booking), totalPaise: rentFor(gear, booking), createdMs: now, status: 'active', purchaser: booking.customer, durationMinutes: '', ratesJson: JSON.stringify({ bookingId: booking.id, rental: gear.id, hourPaise: gear.perHour ? gear.pricePaise : undefined }), reason: 'Rental', revision: 1 });
       }
       var now2 = (state.Orders || []).find(mine);
       return { bookingId: booking.id, tabId: on.id, count: now2 ? Number(now2.quantity) : 0, message: gear.name + ' × ' + (now2 ? now2.quantity : 0) + '.' };
@@ -14644,14 +14658,9 @@ function lanePlace(r, wanted, party, unitId) {
   return place;
 }
 function laneFit(r, wanted, party) {
-  const at = unitId => lanePlace(r, wanted, party, unitId);
-  const name = id => (unitOf(id) || {}).name || id, mine = at(party.unitId), best = party.unitId ? at('') : mine;
-  if (!mine) return null;
-  if (mine.expectedMs <= wanted + 60000) return h('p', { class: 'lane-fit good', data: { laneFit: 'fits' } }, icon('checkCircle'), mine.freeMs <= nowMs() + 60000 ? name(mine.unitId) + ' free now' : name(mine.unitId) + ' free at ' + clock(mine.freeMs));
-  const busy = party.unitId ? name(party.unitId) + ' busy until ' + clock(mine.expectedMs) : 'Both lanes busy at ' + clock(wanted);
-  // The other lane by the time it is free, as on the lane tiles; "earliest" only when that is after the wanted time.
-  const other = best.expectedMs <= wanted + 60000 ? name(best.unitId) + (best.freeMs <= nowMs() + 60000 ? ' free now' : ' free at ' + clock(best.freeMs)) : 'earliest is ' + clock(best.expectedMs) + ' on ' + name(best.unitId);
-  return h('p', { class: 'lane-fit late', data: { laneFit: 'clash' } }, icon('alert'), busy + ' · ' + other);
+  const best = lanePlace(r, wanted, party, '');
+  if (!best || best.expectedMs <= wanted + 60000) return null;
+  return h('p', { class: 'lane-fit late', data: { laneFit: 'clash' } }, icon('alert'), 'Both lanes are busy at ' + clock(wanted) + ' · the earliest a lane is free is ' + clock(best.expectedMs));
 }
 // Who booked what and when, in the same words on the screen that made it and on every other (owner, 11 November: "if pool is
 // booked then so an so booked pool at so and so time"). A walk-in says it is waiting, with its number.
@@ -14695,16 +14704,26 @@ function laneChoices(r, players, games) {
     return { unitId: lane.unitId, name: lane.name, over, options };
   });
 }
-function laneChoiceGrid(choices, players, when, choose) {
+// The best time on any lane, one only (owner, 14 November: "should not give option to select lane 1 or 2 … it should consider the
+// best lane available"; "why am i getting 2 times?? it should literally give me the best time"): the earliest a lane is free for
+// them ("Right after the current game" while a game runs past its time); only when that is too short for the whole group, the next
+// time they all fit beside it. The booking is any lane, the plan giving it the best lane until they come.
+function anyLaneTimes(choices) {
+  const all = choices.flatMap(c => c.options).sort((x, y) => x.ms - y.ms || Number(!!x.short) - Number(!!y.short));
+  const best = all[0];
+  if (!best) return [];
+  const whole = best.short ? all.find(o => !o.short && !o.soon && o.ms > best.ms) : null;
+  return [best, ...(whole ? [whole] : [])];
+}
+function laneTimeList(list, players, when, choose) {
   const all = n => (n === 1 ? 'Can play' : n === 2 ? 'Both can play' : 'All ' + n + ' can play');
   const tag = (kind, glyph, text) => h('span', { class: 'when-tag ' + kind }, icon(glyph), text);
-  return h('div', { class: 'when-cols', style: '--rows:' + (1 + Math.max(1, ...choices.map(c => c.options.length))) }, choices.map(c => h('div', { class: 'when-col', data: { whenLane: c.unitId } },
-    h('div', 'when-col-head', icon('Bowling'), h('span', { text: c.name }), c.over ? h('span', { class: 'when-state', text: 'In use' }) : null),
-    c.options.map(o => h('button', { type: 'button', class: 'when-opt', 'aria-pressed': String(when === o.key), data: { when: o.key }, onclick: () => choose(o.key) },
-      h('span', 'when-dot'), h('b', { text: o.soon ? 'Free soon' : o.ms <= nowMs() + 60000 ? 'Now' : clock(o.ms) }),
-      o.soon ? tag('over', 'clock', 'Over by ' + o.overMin + ' min') : null,
-      o.short ? tag('short', 'alert', 'Only ' + o.short.fits + (o.short.fits === 1 ? ' player can play' : ' players can play')) : o.soon ? null : tag('ok', 'checkCircle', all(players)),
-      o.note ? h('span', { class: 'when-sub', text: o.note }) : null)))));
+  return h('div', { class: 'when-cols one', style: '--rows:' + (1 + list.length) }, h('div', { class: 'when-col', data: { whenLane: 'any' } },
+    h('div', 'when-col-head', icon('Bowling'), h('span', { text: 'Any lane' }), h('span', { class: 'when-best', text: 'The best lane when they come' })),
+    list.map(o => h('button', { type: 'button', class: 'when-opt', 'aria-pressed': String(when === o.key), data: { when: o.key }, onclick: () => choose(o.key) },
+      h('span', 'when-dot'), h('b', { text: o.soon ? 'Right after the current game' : o.ms <= nowMs() + 60000 ? 'Now' : clock(o.ms) }),
+      o.soon ? tag('over', 'clock', 'That game is running ' + o.overMin + ' min late') : null,
+      o.short ? tag('short', 'alert', 'Only ' + o.short.fits + (o.short.fits === 1 ? ' player can play' : ' players can play')) : o.soon ? null : tag('ok', 'checkCircle', all(players))))));
 }
 // Not enough time before the next booking: said there and then, Save only once Book anyway is ticked (owner, 13 November).
 function laneShortNotice(o, anyway, onTick) {
@@ -14729,22 +14748,18 @@ function reservationSheet(r, kind) {
       const party = partyFields(chosen, r, keep, () => ui.redraw());
       ui.body.append(who.node, h('div', 'field', h('span', { text: 'For' }), category.node));
       if (chosen === 'Bowling') {
-        // When (owner, 13 November): a column for each lane, side by side, each with the first time it is free (how many can play
-        // when that is too short for this group) and, only then, the next time the whole group fits; a lane whose game is past its
-        // time reads Free soon. A time chosen under a lane books that lane; Choose another time keeps Any lane.
-        const wants = party.value(), choices = laneChoices(r, Number(wants.players) || 1, Number(wants.games) || 1);
-        times = Object.fromEntries(choices.flatMap(c => c.options).map(o => [o.key, o]));
+        // When: the lanes' times in one list, any lane (owner, 14 November); Choose another time for any other.
+        const wants = party.value(), choices = laneChoices(r, Number(wants.players) || 1, Number(wants.games) || 1), list = anyLaneTimes(choices);
+        times = Object.fromEntries(list.map(o => [o.key, o]));
         // A time that has passed since the sheet opened gives way to the first one now.
-        if (when == null || (when !== 'own' && !times[when])) { when = r && when == null ? 'own' : (choices.flatMap(c => c.options)[0] || { key: 'own' }).key; anyway = false; }
+        if (when == null || (when !== 'own' && !times[when])) { when = r && when == null ? 'own' : (list[0] || { key: 'own' }).key; anyway = false; }
         const chosenTime = times[when] || null;
         ui.body.append(...party.nodes.filter(n => n !== party.unitNode), h('div', { class: 'field', data: { field: 'when' } }, h('span', { text: 'When' }),
-          laneChoiceGrid(choices, Number(wants.players) || 1, when, key => { when = key; anyway = false; ui.redraw(); }),
+          laneTimeList(list, Number(wants.players) || 1, when, key => { when = key; anyway = false; ui.redraw(); }),
           h('button', { type: 'button', class: 'chip when-own', 'aria-pressed': String(when === 'own'), data: { when: 'own' }, onclick: () => { when = 'own'; anyway = false; ui.redraw(); } }, 'Choose another time')));
         if (chosenTime && chosenTime.short) ui.body.append(laneShortNotice(chosenTime, anyway, on => { anyway = on; if (current.primaryButton) current.primaryButton.disabled = !on; }));
-        if (chosenTime && chosenTime.soon) ui.body.append(h('div', { class: 'when-note', data: { whenNote: chosenTime.unitId } }, h('div', 'when-note-row', icon('clock'), h('b', { text: chosenTime.laneName + ' is in use' })),
-          h('span', { class: 'small', text: 'This booking will start as soon as the current game ends.' })));
         if (when === 'own') {
-          ui.body.append(party.unitNode, field('Arriving', at));
+          ui.body.append(field('Arriving', at));
           const wanted = at.value ? stamp(at.value) : 0;
           if (wanted) ui.body.append(laneFit(r, wanted, party.value()) || '');
         }
@@ -14759,10 +14774,10 @@ function reservationSheet(r, kind) {
       if (!laneTime && !at.value) throw new Error('Enter the arrival time.');
       if (laneTime && laneTime.short && !anyway) throw new Error('Tick Book anyway to book this time.');
       const party = current.party.value(), arrivalMs = laneTime ? laneTime.ms : stamp(at.value);
-      // A time chosen under a lane books that lane (owner, 13 November). Any lane (Choose another time): the lane the plan gives
-      // it is saved with it, so it is sure which lane they get (owner, 11 November).
-      const unitId = laneTime ? laneTime.unitId : category.value() === 'Bowling' && !party.unitId ? (lanePlace(r, arrivalMs, party, '') || { unitId: '' }).unitId : party.unitId;
-      const anyLane = !laneTime && category.value() === 'Bowling' && !party.unitId && !!unitId;
+      // Bowling is any lane, never a lane chosen here (owner, 14 November): the plan gives it the best lane until they come. A lane
+      // fixed with Switch stays fixed when the booking is changed.
+      const fixed = r && r.unitId && r.anyLane !== true && r.anyLane !== 'true' && r.anyLane !== 'free' ? r.unitId : '';
+      const unitId = category.value() === 'Bowling' ? fixed : party.unitId, anyLane = false;
       return { type: r ? 'EDIT_RESERVATION' : 'RESERVE', id: r && r.id, revision: r && r.revision, customer: who.name.value.trim(), phone: who.phone.value.trim(), category: category.value(), arrivalMs, notes: notes.value.trim(), ...party, unitId, ...(anyLane ? { anyLane: true } : {}) };
     },
     then(result) {
@@ -14794,6 +14809,19 @@ function waitingSheet(kind, r) {
     },
     then(result) { closeSheet(); resKind = r ? r.category : category.value(); go('reservations'); return result && result.message ? { text: result.message } : null; }
   });
+}
+// Check In on the lanes (owner, 14 November: "during his time lane 1 is still busy but lane 2 is free, so when i click check in, let
+// it go to the free lane, but ask for confirmation"): the lane the plan gives them still playing and another free, asked first.
+function checkInAsk(anchor, r) {
+  const plan = r.category === 'Bowling' && !isWalkIn(r) ? lanePlan() : null, place = plan && plan.bookings[r.id];
+  const planned = place && unitOf(place.unitId), freeLane = planned && inUse(planned) ? state.Equipment.find(u => u.category === 'Bowling' && u.id !== planned.id && !inUse(u)) : null;
+  if (!freeLane) { checkInSheet(r); return; }
+  const lane = plan.lanes.find(l => l.unitId === planned.id), ends = lane ? lane.freeMs : 0;
+  popover(anchor, h('b', { class: 'popover-title', text: planned.name + ' is still in use' }),
+    h('span', { class: 'muted', text: (ends > nowMs() ? 'Its game ends about ' + clock(ends) + '. ' : 'Its game is past its time. ') + freeLane.name + ' is free now.' }),
+    h('div', 'popover-foot',
+      btn([icon('check'), 'Check in on ' + freeLane.name], () => { closePopover(); checkInSheet(r, freeLane.id); }, 'primary', { data: { action: 'check-in-free-lane' } }),
+      btn('Wait for ' + planned.name, closePopover, 'quiet', { data: { action: 'check-in-wait' } })));
 }
 function checkInSheet(given, unitId) {
   // The booking as it is now: a card drawn a moment ago may hold it from before its lane was kept (lockLanes).
@@ -15094,7 +15122,8 @@ function reservationCard(r, plan) {
   const late = place && !walk ? Math.floor(place.expectedMs / 60000) - Math.floor(place.bookedMs / 60000) : 0, name = id => (unitOf(id) || {}).name || id;
   const what = { Bowling: 'bowling lane', Pool: 'pool table', Snooker: 'snooker table' }[r.category] || catName(r.category);
   const players = Number(r.players) || 0, pads = resControllers(r);
-  const unitText = place ? name(place.unitId) + (!r.unitId ? ' (any)' : '') : r.unitId ? name(r.unitId) : r.category === 'Bowling' ? 'Any lane' : 'Any ' + catName(r.category);
+  // An any-lane booking says the lane the plan gives it now, which can still change (owner, 14 November).
+  const unitText = place ? (place.any ? (r.category === 'Bowling' ? 'Any lane · ' + name(place.unitId) + ' for now' : name(place.unitId) + ' (any)') : name(place.unitId)) : r.unitId ? name(r.unitId) : r.category === 'Bowling' ? 'Any lane' : 'Any ' + catName(r.category);
   const partyText = (pads ? pads + (pads === 1 ? ' controller' : ' controllers') : players ? players + (players === 1 ? ' player' : ' players') : '') + (Number(r.games) > 1 ? ' · ' + r.games + ' games' : '');
   const meta = (name2, text) => (text ? h('span', 'res-meta-item', icon(name2), h('span', { text })) : null);
   let expect = null;
@@ -15153,7 +15182,7 @@ function reservationCard(r, plan) {
       r.phone ? iconButton('whatsapp', 'Ask ' + r.customer + ' to come sooner', () => whatsapp(r.phone, 'Hi ' + r.customer + ', a lane opened up early. Can you come at ' + clock(sooner) + ' instead of ' + clock(r.arrivalMs) + '?'), { data: { action: 'whatsapp-sooner' } }) : null,
       btn('Move earlier', () => runCommand({ type: 'RESERVATION_TIME', id: r.id, revision: r.revision, arrivalMs: sooner }, () => {}), 'quiet', { data: { action: 'move-earlier' } })) : null,
     pending ? h('div', 'res-tools',
-      btn([icon(walk ? 'user' : 'check'), walk ? 'Seat' : 'Check In'], () => checkInSheet(r), 'primary', { data: { action: 'check-in' } }),
+      btn([icon(walk ? 'user' : 'check'), walk ? 'Seat' : 'Check In'], e => checkInAsk(e.currentTarget, r), 'primary', { data: { action: 'check-in' } }),
       btn([icon(walk ? 'logout' : 'close'), walk ? 'Left' : 'Cancel'], () => cancelSheet(r), 'outline', { data: { action: walk ? 'left' : 'cancel' } }),
       menu(walk ? [
         ['Edit', () => waitingSheet(r.category, r), false, 'pencil']
@@ -16372,7 +16401,7 @@ function extraRatePanels() {
   const panels = [];
   if (ARENA_BRANCH.bowling) panels.push(ratePricesPanel('Bowling (₹)', 'Bowling', 'bowling-rate', [{ key: 'bowling', label: 'Per person, per game', paise: settingValue('bowlingRate', ARENA_BRANCH.bowling.perPersonPaise) }], values => ({ type: 'RATE_EXTRAS', bowlingPaise: values.bowling })));
   for (const venue of ARENA_BRANCH.venues) {
-    if ((venue.rentals || []).length) panels.push(ratePricesPanel(venue.name + ' rentals (₹)', venue.icon, 'rentals-' + venue.key, venue.rentals.map(g => ({ key: venue.key + '-' + g.id, label: g.name + ', each', paise: settingValue('rentalPrice-' + venue.key + '-' + g.id, g.pricePaise) })), values => ({ type: 'RATE_EXTRAS', rentals: values })));
+    if ((venue.rentals || []).length) panels.push(ratePricesPanel(venue.name + ' rentals (₹)', venue.icon, 'rentals-' + venue.key, venue.rentals.map(g => ({ key: venue.key + '-' + g.id, label: g.name + (g.perHour ? ', an hour' : ', each'), paise: settingValue('rentalPrice-' + venue.key + '-' + g.id, g.pricePaise) })), values => ({ type: 'RATE_EXTRAS', rentals: values })));
     if ((venue.memberships || []).length) panels.push(ratePricesPanel(venue.name + ' membership (₹)', venue.icon, 'memberships-' + venue.key, venue.memberships.map(m => ({ key: venue.key + '-' + m.id, label: m.name, paise: settingValue('memberPrice-' + venue.key + '-' + m.id, m.pricePaise) })), values => ({ type: 'RATE_EXTRAS', memberships: values })));
   }
   return panels;
@@ -19639,7 +19668,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "aedb3f385b31";
+const APP_BUILD = "d1d9364d02b2";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
