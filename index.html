@@ -614,6 +614,10 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .page-icon + .top-title { flex: 1; }
 /* Courts: a tab per venue, as the gaming floor's category bar. */
 .page-bar .venue-tabs { flex: 1 1 100%; }
+/* The venue tabs with the ⋮ (Export CSV) at the end of their row (owner, 14 November). */
+.page-bar .venue-row { flex: 1 1 100%; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.page-bar .venue-row > .venue-tabs { flex: 1 1 auto; min-width: 0; }
+.page-bar .venue-row > .venue-more { flex: none; }
 /* A court venue's sport by its name, green and without a tile (owner's reference, 22 October). */
 .page-icon.plain { width: 40px; height: 40px; margin-right: -4px; border: 0; background: transparent; box-shadow: none; color: var(--accent); }
 .page-icon.plain svg { width: 34px; height: 34px; stroke-width: 1.6; }
@@ -2951,6 +2955,160 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
   .when-tag, .when-sub { grid-column: 1; }
   .when-tag { padding: 3px 8px; border-radius: var(--r-xs); white-space: normal; }
 }
+
+/* Badminton & Pickleball in Reports (owner, 14 November): its tab beside the dates; a table for each venue. */
+.rep-courts-tab { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: #ffffff; color: var(--ink-2); font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; transition: background-color 170ms ease, border-color 170ms ease; }
+.rep-courts-tab svg { width: 18px; height: 18px; color: var(--primary); }
+.rep-courts-tab[aria-pressed=true] { border-color: var(--primary-line); background: var(--primary-soft); color: var(--ink); }
+.rep-courts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.rep-court .rep-head { display: flex; align-items: center; gap: 10px; }
+.rep-court-total { margin-left: auto; font-size: var(--text-xl); }
+.rep-sub { margin: 14px 0 4px; color: var(--ink-3); font-size: var(--text-xs); font-weight: 600; }
+.rep-line-sub { display: block; color: var(--ink-3); font-size: var(--text-xs); font-weight: 400; }
+.rep-line.warn b { color: var(--warn); }
+.rep-line.gold b { color: var(--gold); }
+.rep-line.bad b { color: var(--danger); }
+/* Quick Sale's For: Main, Badminton or Pickleball (owner, 14 November). */
+.sale-for { margin: 0 0 12px; }
+.sale-for .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+.sale-for .seg button { min-width: 0; padding-inline: 4px; font-size: var(--text-xs); letter-spacing: 0.03em; }
+/* The courts booked that day, on the courts bar (owner, 14 November). */
+/* Dark and classy (owner, 14 November: "do a nice box, make it dark … keep it classy"). */
+.turf-booked-count { display: inline-flex; align-items: center; min-height: 38px; margin-left: auto; border: 0; border-radius: 999px; background: linear-gradient(135deg, var(--booked-from) 0%, var(--booked-to) 100%); color: #ffffff; white-space: nowrap; box-shadow: 0 10px 22px -10px rgb(46 16 101 / 0.8), inset 0 0 0 1.5px rgb(196 181 253 / 0.45); }
+/* The height and lettering of the buttons beside it (owner, 14 November: "how big is that hours booked"). */
+.turf-booked-part { display: inline-flex; align-items: center; gap: 8px; padding: 0 16px 0 12px; color: rgb(255 255 255 / 0.85); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0.01em; }
+.turf-booked-part + .turf-booked-part { border-left: 1px solid var(--primary-line); }
+.turf-booked-count svg { width: 17px; height: 17px; color: var(--booked-icon); }
+.turf-booked-count b { color: #ffffff; font-weight: 700; }
+/* With the count, the bar's quiet buttons a little narrower so it all stays on one line. */
+.page-bar:has(.turf-booked-count) > .btn.quiet { padding-inline: 8px; }
+.page-bar .turf-booked-count { padding-inline: 0; }
+.page-bar:has(.turf-booked-count) { column-gap: 6px; }
+@media (prefers-reduced-motion: reduce) { .rep-courts-tab { transition: none; } }
+
+/* Badminton & Pickleball dashboard (owner's picture, 14 November): purple venue cards, the ring, the trend, key figures, a
+   tile for every figure. */
+:root {
+  --booked-from: #2e1065;
+  --booked-to: #4c1d95;
+  --booked-icon: #c4b5fd;
+  --cd-pb: #5b21b6;
+  --cd-bad: #a78bfa;
+  --cd-hero-from: #4c1d95;
+  --cd-hero-to: #8b5cf6;
+}
+.cd { display: grid; gap: 16px; }
+.cd-heroes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.cd-hero { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 22px; min-height: 150px; padding: 18px 26px 18px 18px; border-radius: var(--r-xl); background: linear-gradient(120deg, var(--cd-hero-from) 0%, var(--cd-hero-to) 100%); color: #ffffff; box-shadow: 0 14px 30px -18px rgba(76, 29, 149, 0.8); }
+.cd-hero::after { content: ''; position: absolute; inset: auto -20% -60% 30%; height: 160%; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 255, 255, 0.16), transparent); pointer-events: none; }
+/* The shuttlecock and the paddle, cut from the owner's picture of 14 November, a fine line after them. */
+.cd-hero-art { align-self: stretch; width: 132px; padding-right: 22px; border-right: 1px solid rgb(255 255 255 / 0.22); background: center / contain no-repeat; }
+.cd-hero-art.court-art-badminton { background-image: url(data:image/webp;base64,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); }
+.cd-hero-art.court-art-pickleball { background-image: url(data:image/webp;base64,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); }
+.cd-hero-art { background-origin: content-box; }
+.cd-hero-text { display: grid; gap: 2px; min-width: 0; }
+.cd-hero-name { font-size: var(--text-lg); font-weight: 600; opacity: 0.95; }
+.cd-hero-when { font-size: var(--text-xs); opacity: 0.7; }
+.cd-hero-total { font-family: var(--display); font-size: var(--text-4xl); line-height: 1.05; letter-spacing: -0.01em; }
+.cd-hero-total.loading { min-width: 60px; min-height: 44px; border-radius: var(--r-sm); background: rgb(255 255 255 / 0.12); }
+.cd-hero-change { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); opacity: 0.9; }
+.cd-hero-change svg { width: 16px; height: 16px; }
+.cd-hero-change.up b, .cd-hero-change.up svg { color: #6ee7a8; }
+.cd-hero-change.down b, .cd-hero-change.down svg { color: #fca5a5; }
+.cd-hero-use { font-size: var(--text-sm); opacity: 0.85; }
+.cd-bars { width: 170px; height: 70px; }
+.cd-bars rect { fill: rgb(255 255 255 / 0.28); }
+.cd-bars rect.now { fill: rgb(255 255 255 / 0.85); }
+.cd-middle { display: grid; grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.4fr); gap: 16px; align-items: stretch; }
+.cd-card { display: grid; align-content: start; gap: 14px; }
+.cd-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cd-card-title { display: inline-flex; align-items: center; gap: 10px; }
+.cd-card-title svg { width: 20px; height: 20px; color: var(--primary); }
+.cd-card-title h2 { margin: 0; font-size: var(--text-lg); }
+.cd-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--primary-soft); }
+.cd-seg button { min-height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-2); font: inherit; font-size: var(--text-xs); font-weight: 600; cursor: pointer; transition: background-color 170ms ease, color 170ms ease; }
+.cd-seg button[aria-pressed=true] { background: var(--primary); color: #ffffff; }
+.cd-overview { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 24px; }
+.cd-ring-wrap { position: relative; width: 170px; height: 170px; }
+.cd-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+.cd-ring circle { fill: none; stroke-width: 16; }
+.cd-ring-track { stroke: var(--primary-soft); }
+.cd-ring-arc.pb { stroke: var(--cd-pb); }
+.cd-ring-arc.bad { stroke: var(--cd-bad); }
+.cd-ring-centre { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.cd-ring-centre b { font-family: var(--display); font-size: var(--text-2xl); }
+.cd-ring-centre span { color: var(--ink-3); font-size: var(--text-xs); }
+.cd-legend { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.cd-legend li { display: grid; grid-template-columns: 12px 1fr auto auto; align-items: center; gap: 10px; font-size: var(--text-sm); }
+.cd-legend i { width: 12px; height: 12px; border-radius: 50%; }
+.cd-legend i.pb { background: var(--cd-pb); }
+.cd-legend i.bad { background: var(--cd-bad); }
+.cd-legend small { color: var(--ink-3); font-size: var(--text-xs); }
+.cd-legend.inline { display: flex; gap: 18px; }
+.cd-legend.inline li { display: inline-flex; }
+.cd-trend-chart { width: 100%; height: auto; }
+.cd-grid { stroke: var(--line); stroke-width: 1; }
+.cd-axis { fill: var(--ink-3); font-size: 12px; font-family: inherit; }
+.cd-area { fill: rgba(139, 92, 246, 0.14); }
+.cd-line { fill: none; stroke-width: 3; stroke-linecap: round; }
+.cd-line.pb { stroke: var(--cd-pb); }
+.cd-line.bad { stroke: var(--cd-bad); }
+.cd-dot { stroke: #ffffff; stroke-width: 2; }
+.cd-dot.pb { fill: var(--cd-pb); }
+.cd-dot.bad { fill: var(--cd-bad); }
+
+.cd-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.cd-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.cd-tile { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; gap: 4px 10px; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: #ffffff; }
+.cd-tile-icon { grid-row: 1 / 3; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--primary-soft); }
+.cd-tile-icon svg { width: 18px; height: 18px; color: var(--primary); }
+.cd-tile-text { display: grid; min-width: 0; color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; }
+.cd-tile-text small { color: var(--ink-3); font-weight: 400; }
+.cd-tile > b { font-size: var(--text-md); color: var(--ink); }
+.cd-tile.zero > b { color: var(--ink-3); }
+.cd-tile.bad > b { color: var(--danger); }
+.cd-detail-foot { display: flex; flex-wrap: wrap; gap: 8px; }
+.cd-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--primary-soft); color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; }
+.cd-chip svg { width: 14px; height: 14px; color: var(--primary); }
+.cd-chip b { color: var(--ink); }
+.cd-chip.warn b { color: var(--warn); }
+.cd-chip.gold b { color: var(--gold); }
+@media (max-width: 900px) { .cd-middle { grid-template-columns: 1fr; } .cd-overview { grid-template-columns: 1fr; justify-items: center; } }
+@media (max-width: 560px) { .cd-hero { grid-template-columns: auto 1fr; } .cd-bars { display: none; } .cd-hero-art { width: 96px; } }
+@media (prefers-reduced-motion: reduce) { .cd-seg button { transition: none; } }
+
+/* The Revenue Mix ring's parts and the venue box's groups (owner, 14 November). */
+:root {
+  --cd-court: #5b21b6;
+  --cd-member: #db2777;
+  --cd-rentals: #0ea5e9;
+  --cd-shared: #f59e0b;
+}
+.cd-middle.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cd-ring-arc.k-court, .cd-legend i.k-court { stroke: var(--cd-court); background: var(--cd-court); }
+.cd-ring-arc.k-member, .cd-legend i.k-member { stroke: var(--cd-member); background: var(--cd-member); }
+.cd-ring-arc.k-rentals, .cd-legend i.k-rentals { stroke: var(--cd-rentals); background: var(--cd-rentals); }
+.cd-ring-arc.k-shared, .cd-legend i.k-shared { stroke: var(--cd-shared); background: var(--cd-shared); }
+.cd-detail-total { margin-left: auto; font-family: var(--display); font-size: var(--text-xl); }
+.cd-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 4px; padding-bottom: 6px; border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: var(--text-sm); font-weight: 700; }
+.cd-group-head b { color: var(--ink); }
+.cd-group-head.shared span { color: var(--gold); }
+.cd-chip.bad b { color: var(--danger); }
+@media (max-width: 900px) { .cd-middle.two { grid-template-columns: 1fr; } }
+
+/* A venue box's ring (owner, 14 November): the six parts, the tabs wrapping, the owner's and the shared totals under it. */
+.cd-ring-arc.k-snack, .cd-legend i.k-snack, .cd-split i.k-snack { stroke: var(--part-snacks); background: var(--part-snacks); }
+.cd-ring-arc.k-bev, .cd-legend i.k-bev { stroke: var(--part-beverages); background: var(--part-beverages); }
+.cd-ring-arc.k-ice, .cd-legend i.k-ice { stroke: var(--part-icecream); background: var(--part-icecream); }
+.cd-split i.k-court { background: var(--cd-court); }
+.cd-detail .cd-seg { flex-wrap: wrap; border-radius: var(--r-md); }
+.cd-detail-use { margin-left: auto; color: var(--ink-3); font-size: var(--text-xs); }
+.cd-detail-split { display: flex; flex-wrap: wrap; gap: 8px 18px; padding-top: 10px; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink-2); }
+.cd-detail-split.muted { padding-top: 0; border-top: 0; color: var(--ink-3); font-size: var(--text-xs); }
+.cd-split { display: inline-flex; align-items: center; gap: 6px; }
+.cd-split i { width: 10px; height: 10px; border-radius: 50%; }
+.cd-detail-split b { color: var(--ink); }
+.cd-detail-split .bad b { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -3705,7 +3863,7 @@ var ArenaLifecycle=(function(){
    var onCredit=c.type==='CREDIT_SALE',buyer=c.customer&&c.customer!=='Walk-in'?c.customer:onCredit&&c.accountId?row(s.CreditAccounts,c.accountId).name:'Walk-in';
    check(Array.isArray(c.items)&&c.items.length>0,'Choose at least one item.');
    check(!onCredit||!!c.accountId||!!(c.newAccount&&c.newAccount.name),'Choose a credit account.');
-   var sale=ArenaSales.execute(s,{type:'QUICK_TAB',customer:buyer,phone:c.phone||'',items:c.items},actor,now,id+'-sale');
+   var sale=ArenaSales.execute(s,{type:'QUICK_TAB',customer:buyer,phone:c.phone||'',items:c.items,saleFor:c.saleFor||''},actor,now,id+'-sale');
    var due=lines(s,sale.tabId).reduce(function(n,x){return n+x.totalPaise;},0);
    // Pending (owner, 20 October): nothing paid now; it waits under the buyer's name until it is cleared.
    var later=!onCredit&&c.pending&&typeof c.pending==='object';
@@ -4323,7 +4481,10 @@ var ArenaSales=(function(){
     if(x.count===st.count)return;stockLine(s,id+'-'+i,p.id,'count',st.count,x.count,'',actor,now);st.count=x.count;setStock(s,p.id,st);changed++;});
    return {changed:changed,message:changed?'Stock counted: '+changed+(changed===1?' item':' items')+' changed.':'Stock counted: everything matched.'};
   }
-  if(c.type==='QUICK_TAB'){var t={id:id,customer:text(c.customer||'Walk-in',80),phone:c.phone?text(c.phone,30):'',status:'open',createdMs:now,kind:'quick_sale'};s.Tabs.push(t);if(typeof ArenaCustomers!=='undefined'&&(t.phone||t.customer.toLowerCase()!=='walk-in'))ArenaCustomers.touch(s,t.customer,t.phone,now,id+'-customer');
+  if(c.type==='QUICK_TAB'){var t={id:id,customer:text(c.customer||'Walk-in',80),phone:c.phone?text(c.phone,30):'',status:'open',createdMs:now,kind:'quick_sale'};s.Tabs.push(t);
+   // Sold for a court venue (owner, 14 November: badminton and pickleball have their own owner): kept as a note the app keeps
+   // for itself, so Reports name the sale theirs; the Sheet's columns stay as they are.
+   if(c.saleFor){var venue=(ARENA_BRANCH.venues||[]).find(function(v){return v.key===c.saleFor&&v.key!=='turf';});check(!!venue,'Choose Main, or a court venue.');s.Notes=s.Notes||[];s.Notes.push({id:id+'-for',kind:'SALE_FOR',text:venue.key,refsJson:JSON.stringify([t.id]),createdMs:now});}if(typeof ArenaCustomers!=='undefined'&&(t.phone||t.customer.toLowerCase()!=='walk-in'))ArenaCustomers.touch(s,t.customer,t.phone,now,id+'-customer');
    // The counter flow sends the basket with the tab, so one save opens the sale and adds every item.
    var first=c.items?execute(s,{type:'ADD_ITEMS',tabId:id,items:c.items,purchaser:t.customer},actor,now,id+'-items'):null;
    return {tabId:id,orderIds:first?first.orderIds:[],message:'Quick Sale opened.'};}
@@ -5074,6 +5235,17 @@ var ArenaViews = (function () {
       return { name: 'received', columns: ['Receipt', 'Taken on', 'Customer', 'Bill', 'Method', 'Recorded as', 'Amount'],
         rows: ArenaReports.summary(state, fromMs, toMs, Date.now(), true).paymentRows.map(function (r) { var undo = (state.Corrections || []).find(function (c) { return c.kind === 'payment_reversal' && c.id === r.paymentId; }); return [undo ? 'Reversal of ' + number(state, undo.targetId) : number(state, r.paymentId), when(r.at), r.customer, r.billId ? number(state, r.billId) : '', r.method, named(r.as), rupees(r.amountPaise)]; }) };
     }
+    // Badminton and pickleball's own payments for their owner (owner, 14 November): each venue's share of every payment, named as in
+    // Reports' Badminton & Pickleball tab.
+    if (dataset === 'courts') {
+      var COURT_NAMES = { court: 'Court', membership: 'Membership', rentals: 'Rentals', advance: 'Advance', pending: 'Pending collected', credit: 'Credit collected', reversed: 'Reversed' };
+      var courts = ArenaReports.summary(state, fromMs, toMs, Date.now(), true).courts || {}, courtRows = [];
+      Object.keys(courts).forEach(function (place) {
+        courts[place].rows.forEach(function (r) { courtRows.push([place, number(state, r.paymentId), when(r.at), r.customer, r.billId ? number(state, r.billId) : '', r.method, COURT_NAMES[r.as] || r.as, rupees(r.amountPaise)]); });
+      });
+      courtRows.sort(function (a, b) { return a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0; });
+      return { name: 'courts', columns: ['Venue', 'Receipt', 'Taken on', 'Customer', 'Bill', 'Method', 'Recorded as', 'Amount'], rows: courtRows };
+    }
     ArenaCore.check(false, 'Unsupported export.');
   }
 
@@ -5428,6 +5600,178 @@ var ArenaReports = (function () {
       if (withRows) out.paymentRows.push({ paymentId: p.id, billId: p.billId || '', at: p.createdMs, method: p.method, as: as, customer: found.customer, amountPaise: amount });
     });
 
+    // Badminton and pickleball, for their own owner (owner, 14 November: "badminton and pickleball is owned by a separate person
+    // ... whatever related to badminton, pickleball including advance, snacks beverage ice cream membership, pending ... should be
+    // recorded to badminton and pickleball"). Nothing is written twice: every payment above keeps its place in the whole
+    // business, and the share of it that belongs to a court venue is named here as well. A bill is a venue's when it is one of
+    // its court bookings' bills, a membership's, or a Quick Sale made for it (a SALE_FOR note); what was moved onto it from a
+    // system stays the floor's. A credit account's payment goes where its allocations went (oldest charges first, Credits.gs).
+    out.courts = {};
+    OTHER_PLACES.forEach(function (place) { out.courts[place] = { receivedPaise: 0, cashPaise: 0, upiPaise: 0, court: 0, membership: 0, rentals: 0, snacks: { Snacks: 0, Beverages: 0, 'Ice cream': 0 }, advance: 0, pending: 0, credit: 0, reversed: 0, pendingOwedPaise: 0, creditOwedPaise: 0, by: { court: 0, membership: 0, rentals: 0, Snacks: 0, Beverages: 0, 'Ice cream': 0 }, owedBy: { court: 0, membership: 0, rentals: 0, Snacks: 0, Beverages: 0, 'Ice cream': 0 }, byAs: { today: { court: 0, membership: 0, rentals: 0, Snacks: 0, Beverages: 0, 'Ice cream': 0 }, advance: { court: 0, membership: 0, rentals: 0, Snacks: 0, Beverages: 0, 'Ice cream': 0 }, pending: { court: 0, membership: 0, rentals: 0, Snacks: 0, Beverages: 0, 'Ice cream': 0 }, credit: { court: 0, membership: 0, rentals: 0, Snacks: 0, Beverages: 0, 'Ice cream': 0 } }, rows: withRows ? [] : undefined }; });
+    var placeOfKey = {}, saleFor = {}, movedOrder = {}, placeOfTab = {}, ownedOf = {};
+    (ARENA_BRANCH.venues || []).forEach(function (v) { if (v.key !== 'turf') placeOfKey[v.key] = v.name; });
+    (state.Notes || []).forEach(function (n) {
+      var refs = [];
+      try { refs = JSON.parse(n.refsJson || '[]'); } catch (e) { refs = []; }
+      if (n.kind === 'SALE_FOR' && placeOfKey[n.text]) refs.forEach(function (t) { saleFor[t] = placeOfKey[n.text]; });
+      if (n.kind === 'MOVED_FROM') { try { (JSON.parse(n.text).orders || []).forEach(function (o) { movedOrder[o] = true; }); } catch (e) { /* not a list */ } }
+    });
+    var memberPlace = function (o) {
+      var memberId = '';
+      try { memberId = JSON.parse(o.ratesJson || '{}').member || ''; } catch (e) { memberId = ''; }
+      var plan = memberId ? (state.Settings || []).find(function (r) { return r.id === 'member-' + memberId; }) : null;
+      try { return plan ? COURT_PLACE[JSON.parse(plan.value).court] || '' : ''; } catch (e) { return ''; }
+    };
+    // Whose a visit is: a court booking's, a membership's, or a Quick Sale made for a venue; '' for the rest of the business.
+    var tabPlace = function (tabId) {
+      if (tabId in placeOfTab) return placeOfTab[tabId];
+      var place = '';
+      (ordersBy[tabId] || []).forEach(function (o) {
+        if (place || o.status !== 'active' || movedOrder[o.id]) return;
+        var found = o.category === 'Turf' || o.category === 'Rentals' ? bookingPlace[ArenaTurf.meta(o).bookingId] : o.category === 'Membership' ? memberPlace(o) : '';
+        if (found && found !== 'Turf') place = found;
+      });
+      placeOfTab[tabId] = place || saleFor[tabId] || '';
+      return placeOfTab[tabId];
+    };
+    // How much of each part of a venue's bill is the venue's: its court, membership, rentals and the snacks bought on it, less
+    // anything moved onto it from a system; games and the turf are never a court venue's.
+    var ownedShare = function (detail) {
+      if (ownedOf[detail.id]) return ownedOf[detail.id];
+      var place = tabPlace(detail.tabId), gross = {}, moved = {};
+      (ordersBy[detail.tabId] || []).forEach(function (o) {
+        if (o.status !== 'active' || o.category === 'Turf' || o.category === 'Carried' || GAMING.indexOf(o.category) >= 0) return;
+        var key = o.category + '@' + dateKeyOf(state, o.createdMs || detail.createdMs);
+        gross[key] = (gross[key] || 0) + o.totalPaise;
+        if (movedOrder[o.id]) moved[key] = (moved[key] || 0) + o.totalPaise;
+      });
+      ownedOf[detail.id] = function (key) {
+        if (!place) return 0;
+        var name = key.split('@')[0];
+        if (name === place) return 1;
+        if (!(key in gross)) return 0;
+        return gross[key] > 0 ? 1 - (moved[key] || 0) / gross[key] : 0;
+      };
+      return ownedOf[detail.id];
+    };
+    var billShare = function (detail) {
+      var parts = partsFor(detail.id) || {}, own = ownedShare(detail), whole = 0, mine = 0;
+      Object.keys(parts).forEach(function (k) { whole += parts[k]; mine += parts[k] * own(k); });
+      return whole > 0 ? mine / whole : 0;
+    };
+    // What a rupee of a venue's bill was for (owner, 14 November: snacks, beverages and ice cream are shared by both owners;
+    // badminton and pickleball are one owner's): its court, membership or rentals, or one of the shared three. Money paid later
+    // (pending, credit, an advance used on its bill) is read from the bill in the order its payments came, as payments fill a
+    // bill: the court first, then the rest. So a ₹500 court paid on the day and a ₹100 juice left pending is ₹100 of Beverages
+    // when the pending is paid.
+    var SHARED = ['Snacks', 'Beverages', 'Ice cream'];
+    var fineOf = function (name, place) { return name === place ? 'court' : name === 'Membership' ? 'membership' : name === 'Rentals' ? 'rentals' : SHARED.indexOf(name) >= 0 ? name : ''; };
+    var fillsOfBill = {};
+    var billFill = function (detail) {
+      if (fillsOfBill[detail.id]) return fillsOfBill[detail.id];
+      var parts = partsFor(detail.id) || {}, own = ownedShare(detail), place = tabPlace(detail.tabId);
+      var keys = Object.keys(parts).filter(function (k) { return parts[k] > 0; }).sort(function (a, c) { return fillRank(a) - fillRank(c) || (a < c ? -1 : a > c ? 1 : 0); });
+      var left = {}, each = {}, events = [];
+      keys.forEach(function (k) { left[k] = parts[k]; });
+      (state.Payments || []).forEach(function (x) { if (x.billId === detail.id && !undoneSameDay[x.id]) events.push({ id: x.id, at: x.createdMs, paise: x.amountPaise, undo: x.amountPaise < 0 ? ((state.Corrections || []).find(function (c) { return c.kind === 'payment_reversal' && c.id === x.id; }) || {}).targetId : '' }); });
+      (state.CreditAllocations || []).forEach(function (a) { if (a.kind === 'bill' && a.targetId === detail.id) { var pay = (state.Payments || []).find(function (x) { return x.id === a.receiptId; }); events.push({ id: a.receiptId, at: pay ? pay.createdMs : 0, paise: a.amountPaise, undo: '' }); } });
+      events.sort(function (a, c) { return a.at - c.at || (a.id < c.id ? -1 : a.id > c.id ? 1 : 0); });
+      events.forEach(function (ev) {
+        var got = {};
+        if (ev.undo && each[ev.undo]) Object.keys(each[ev.undo]).forEach(function (k) { got[k] = -each[ev.undo][k]; });
+        else if (ev.paise > 0) {
+          var rest = ev.paise;
+          keys.forEach(function (k) { var take = Math.min(rest, left[k]); if (take > 0) { left[k] -= take; rest -= take; var fine = fineOf(k.split('@')[0], place); if (fine && own(k)) got[fine] = (got[fine] || 0) + Math.round(take * own(k)); } });
+        }
+        each[ev.id] = got;
+      });
+      var owed = {};
+      keys.forEach(function (k) { var fine = fineOf(k.split('@')[0], place); if (fine && left[k] > 0 && own(k)) owed[fine] = (owed[fine] || 0) + Math.round(left[k] * own(k)); });
+      fillsOfBill[detail.id] = { each: each, owed: owed };
+      return fillsOfBill[detail.id];
+    };
+    // A share's own amount spread over what it paid for, kept to the share to the paisa.
+    var fitBy = function (paise, by) {
+      var keys = Object.keys(by).filter(function (k) { return by[k]; }), whole = 0, given = 0, out3 = {};
+      keys.forEach(function (k) { whole += by[k]; });
+      if (!whole) return { court: paise };
+      keys.forEach(function (k, i) { var part = i === keys.length - 1 ? paise - given : Math.round(paise * by[k] / whole); out3[k] = part; given += part; });
+      return out3;
+    };
+    var courtShares = function (p, found) {
+      var amount = p.amountPaise, as = found.as || '', detail = p.billId ? details[p.billId] : null;
+      if (as === 'advance') {
+        var advance = (state.Advances || []).find(function (a) { return p.id === a.id || p.id === a.id + '-refund' || p.id.indexOf(a.id + '-used-') === 0; });
+        var advancePlace = advance ? tabPlace(advance.tabId) : '';
+        // Paid ahead of its bill: the booking's (its court).
+        return advancePlace ? [{ place: advancePlace, as: 'advance', paise: amount, by: { court: amount } }] : [];
+      }
+      if (as === 'credit') {
+        return (state.CreditAllocations || []).filter(function (a) { return a.receiptId === p.id && a.kind === 'bill'; }).map(function (a) {
+          var paidFor = details[a.targetId];
+          var creditPaise = paidFor ? Math.round(a.amountPaise * billShare(paidFor)) : 0;
+          return paidFor ? { place: tabPlace(paidFor.tabId), as: 'credit', paise: creditPaise, by: fitBy(creditPaise, billFill(paidFor).each[p.id] || {}) } : null;
+        }).filter(function (x) { return x && x.place && x.paise; });
+      }
+      if (as === 'reversed') {
+        var undo = (state.Corrections || []).find(function (c) { return c.kind === 'payment_reversal' && c.id === p.id; });
+        var original = undo && (state.Payments || []).find(function (x) { return x.id === undo.targetId; });
+        if (!original || !(original.amountPaise > 0)) return [];
+        return courtShares(original, classify(original)).map(function (s) { var back = Math.round(s.paise * amount / original.amountPaise); return { place: s.place, as: 'reversed', paise: back, by: fitBy(back, s.by) }; });
+      }
+      if (as === 'pending' || !found.parts) {
+        var pendingPlace = detail ? tabPlace(detail.tabId) : '';
+        var pendingPaise = pendingPlace ? Math.round(amount * billShare(detail)) : 0;
+        return pendingPlace ? [{ place: pendingPlace, as: 'pending', paise: pendingPaise, by: fitBy(pendingPaise, billFill(detail).each[p.id] || {}) }] : [];
+      }
+      var bill = details[found.billId], billPlace = bill ? tabPlace(bill.tabId) : '';
+      if (!billPlace) return [];
+      var filled = fillOf(found.billId, found.parts)[p.id] || {}, own = ownedShare(bill), payDay = dateKeyOf(state, p.createdMs), out2 = [];
+      var keys = Object.keys(filled).filter(function (k) { return filled[k] !== 0; });
+      if (!keys.length) { var restPaise = Math.round(amount * billShare(bill)); return [{ place: billPlace, as: 'pending', paise: restPaise, by: fitBy(restPaise, billFill(bill).each[p.id] || {}) }]; }
+      keys.forEach(function (k) {
+        var paise = Math.round(filled[k] * own(k));
+        if (!paise) return;
+        var at = k.lastIndexOf('@'), name = at < 0 ? k : k.slice(0, at), playDay = at < 0 ? payDay : k.slice(at + 1);
+        var named = playDay > payDay ? 'advance' : playDay < payDay ? 'pending' : name === billPlace ? 'court' : name === 'Membership' ? 'membership' : name === 'Rentals' ? 'rentals' : name;
+        var fine = fineOf(name, billPlace) || 'court', one = {};
+        one[fine] = paise;
+        out2.push({ place: billPlace, as: named, paise: paise, by: one });
+      });
+      return out2;
+    };
+    (state.Payments || []).forEach(function (p) {
+      if (!inRange(p.createdMs, fromMs, toMs) || undoneSameDay[p.id]) return;
+      var found = classify(p);
+      courtShares(p, found).forEach(function (s) {
+        var c = out.courts[s.place];
+        if (!c || !s.paise) return;
+        if (s.as === 'reversed') c.reversed += -s.paise;
+        else if (s.as in c.snacks) c.snacks[s.as] += s.paise;
+        else if (['court', 'membership', 'rentals', 'advance', 'pending', 'credit'].indexOf(s.as) >= 0) c[s.as] += s.paise;
+        else return;
+        c.receivedPaise += s.paise;
+        // And by how it came in (owner, 14 November: a tab for each, "so this will be clear what is of todays and pending"): paid for
+        // the day itself, an advance, pending collected or credit collected; a payment taken back comes off where it was counted.
+        var group = s.as === 'advance' || s.as === 'pending' || s.as === 'credit' ? s.as : s.as === 'reversed' ? '' : 'today';
+        Object.keys(s.by || {}).forEach(function (k) { if (k in c.by) c.by[k] += s.by[k]; if (group && k in c.byAs[group]) c.byAs[group][k] += s.by[k]; });
+        if (p.method === 'cash') c.cashPaise += s.paise; else c.upiPaise += s.paise;
+        if (withRows) c.rows.push({ paymentId: p.id, billId: p.billId || '', at: p.createdMs, method: p.method, as: s.as, customer: found.customer, amountPaise: s.paise });
+      });
+    });
+    // Still owed on each venue's bills now: left pending, and on credit accounts.
+    var onCreditBill = {};
+    (state.CreditTransfers || []).forEach(function (t) { onCreditBill[t.billId] = true; });
+    (state.Bills || []).forEach(function (b) {
+      var d = details[b.id];
+      if (!d || voided[b.id] || ArenaCore.carryOf(state, b.id) || !(b.totalPaise > b.paidPaise)) return;
+      var place = tabPlace(d.tabId), c = place && out.courts[place];
+      if (!c) return;
+      var owed = Math.round((b.totalPaise - b.paidPaise) * billShare(d)), left = fitBy(owed, billFill(d).owed);
+      if (onCreditBill[b.id]) c.creditOwedPaise += owed; else c.pendingOwedPaise += owed;
+      Object.keys(left).forEach(function (k) { if (k in c.owedBy) c.owedBy[k] += left[k]; });
+    });
+
     // Credit movements. None of these is money received.
     (state.CreditTransfers || []).forEach(function (t) { if (inRange(t.createdMs, fromMs, toMs)) out.creditTransfersPaise += t.amountPaise; });
     (state.CreditEntries || []).forEach(function (e) {
@@ -5514,7 +5858,31 @@ var ArenaReports = (function () {
     return { dateKey: cmd.dateKey, cashPaise: figures.cashPaise, differencePaise: counted === '' ? '' : counted - figures.cashPaise, message: 'Day closed for ' + cmd.dateKey + '.' };
   }
 
-  return { handles: function (type) { return types.indexOf(type) >= 0; }, execute: execute, summary: summary, dayRange: dayRange, dateKeyOf: dateKeyOf };
+  // Badminton and pickleball's money over time, for their owner's dashboard (owner, 14 November): the last 7 days, 8 weeks or 6
+  // months up to a day, each bucket each venue's received, bookings and hours, worked out by the same summary as the report.
+  function courtsTrend(state, step, endKey) {
+    var shift = function (key, days) { var d = new Date(key + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
+    var buckets = [];
+    if (step === 'monthly') {
+      for (var m = 5; m >= 0; m--) {
+        var first = new Date(endKey.slice(0, 7) + '-01T00:00:00Z');
+        first.setUTCMonth(first.getUTCMonth() - m);
+        var next = new Date(first.getTime());
+        next.setUTCMonth(next.getUTCMonth() + 1);
+        var fromKey = first.toISOString().slice(0, 10), lastKey = shift(next.toISOString().slice(0, 10), -1);
+        buckets.push({ fromKey: fromKey, toKey: lastKey < endKey ? lastKey : endKey });
+      }
+    } else {
+      var days = step === 'weekly' ? 7 : 1, count = step === 'weekly' ? 8 : 7;
+      for (var i = count - 1; i >= 0; i--) buckets.push({ fromKey: shift(endKey, -(i * days + days - 1)), toKey: shift(endKey, -i * days) });
+    }
+    return buckets.map(function (b) {
+      var s = summary(state, dayRange(state, b.fromKey).fromMs, dayRange(state, b.toKey).toMs, Date.now()), venues = {};
+      Object.keys(s.courts).forEach(function (place) { var use = (s.courtUsage || {})[place] || { bookings: 0, hours: 0 }; venues[place] = { receivedPaise: s.courts[place].receivedPaise, bookings: use.bookings, hours: use.hours }; });
+      return { fromKey: b.fromKey, toKey: b.toKey, venues: venues };
+    });
+  }
+  return { handles: function (type) { return types.indexOf(type) >= 0; }, execute: execute, summary: summary, courtsTrend: courtsTrend, dayRange: dayRange, dateKeyOf: dateKeyOf };
 })();
 
 /* The outdoor turf: three courts (6-a-side, 5-a-side and, since 21 October, 1v1), booked by the hour from 6 AM to 10 PM.
@@ -9678,7 +10046,7 @@ const NOTE_KIND = {
 // Notes the app keeps for itself, never shown as comments: an academy booking's link to its account (owner, 21 October), and
 // what a bill moved to credit was for, which the bill itself shows when opened (owner, 4 November: "what is that extra
 // comment? app did or human??").
-const INTERNAL_NOTES = ['TURF_ACCOUNT', 'CREDIT_UNPAID', 'MOVED_FROM'];
+const INTERNAL_NOTES = ['TURF_ACCOUNT', 'CREDIT_UNPAID', 'MOVED_FROM', 'SALE_FOR'];
 function notesBlock(ids) {
   const want = new Set(ids.filter(Boolean));
   const refs = n => { try { return JSON.parse(n.refsJson || '[]'); } catch (e) { return []; } };
@@ -9934,7 +10302,7 @@ function customerFields(initialName = '', initialPhone = '', phoneRequired = fal
 let token = '', state = null, version = '', clockOffset = 0, session = { user: null, lastBackup: null, backupError: null };
 const storage = (() => { try { localStorage.getItem('arenaToken'); return localStorage; } catch (e) { return null; } })();
 
-const AFTER_SAVES = new Set(['rpcBill', 'rpcHistory', 'rpcReport', 'rpcStock', 'rpcQuote', 'rpcTurf', 'rpcExport']);
+const AFTER_SAVES = new Set(['rpcBill', 'rpcHistory', 'rpcReport', 'rpcStock', 'rpcCourtsTrend', 'rpcQuote', 'rpcTurf', 'rpcExport']);
 // On City Arena's own web address the page reaches the same server through a hidden bridge frame loaded without cookies
 // (ARENA_API, set by the build), so the browser's signed-in Google accounts never get in the way.
 const ARENA_API = "https://script.google.com/macros/s/AKfycbwtv_y7NZeCC7HYrDWkYYwQiGIbTnuv8DMUGEqiOUqSicjzFmcD4H_yO1WD-gcB-wEDJg/exec";
@@ -13078,7 +13446,7 @@ async function exportReport() {
   const head = (a, b) => [{ v: a, s: 'head' }, { v: b || '', s: 'head' }];
   const summary = { name: 'Summary', widths: [36, 18], rows: [
     [{ v: 'City Arena — Report', s: 'title' }], [{ v: period, s: 'muted' }], [],
-    head('Received', 'Amount'), ['Gaming floor', xMoney(gaming)], ...REPORT_COURT_KEYS.map(k => [k, xMoney(earned[k])]), ['Snacks & drinks', xMoney(products)], ['Advance', xMoney(collected.advance)], ['Pending collected', xMoney(collected.pending)], ['Credit collected', xMoney(collected.credit)], ...(collected.reversed ? [['Reversed', xMoney(-collected.reversed)]] : []), [{ v: 'Total received', s: 'bold' }, { v: toRupees(s.receivedPaise), s: 'total' }], [],
+    head('Received', 'Amount'), ['Gaming floor', xMoney(gaming)], ...REPORT_COURT_KEYS.map(k => [k, xMoney(earned[k])]), ...['Membership', 'Rentals'].filter(k => earned[k]).map(k => [REPORT_PARTS[k].label, xMoney(earned[k])]), ['Snacks & drinks', xMoney(products)], ['Advance', xMoney(collected.advance)], ['Pending collected', xMoney(collected.pending)], ['Credit collected', xMoney(collected.credit)], ...(collected.reversed ? [['Reversed', xMoney(-collected.reversed)]] : []), [{ v: 'Total received', s: 'bold' }, { v: toRupees(s.receivedPaise), s: 'total' }], [],
     head('Cash & UPI', 'Amount'), ['Cash', xMoney(s.cashPaise)], ['UPI', xMoney(s.upiPaise - caPaise(s))], ['CA UPI', xMoney(caPaise(s))], [],
     head('Credit', 'Amount'), ['Opening balance', xMoney(credit.openingPaise)], ['Credit given', xMoney(credit.givenPaise)],
     ...(credit.otherPaise ? [['Other credit charges', xMoney(credit.otherPaise)]] : []), ['Collected', xMoney(credit.collectedPaise)],
@@ -13093,6 +13461,196 @@ async function exportReport() {
   const byPart = tableSheet('Received by category', ['Category', 'Received', 'Sessions / games / bookings', 'Hours played'], parts, ['Received']);
   const billSheet = tableSheet('Payments', bills.columns, bills.rows, ['Amount']);
   downloadBlob(xlsxFile('report', [summary, byPart, billSheet]), 'city-arena-report-' + (single ? reportFrom : reportFrom + '-to-' + reportTo) + '.xlsx');
+}
+// Badminton and pickleball for their own owner, as the owner's picture of 14 November ("do it nicely like this … i do not want
+// line by line"): a card for each venue (its money, bookings and hours, a small trend), the bookings or the money of the two in a
+// ring, the money over time (Daily, Weekly, Monthly), the key figures, and every figure of each venue as a tile: its courts,
+// memberships, rentals, snacks, beverages and ice cream, advance, pending and credit collected, anything taken back, Cash and
+// UPI and what is still owed. The same payments as the whole business's report, never counted twice.
+let courtsTrendStep = 'weekly', courtsTrendCache = { key: '', data: null }, courtsMixBy = 'bookings';
+// Each venue box's tab (Total, Today, Advance, Pending collected, Credit collected, Owed).
+const courtsVenueView = {};
+async function loadCourtsTrend(key) {
+  courtsTrendCache = { key, data: null };
+  try {
+    const data = await rpc('rpcCourtsTrend', token, courtsTrendStep, reportTo, reportPass);
+    if (courtsTrendCache.key === key) { courtsTrendCache = { key, data }; render(); }
+  } catch (e) { notify('error', e.message); }
+}
+const COURT_TONES = { pickleball: 'pb', badminton: 'bad' };
+function svgEl(tag, attrs) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  return node;
+}
+// A smooth line through points (a Catmull-Rom curve as cubic Béziers, its bends kept between each two points).
+function smoothPath(points) {
+  if (!points.length) return '';
+  let d = 'M' + points[0][0] + ' ' + points[0][1];
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] || points[i], p1 = points[i], p2 = points[i + 1], p3 = points[i + 2] || p2;
+    // The bends kept between the two points' heights, so the line never dips below nothing or rises above a top it did not reach.
+    const low = Math.min(p1[1], p2[1]), high = Math.max(p1[1], p2[1]), keep = n => Math.min(high, Math.max(low, n));
+    d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6) + ' ' + keep(p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ' ' + keep(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + p2[0] + ' ' + p2[1];
+  }
+  return d;
+}
+function courtsReport(s) {
+  const courts = s.courts || {}, courtUse = s.courtUsage || {};
+  const venues = VENUES.filter(v => v.key !== 'turf').sort((a, b) => (a.key === 'pickleball' ? -1 : b.key === 'pickleball' ? 1 : 0));
+  const empty = { receivedPaise: 0, cashPaise: 0, upiPaise: 0, court: 0, membership: 0, rentals: 0, snacks: {}, advance: 0, pending: 0, credit: 0, reversed: 0, pendingOwedPaise: 0, creditOwedPaise: 0 };
+  const of = v => courts[v.name] || empty, use = v => courtUse[v.name] || { bookings: 0, hours: 0 };
+  const trendKey = courtsTrendStep + '|' + reportTo;
+  if (courtsTrendCache.key !== trendKey) loadCourtsTrend(trendKey);
+  const trend = courtsTrendCache.key === trendKey ? courtsTrendCache.data : null;
+  const tone = v => COURT_TONES[v.key] || 'pb';
+  const label = b => (courtsTrendStep === 'monthly' ? new Date(b.fromKey + 'T00:00:00+05:30').toLocaleDateString('en-IN', { timeZone: IST, month: 'short' }) : new Date(b.toKey + 'T00:00:00+05:30').toLocaleDateString('en-IN', { timeZone: IST, day: 'numeric', month: 'short' }));
+  const seg = (options, value, choose, action) => h('div', { class: 'cd-seg', role: 'group' }, options.map(([key, text]) => h('button', { type: 'button', 'aria-pressed': String(value === key), data: { action: action + '-' + key }, onclick: () => choose(key) }, text)));
+
+  // Each venue's card as the owner's picture of 14 November: its bookings in the Revenue Trend's period (this week at first),
+  // up or down against the one before ("12% vs last week"), and a bar for each period of the trend, the latest brightest.
+  const versus = { daily: 'vs yesterday', weekly: 'vs last week', monthly: 'vs last month' }[courtsTrendStep];
+  const before = { daily: 'yesterday', weekly: 'last week', monthly: 'last month' }[courtsTrendStep];
+  const now = { daily: 'Today', weekly: 'This week', monthly: 'This month' }[courtsTrendStep];
+  const bars = v => {
+    const svg = svgEl('svg', { viewBox: '0 0 160 64', class: 'cd-bars', 'aria-hidden': 'true' });
+    const values = trend ? trend.map(b => (b.venues[v.name] || {}).bookings || 0) : [];
+    const top = Math.max(1, ...values), gap = 6, width = values.length ? (160 - gap * (values.length - 1)) / values.length : 0;
+    values.forEach((n, i) => svg.append(svgEl('rect', { x: i * (width + gap), y: 64 - Math.max(4, (n / top) * 60), width, height: Math.max(4, (n / top) * 60), rx: 3, class: i === values.length - 1 ? 'now' : '' })));
+    return svg;
+  };
+  const change = v => {
+    if (!trend || trend.length < 2) return null;
+    const cur = (trend[trend.length - 1].venues[v.name] || {}).bookings || 0, prev = (trend[trend.length - 2].venues[v.name] || {}).bookings || 0;
+    if (!prev) return h('span', { class: 'cd-hero-change', text: cur ? 'No bookings ' + before : 'None ' + before + ' either' });
+    const pct = Math.round(((cur - prev) / prev) * 100);
+    return h('span', { class: 'cd-hero-change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : '') }, pct ? icon(pct > 0 ? 'arrowUp' : 'arrowDown') : null, h('b', { class: 'num', text: Math.abs(pct) + '%' }), ' ' + versus);
+  };
+  const heroes = h('div', 'cd-heroes', venues.map(v => {
+    const latest = trend && trend.length ? (trend[trend.length - 1].venues[v.name] || {}).bookings || 0 : null;
+    return h('section', { class: 'cd-hero ' + tone(v), data: { courtReport: v.key } },
+      h('span', { class: 'cd-hero-art court-art-' + v.key, role: 'img', 'aria-label': v.name }),
+      h('div', 'cd-hero-text', h('span', { class: 'cd-hero-name', text: v.name + ' Bookings' }), h('small', { class: 'cd-hero-when', text: now }),
+        h('b', { class: 'cd-hero-total num' + (latest == null ? ' loading' : ''), text: latest == null ? ' ' : String(latest) }), change(v)),
+      bars(v));
+  }));
+
+  // A ring, its total in the middle and each part's figure and share beside it.
+  const ringOf = (parts, centre, centreLabel, label) => {
+    const whole = parts.reduce((n, x) => n + x.value, 0), svg = svgEl('svg', { viewBox: '0 0 120 120', class: 'cd-ring', role: 'img', 'aria-label': label + ': ' + parts.map(x => x.name + ' ' + x.shown).join(', ') });
+    svg.append(svgEl('circle', { cx: 60, cy: 60, r: 46, class: 'cd-ring-track', pathLength: 100 }));
+    let from = 0;
+    for (const x of parts) {
+      const share = whole ? (x.value / whole) * 100 : 0;
+      if (share > 0) svg.append(svgEl('circle', { cx: 60, cy: 60, r: 46, class: 'cd-ring-arc ' + x.tone, pathLength: 100, 'stroke-dasharray': share + ' ' + (100 - share), 'stroke-dashoffset': -from }));
+      from += share;
+    }
+    return h('div', 'cd-overview',
+      h('div', 'cd-ring-wrap', svg, h('div', 'cd-ring-centre', h('b', { class: 'num', text: centre }), h('span', { text: centreLabel }))),
+      h('ul', 'cd-legend', parts.map(x => h('li', null, h('i', { class: x.tone }), h('span', { text: x.name }), h('b', { class: 'num', text: x.shown }), h('small', { class: 'num', text: whole ? ((x.value / whole) * 100).toFixed(1) + '%' : '0%' })))));
+  };
+  // The two venues in one ring, as Bookings, Playtime, Revenue or Owed (owner, 14 November: "can you not keep only 1 pie chart
+  // and integrate all … when i click bookings booking ka thing shows").
+  const owedOf = v => of(v).pendingOwedPaise + of(v).creditOwedPaise;
+  const MIX = {
+    bookings: { value: v => use(v).bookings, shown: n => String(n), centre: n => String(n), label: 'Total Bookings' },
+    playtime: { value: v => use(v).hours, shown: n => plural(n, 'hour', 'hours'), centre: n => String(n), label: n => (n === 1 ? 'Hour played' : 'Hours played') },
+    revenue: { value: v => of(v).receivedPaise, shown: n => money(n), centre: n => money(n), label: 'Total Revenue' },
+    owed: { value: owedOf, shown: n => money(n), centre: n => money(n), label: 'Still Owed' }
+  };
+  const how = MIX[courtsMixBy] || MIX.bookings, howTotal = venues.reduce((n, v) => n + how.value(v), 0);
+  const overview = h('section', { class: 'rep-card cd-card', data: { courtsPanel: 'overview' } },
+    h('div', 'cd-card-head', h('span', 'cd-card-title', icon('reports'), h('h2', { text: 'Activity Overview' })),
+      seg([['bookings', 'Bookings'], ['playtime', 'Playtime'], ['revenue', 'Revenue'], ['owed', 'Owed']], MIX[courtsMixBy] ? courtsMixBy : 'bookings', key => { courtsMixBy = key; render(); }, 'courts-mix')),
+    ringOf(venues.map(v => ({ name: v.name, tone: tone(v), value: how.value(v), shown: how.shown(how.value(v)) })), how.centre(howTotal), typeof how.label === 'function' ? how.label(howTotal) : how.label, 'Activity'));
+  // What the money of both was for (owner, 14 November): the court, the memberships on their own (a day a membership is paid
+  // shows why it jumped), rentals, and the snacks, beverages and ice cream shared by both owners — money paid later included.
+  const byAll = k => venues.reduce((n, v) => n + ((of(v).by || {})[k] || 0), 0);
+  const sharedOf = by => ((by || {}).Snacks || 0) + ((by || {}).Beverages || 0) + ((by || {})['Ice cream'] || 0);
+  const mixParts = [
+    { name: 'Court', tone: 'k-court', value: byAll('court') },
+    { name: 'Memberships', tone: 'k-member', value: byAll('membership') },
+    { name: 'Rentals', tone: 'k-rentals', value: byAll('rentals') },
+    { name: 'Snacks & drinks (shared)', tone: 'k-shared', value: byAll('Snacks') + byAll('Beverages') + byAll('Ice cream') }
+  ].map(x => ({ ...x, shown: money(x.value) }));
+  const mixTotal = mixParts.reduce((n, x) => n + x.value, 0);
+  const revenueMix = h('section', { class: 'rep-card cd-card', data: { courtsPanel: 'mix' } },
+    h('div', 'cd-card-head', h('span', 'cd-card-title', icon('wallet'), h('h2', { text: 'Revenue Mix' }))),
+    ringOf(mixParts, money(mixTotal), 'Total Revenue', 'Revenue mix'));
+
+  // The money over time, a line for each venue and the two together shaded.
+  const chart = svgEl('svg', { viewBox: '0 0 1100 250', class: 'cd-trend-chart', role: 'img', 'aria-label': 'Revenue trend' });
+  if (trend && trend.length) {
+    const L = 60, R = 1060, T = 14, B = 214, totals = trend.map(b => venues.reduce((n, v) => n + ((b.venues[v.name] || {}).receivedPaise || 0), 0));
+    const top = Math.max(100000, ...totals), stepY = Math.ceil(top / 4 / 50000) * 50000, maxY = stepY * 4;
+    const x = i => (trend.length === 1 ? (L + R) / 2 : L + (i * (R - L)) / (trend.length - 1)), y = n => B - (n / maxY) * (B - T);
+    for (let g = 0; g <= 4; g++) {
+      chart.append(svgEl('line', { x1: L, x2: R, y1: y(g * stepY), y2: y(g * stepY), class: 'cd-grid' }));
+      const t = svgEl('text', { x: L - 8, y: y(g * stepY) + 4, class: 'cd-axis', 'text-anchor': 'end' });
+      t.textContent = '₹' + (g * stepY >= 100000 ? (g * stepY) / 100000 + 'k' : (g * stepY) / 100);
+      chart.append(t);
+    }
+    trend.forEach((b, i) => { const t = svgEl('text', { x: x(i), y: B + 22, class: 'cd-axis', 'text-anchor': 'middle' }); t.textContent = label(b); chart.append(t); });
+    const all = totals.map((n, i) => [x(i), y(n)]);
+    chart.append(svgEl('path', { d: smoothPath(all) + ' L' + all[all.length - 1][0] + ' ' + B + ' L' + all[0][0] + ' ' + B + ' Z', class: 'cd-area' }));
+    for (const v of venues) {
+      const pts = trend.map((b, i) => [x(i), y((b.venues[v.name] || {}).receivedPaise || 0)]);
+      chart.append(svgEl('path', { d: smoothPath(pts), class: 'cd-line ' + tone(v) }));
+      pts.forEach(p => chart.append(svgEl('circle', { cx: p[0], cy: p[1], r: 4, class: 'cd-dot ' + tone(v) })));
+    }
+  }
+  const trendCard = h('section', { class: 'rep-card cd-card', data: { courtsPanel: 'trend' } },
+    h('div', 'cd-card-head', h('span', 'cd-card-title', icon('arrowUp'), h('h2', { text: 'Revenue Trend' })), seg([['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']], courtsTrendStep, key => { courtsTrendStep = key; render(); }, 'courts-trend')),
+    trend ? chart : loadingRows(3),
+    h('ul', 'cd-legend inline', venues.map(v => h('li', null, h('i', { class: tone(v) }), h('span', { text: v.name })))));
+
+  // Each venue: one ring with a tab for each way the money came in (owner, 14 November: "keep 2 tabs one is total and one more is
+  // pending collected … use the same logic every where"), its parts the court, memberships and rentals (the venue's owner) and the
+  // snacks, beverages and ice cream (shared by both owners), the two totals under it.
+  const VIEWS = [['total', 'Total', 'Total received'], ['today', 'Today', 'Paid for the day'], ['advance', 'Advance', 'Paid ahead'], ['pending', 'Pending collected', 'For earlier days'], ['credit', 'Credit collected', 'Into accounts'], ['owed', 'Owed', 'Still owed']];
+  const details = h('div', 'cd-details', venues.map(v => {
+    const c = of(v), view = VIEWS.some(x => x[0] === courtsVenueView[v.key]) ? courtsVenueView[v.key] : 'total';
+    const figures = (view === 'total' ? c.by : view === 'owed' ? c.owedBy : (c.byAs || {})[view]) || {};
+    const parts = [['court', 'Court', 'k-court'], ...((v.memberships || []).length ? [['membership', 'Memberships', 'k-member']] : []), ...((v.rentals || []).length ? [['rentals', 'Rentals', 'k-rentals']] : []),
+      ['Snacks', 'Snacks', 'k-snack'], ['Beverages', 'Beverages', 'k-bev'], ['Ice cream', 'Ice cream', 'k-ice']].map(([k, name, toneKey]) => ({ name, tone: toneKey, value: Math.max(0, figures[k] || 0), shown: money(figures[k] || 0) }));
+    const ownerPaise = (figures.court || 0) + (figures.membership || 0) + (figures.rentals || 0), sharedPaise = (figures.Snacks || 0) + (figures.Beverages || 0) + (figures['Ice cream'] || 0);
+    const label = VIEWS.find(x => x[0] === view)[2];
+    return h('section', { class: 'rep-card cd-card cd-detail ' + tone(v), data: { courtDetail: v.key } },
+      h('div', 'cd-card-head', h('span', 'cd-card-title', icon(v.key === 'pickleball' ? 'pickleball' : 'badminton'), h('h2', { text: v.name })),
+        h('small', { class: 'cd-detail-use', text: plural(use(v).bookings, 'booking', 'bookings') + ' · ' + plural(use(v).hours, 'hour', 'hours') })),
+      seg(VIEWS.map(x => [x[0], x[1]]), view, key => { courtsVenueView[v.key] = key; render(); }, 'court-view-' + v.key),
+      ringOf(parts, money(ownerPaise + sharedPaise), label, v.name + ' ' + label),
+      h('div', 'cd-detail-split',
+        h('span', 'cd-split', h('i', { class: 'k-court' }), v.name + ' owner ', h('b', { class: 'num', text: money(ownerPaise) })),
+        h('span', 'cd-split shared', h('i', { class: 'k-snack' }), 'Shared snacks & drinks ', h('b', { class: 'num', text: money(sharedPaise) }))),
+      view === 'total' ? h('div', 'cd-detail-split muted', h('span', null, 'Cash ', h('b', { class: 'num', text: money(c.cashPaise) })), h('span', null, 'UPI ', h('b', { class: 'num', text: money(c.upiPaise) })),
+        c.reversed ? h('span', 'bad', 'Taken back ', h('b', { class: 'num', text: money(c.reversed) })) : null) : null,
+      view === 'owed' ? h('div', 'cd-detail-split muted', h('span', null, 'Pending ', h('b', { class: 'num', text: money(c.pendingOwedPaise) })), h('span', null, 'On credit ', h('b', { class: 'num', text: money(c.creditOwedPaise) }))) : null);
+  }));
+  return h('div', 'cd', heroes, h('div', 'cd-middle two', overview, revenueMix), trendCard, details);
+}
+async function exportCourts() {
+  const data = reportCache.data;
+  if (!data) return;
+  const s = data.summary, r = reportRange(), single = reportFrom === reportTo, courts = s.courts || {}, courtUse = s.courtUsage || {};
+  const period = single ? turfDayName(reportFrom) + ' ' + reportFrom.slice(0, 4) : turfDayName(reportFrom) + ' – ' + turfDayName(reportTo) + ' ' + reportTo.slice(0, 4);
+  let payments;
+  try { payments = await rpc('rpcExport', token, 'courts', r.fromMs, r.toMs, reportPass); }
+  catch (e) { notify('error', e.message); return; }
+  const venues = VENUES.filter(v => v.key !== 'turf').sort((a, b) => (a.key === 'pickleball' ? -1 : b.key === 'pickleball' ? 1 : 0));
+  const rows = [[{ v: venues.map(v => v.name).join(' & ') + ' — Report', s: 'title' }], [{ v: period, s: 'muted' }], []];
+  for (const v of venues) {
+    const c = courts[v.name] || { snacks: {} }, use = courtUse[v.name] || { bookings: 0, hours: 0 };
+    rows.push([{ v: v.name, s: 'head' }, { v: 'Amount', s: 'head' }], ['Courts · ' + use.bookings + ' bookings · ' + use.hours + ' hours', xMoney(c.court)],
+      ...((v.memberships || []).length ? [['Memberships', xMoney(c.membership)]] : []), ...((v.rentals || []).length ? [['Rentals', xMoney(c.rentals)]] : []),
+      ...PRODUCT_KINDS.map(([k, label]) => [label, xMoney((c.snacks || {})[k] || 0)]),
+      ['Advance', xMoney(c.advance)], ['Pending collected', xMoney(c.pending)], ['Credit collected', xMoney(c.credit)], ...(c.reversed ? [['Reversed', xMoney(-c.reversed)]] : []),
+      [{ v: 'Total received', s: 'bold' }, { v: toRupees(c.receivedPaise), s: 'total' }], ['Cash', xMoney(c.cashPaise)], ['UPI', xMoney(c.upiPaise)],
+      ['Still owed · Pending', xMoney(c.pendingOwedPaise)], ['Still owed · On credit', xMoney(c.creditOwedPaise)], []);
+  }
+  const summary = { name: 'Summary', widths: [40, 18], rows };
+  const list = tableSheet('Payments', payments.columns, payments.rows, ['Amount']);
+  downloadBlob(xlsxFile('courts', [summary, list]), 'city-arena-badminton-pickleball-' + (single ? reportFrom : reportFrom + '-to-' + reportTo) + '.xlsx');
 }
 async function exportCredit() {
   let ledger;
@@ -13839,6 +14397,8 @@ function reservationCard(r, plan) {
 
 // ---------- Snacks & beverages over the counter, and the menu ----------
 let salePicker = null, saleProducts = '', saleCustomer = null, salePay = { method: 'cash' }, salePaint = () => {};
+// Who a counter sale is for (owner, 14 November): the main business, or badminton or pickleball, which have their own owner.
+let saleVenue = 'main';
 // New items one after another: name, Enter, price, Enter, and the next. The kind stays chosen and the items just added
 // are listed; Done (or ✕) closes. An existing item is edited on its own.
 // want 'stock' puts the cursor in Stock (Enable stock on a menu card).
@@ -14046,8 +14606,10 @@ const salesPage = {
     }
     saleCustomer = saleCustomer || customerFields();
     const customer = h('div', { hidden: !saleCustomer.name.value, style: 'margin-top:12px' }, saleCustomer.node);
-    const who = () => ({ customer: saleCustomer.name.value.trim() || 'Walk-in', phone: saleCustomer.phone.value.trim() });
-    const done = () => { salePicker.clear(); saleCustomer = null; };
+    const who = () => ({ customer: saleCustomer.name.value.trim() || 'Walk-in', phone: saleCustomer.phone.value.trim(), ...(saleVenue !== 'main' ? { saleFor: saleVenue } : {}) });
+    const done = () => { salePicker.clear(); saleCustomer = null; saleVenue = 'main'; };
+    const courtVenues = VENUES.filter(v => v.key !== 'turf');
+    const forChoice = courtVenues.length ? segmented([['main', 'Main'], ...courtVenues.map(v => [v.key, v.name])], saleVenue, value => { saleVenue = value; }) : null;
     const total = h('div', { class: 'foot-total', data: { saleTotal: '1' } });
     const how = payChoice(salePay, () => {}, { due: () => salePicker.total() });
     const collect = btn('', () => {
@@ -14084,6 +14646,7 @@ const salesPage = {
       h('div', 'panel', salePicker.node),
       h('div', 'panel till',
         h('div', 'panel-head', glyph('sales', 'gold'), h('h2', { text: 'This sale' })),
+        forChoice ? h('div', { class: 'field sale-for', data: { field: 'sale-for' } }, h('span', { text: 'For' }), forChoice.node) : null,
         basket,
         h('div', 'till-total', h('div', { class: 'foot-label', text: 'Total' }), total),
         how.node,
@@ -14725,6 +15288,8 @@ const customersPage = {
 // ---------- Reports and daily close ----------
 // The range shown: today by default, a preset, or any two dates. Days follow the business day set in Settings.
 let reportFrom = '', reportTo = '', reportPreset = 'today', reportCache = { key: '', data: null };
+// The whole business, or badminton and pickleball for their own owner (owner, 14 November).
+let reportView = 'all';
 const businessToday = () => dayKey(nowMs() - settingValue('businessDayStartMinutes', 0) * 60000);
 function reportPresetRange(preset) {
   const today = businessToday();
@@ -14911,7 +15476,9 @@ const reportsPage = {
     if (reportLocked) return;
     if (!reportFrom) [reportFrom, reportTo] = reportPresetRange(reportPreset);
     // A preset, or any two dates: picking a date makes it a custom range.
-    const presets = segmented([['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['month', 'This month']], reportPreset, value => { reportPreset = value; [reportFrom, reportTo] = reportPresetRange(value); render(); });
+    // Today and Yesterday, then any two dates (owner, 14 November: no This week or This month).
+    if (reportPreset === 'week' || reportPreset === 'month') { reportPreset = 'today'; [reportFrom, reportTo] = reportPresetRange('today'); }
+    const presets = segmented([['today', 'Today'], ['yesterday', 'Yesterday']], reportPreset, value => { reportPreset = value; [reportFrom, reportTo] = reportPresetRange(value); render(); });
     const from = h('input', { type: 'date', value: reportFrom, max: businessToday(), 'aria-label': 'From', data: { field: 'report-from' } });
     const to = h('input', { type: 'date', value: reportTo, max: businessToday(), 'aria-label': 'To', data: { field: 'report-to' } });
     const pick = () => {
@@ -14922,9 +15489,12 @@ const reportsPage = {
     };
     from.onchange = pick;
     to.onchange = pick;
-    bar.append(h('div', 'rep-range', presets.node, h('div', 'rep-dates', from, h('span', { class: 'muted', text: 'to' }), to)),
+    // Beside the dates, one tab for badminton and pickleball's own figures (owner, 14 November); pressed again, the whole business.
+    const courtNames = VENUES.filter(v => v.key !== 'turf').map(v => v.name);
+    const courtsTab = courtNames.length ? h('button', { type: 'button', class: 'rep-courts-tab', 'aria-pressed': String(reportView === 'courts'), data: { action: 'report-courts' }, onclick: () => { reportView = reportView === 'courts' ? 'all' : 'courts'; render(); } }, icon('badminton'), courtNames.join(' & ')) : null;
+    bar.append(h('div', 'rep-range', presets.node, h('div', 'rep-dates', from, h('span', { class: 'muted', text: 'to' }), to), courtsTab),
       h('div', 'rep-export desk-only',
-        btn([icon('download'), 'Export'], exportReport, 'quiet', { data: { action: 'export-report' } })),
+        btn([icon('download'), 'Export'], reportView === 'courts' ? exportCourts : exportReport, 'quiet', { data: { action: 'export-report' } })),
       btn([icon('lock'), 'Lock'], () => { lockReports(); render(); }, 'quiet', { data: { action: 'report-lock' } }));
   },
   render(page) {
@@ -14940,12 +15510,13 @@ const reportsPage = {
     const period = single ? (reportFrom === businessToday() ? 'Today' : turfDayName(reportFrom)) : turfDayName(reportFrom) + ' – ' + turfDayName(reportTo);
     const gamingKeys = [...CATEGORIES, ...(amount('Manual') ? ['Manual'] : [])], productKeys = PRODUCT_KINDS.map(k => k[0]);
     const gaming = gamingKeys.reduce((sum, k) => sum + amount(k), 0), products = productKeys.reduce((sum, k) => sum + amount(k), 0), total = s.receivedPaise;
+    if (reportView === 'courts') { page.append(courtsReport(s)); return; }
     const head = (title, glyphName) => h('div', 'rep-head', glyph(glyphName), h('h2', { text: title }));
     const line = (label, value, cls = '') => h('div', ('rep-line ' + cls).trim(), h('span', { text: label }), h('b', { class: 'num', text: value }));
 
     // Received: the one large figure, the money taken in the dates, and what it was for: the floor, the turf and the counter
     // for that day's bills, then Advance, Pending and Credit, each under its own name.
-    const mix = [['Gaming floor', gaming, 'pc'], ...REPORT_COURT_KEYS.map(k => [k, amount(k), 'turf']), ['Snacks & drinks', products, 'snacks'], ['Advance', collected.advance, 'advance'], ['Pending', collected.pending, 'pending'], ['Credit', collected.credit, 'credit']];
+    const mix = [['Gaming floor', gaming, 'pc'], ...REPORT_COURT_KEYS.map(k => [k, amount(k), 'turf']), ...['Membership', 'Rentals'].filter(k => amount(k)).map(k => [REPORT_PARTS[k].label, amount(k), 'turf']), ['Snacks & drinks', products, 'snacks'], ['Advance', collected.advance, 'advance'], ['Pending', collected.pending, 'pending'], ['Credit', collected.credit, 'credit']];
     const lead = h('section', { class: 'rep-card rep-lead', data: { figure: 'received' } },
       h('div', 'rep-kicker', h('span', { text: 'Received' }), h('span', { class: 'rep-when', text: period })),
       h('div', { class: 'rep-big num', text: money(total) }),
@@ -14985,11 +15556,8 @@ const reportsPage = {
         h('div', 'rep-bar', h('i', { style: 'width:' + (amount(k) / top) * 100 + '%;background:var(--part-' + REPORT_PARTS[k].tone + ');color:var(--part-' + REPORT_PARTS[k].tone + ')' })))));
     };
     const floorPanel = h('section', { class: 'rep-card', data: { panel: 'floor' } }, head('Gaming floor & courts', 'PS5'), rows([...gamingKeys, ...REPORT_COURT_KEYS, ...['Membership', 'Rentals'].filter(k => amount(k))], usageText));
-    const counterPanel = h('section', { class: 'rep-card', data: { panel: 'counter' } }, head('Snacks & drinks', 'drink'), rows(productKeys, null),
-      // Bookings (owner, 22 October): how many, and the cancellations, no-shows and walk-ins who left, for these days.
-      ...(s.reservations ? [h('div', { class: 'rep-bookings', data: { panel: 'bookings' } }, head('Reservations', 'reservations'),
-        line('Booked', String(s.reservations.total)), line('Checked in', String(s.reservations.arrived)), line('Cancelled', String(s.reservations.cancelled)),
-        line('No-shows', String(s.reservations.noShow)), line('Walk-ins waited', String(s.reservations.walkIns || 0)), line('Walk-ins left', String(s.reservations.left || 0)))] : []));
+    // The Reservations box went (owner, 14 November: "remove second picture").
+    const counterPanel = h('section', { class: 'rep-card', data: { panel: 'counter' } }, head('Snacks & drinks', 'drink'), rows(productKeys, null));
     // Advance, Pending and Credit, each under its own name (owner, 1 November): paid ahead of a booking or a game, paid for a
     // bill of an earlier day, paid into a credit account.
     const otherLines = [['advance', 'Advance', 'clock'], ['pending', 'Pending collected', 'bills'], ['credit', 'Credit collected', 'credits']];
@@ -17731,8 +18299,10 @@ const turfPage = {
   bar(bar) {
     turfDay = turfDay || dayKey(nowMs());
     // A tab per venue inside Courts, as the gaming floor's category bar (owner, 22 October): Turf | Badminton | Pickleball.
-    bar.append(h('div', { class: 'cat-tabs venue-tabs', role: 'group', 'aria-label': ARENA_BRANCH.courtsName }, VENUES.map(v =>
-      h('button', { type: 'button', class: 'chip', 'aria-pressed': String(v.key === turfVenue), data: { venue: v.key }, onclick: () => { turfVenue = v.key; turfPicked = { day: '', cells: new Set() }; render(); } }, icon(v.icon), h('span', { text: v.name })))));
+    // Export CSV in the ⋮ at the end of this row, where there is room (owner, 14 November: "maybe that export you can move somewhere else").
+    bar.append(h('div', 'venue-row', h('div', { class: 'cat-tabs venue-tabs', role: 'group', 'aria-label': ARENA_BRANCH.courtsName }, VENUES.map(v =>
+      h('button', { type: 'button', class: 'chip', 'aria-pressed': String(v.key === turfVenue), data: { venue: v.key }, onclick: () => { turfVenue = v.key; turfPicked = { day: '', cells: new Set() }; render(); } }, icon(v.icon), h('span', { text: v.name })))),
+      h('span', 'desk-only venue-more', menu([['Export CSV', () => exportCsv('turf'), false, 'download']], 'More'))));;
     // No Day / Upcoming switch (owner, 12 November: "whats the need of upcoming?? … waste right"): the cards, the date box and All bookings.
     if (turfView === 'board') bar.append(btn([icon('back'), 'Cards'], () => { turfView = 'day'; render(); }, 'outline', { data: { action: 'turf-cards' } }));
     {
@@ -17754,9 +18324,14 @@ const turfPage = {
       // Memberships (owner, 22 October), beside Bulk booking, where the venue has them.
       if ((venueHere().memberships || []).length) bar.append(btn([icon('users'), 'Membership'], () => turfMemberSheet(), 'quiet', { data: { action: 'turf-member' } }));
       if (list) bar.append(btn([icon('whatsapp'), h('span', { class: 'desk-only', text: 'Availability' })], () => turfShareSheet(turfDay, list), 'quiet', { title: 'Share availability', 'aria-label': 'Share availability', data: { action: 'turf-availability' } }));
+      // How many courts are booked that day, next to Availability, on badminton and pickleball (owner, 14 November).
+      // The hours booked that day, however many each booking has (owner, 14 November: "just keep booked hours … how many hours have
+      // been booked that you keep count").
+      // A Hold or a Hold (Pay) is not counted (owner, 14 November: "do not consider, hold and hold(pay) while counting hours").
+      const here = venueHere().key === 'turf' || !list ? null : list.filter(b => courtsHere().includes(b.court) && !turfHeld(b)), hours = here ? here.reduce((n, b) => n + Number(b.hours), 0) : 0;
+      if (here) bar.append(h('span', { class: 'turf-booked-count', data: { courtsHours: String(hours) }, title: 'Hours booked this day' },
+        h('span', 'turf-booked-part', icon('clock'), h('b', { text: String(hours) }), hours === 1 ? ' Hour booked' : ' Hours booked')));
     }
-    // Exports are a desk job; a phone does not show them.
-    bar.append(h('span', 'spacer desk-only'), btn([icon('download'), 'Export CSV'], () => exportCsv('turf'), 'outline desk-only'));
   },
   render(target) {
     const list = turfBookingsOn(turfDay);
@@ -18166,7 +18741,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "39b74b8f85f4";
+const APP_BUILD = "250ac076917d";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
