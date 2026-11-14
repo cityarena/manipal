@@ -3342,6 +3342,46 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .extend-total.blocked { border-color: var(--warn-line); background: var(--warn-soft); }
 .extend-clear { margin-left: auto; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: #ffffff; color: var(--ink-2); font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
 @media (max-width: 480px) { .extend-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Reports, simple (owner's pictures of 15 November): the money received in tiles, what that money is in one strip with its bar,
+   how it came in a row for each way, and the Revenue Mix beside it; on a phone one under another. */
+.rs { display: grid; gap: 16px; }
+.rs-tiles { display: grid; grid-template-columns: repeat(var(--tiles, 3), minmax(0, 1fr)); gap: 16px; }
+.rs-tile { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 16px; padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--r-xl); background: #ffffff; box-shadow: 0 1px 2px rgb(var(--tint) / 0.06), 0 14px 30px -22px rgb(var(--tint) / 0.5); }
+.rs-tile-icon { grid-row: span 3; display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--primary-soft); color: var(--primary); }
+.rs-tile-icon svg { width: 28px; height: 28px; }
+.rs-tile-label { color: var(--ink-2); font-size: var(--text-md); font-weight: 600; }
+.rs-tile-amount { font-family: var(--display); font-size: var(--text-3xl); line-height: 1.05; color: var(--ink); }
+.rs-tile small { color: var(--ink-3); font-size: var(--text-sm); }
+.rs-card { display: grid; gap: 14px; padding: 20px 22px; border-radius: var(--r-xl); }
+.rs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rs-head h2 { margin: 0; font-size: var(--text-lg); }
+.rs-head > b { font-size: var(--text-xl); }
+.rs-bar { display: flex; height: 12px; overflow: hidden; border-radius: 999px; background: rgb(var(--w-f1ece2)); }
+.rs-bar i { display: block; min-width: 0; }
+.rs-parts { display: grid; grid-template-columns: repeat(var(--parts, 4), minmax(0, 1fr)); gap: 12px; }
+.rs-part { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: #ffffff; }
+.rs-part span { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: var(--text-sm); font-weight: 600; }
+.rs-part span i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.rs-part b { font-size: var(--text-xl); font-variant-numeric: tabular-nums; }
+.rs-part.zero b { color: var(--ink-3); }
+.rs-today { background: #7c3aed; }
+.rs-members { background: #db2777; }
+.rs-advance { background: #0f766e; }
+.rs-pending { background: #d97706; }
+.rs-credit { background: #2563eb; }
+.rs-back { background: #dc2626; }
+.rs-owed { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+.rs-owed b { color: var(--ink); }
+.rs-rows { display: grid; gap: 8px; }
+.rs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: #ffffff; font-size: var(--text-base); }
+.rs-row span { display: inline-flex; align-items: center; gap: 10px; color: var(--ink-2); font-weight: 600; }
+.rs-row span svg { width: 18px; height: 18px; color: var(--primary); }
+.rs-row b { font-size: var(--text-lg); font-variant-numeric: tabular-nums; }
+.rs-row.zero b { color: var(--ink-3); }
+.rs-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .rs-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rs-parts { grid-template-columns: repeat(3, minmax(0, 1fr)); } .rs-two { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .rs-tiles { grid-template-columns: minmax(0, 1fr); } .rs-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rs-tile, .rs-card { padding: 16px; } }
 </style>
 </head>
 <body>
@@ -14045,38 +14085,13 @@ async function exportReport() {
   const billSheet = tableSheet('Payments', bills.columns, bills.rows, ['Amount']);
   downloadBlob(xlsxFile('report', [summary, byPart, billSheet]), 'city-arena-report-' + (single ? reportFrom : reportFrom + '-to-' + reportTo) + '.xlsx');
 }
-// Badminton and pickleball for their own owner, as the owner's picture of 14 November ("do it nicely like this … i do not want
-// line by line"): a card for each venue (its money, bookings and hours, a small trend), the bookings or the money of the two in a
-// ring, the money over time (Daily, Weekly, Monthly), the key figures, and every figure of each venue as a tile: its courts,
-// memberships, rentals, snacks, beverages and ice cream, advance, pending and credit collected, anything taken back, Cash and
-// UPI and what is still owed. The same payments as the whole business's report, never counted twice.
-let courtsTrendStep = 'weekly', courtsTrendCache = { key: '', data: null }, courtsMixBy = 'bookings';
-// Each venue box's tab (Total, Today, Advance, Pending collected, Credit collected, Owed).
-const courtsVenueView = {};
-async function loadCourtsTrend(key) {
-  courtsTrendCache = { key, data: null };
-  try {
-    const data = await rpc('rpcCourtsTrend', token, courtsTrendStep, reportTo, reportPass);
-    if (courtsTrendCache.key === key) { courtsTrendCache = { key, data }; render(); }
-  } catch (e) { notify('error', e.message); }
-}
+// Each side of Reports as the owner's pictures of 15 November: the money received in its tiles, what that money is, how it came in,
+// and the Revenue Mix (sideReport).
 const COURT_TONES = { pickleball: 'pb', badminton: 'bad', floor: 'gf', turf: 'tf', snacks: 'sn' };
 function svgEl(tag, attrs) {
   const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
   return node;
-}
-// A smooth line through points (a Catmull-Rom curve as cubic Béziers, its bends kept between each two points).
-function smoothPath(points) {
-  if (!points.length) return '';
-  let d = 'M' + points[0][0] + ' ' + points[0][1];
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] || points[i], p1 = points[i], p2 = points[i + 1], p3 = points[i + 2] || p2;
-    // The bends kept between the two points' heights, so the line never dips below nothing or rises above a top it did not reach.
-    const low = Math.min(p1[1], p2[1]), high = Math.max(p1[1], p2[1]), keep = n => Math.min(high, Math.max(low, n));
-    d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6) + ' ' + keep(p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ' ' + keep(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + p2[0] + ' ' + p2[1];
-  }
-  return d;
 }
 // The venues of a side of the business (owner, 14 November): badminton and pickleball for their owner; the gaming floor and the
 // turf for the rest ("just like how we did for badminton and pickleball, we need to do same for gamingfloor and turf").
@@ -14091,161 +14106,82 @@ function sideVenues(side) {
 // The games on the floor, as Reports names them.
 const floorGames = () => CATEGORIES.filter(k => REPORT_PARTS[k]);
 function sideReport(s, side) {
-  const floorSide = side === 'floor', courts = (floorSide ? s.floor : s.courts) || {}, courtUse = s.courtUsage || {}, venues = sideVenues(side);
+  // A side of Reports, simple (owner, 15 November: "only thing what he wants from the report is"): first the money received, a tile
+  // for each source (on the gaming floor and turf: the gaming floor, the turf, snacks & drinks; on badminton and pickleball: badminton
+  // with its hours booked, rentals, pickleball with its hours, snacks & drinks); then what that money is, so an inflated day explains
+  // itself (owner: "out of the money received today how much is advance, pending collected … for badminton how much is advance,
+  // membership"): for today, memberships, advance, pending collected, credit collected and anything taken back, adding up to the same
+  // total, and what is still to come (not in it); then how it came in, Cash and each UPI account; and the Revenue Mix. Every money
+  // figure adds up to the same total.
+  const floorSide = side === 'floor', data = (floorSide ? s.floor : s.courts) || {}, boxes = Object.values(data);
   const empty = { receivedPaise: 0, cashPaise: 0, upiPaise: 0, upiBy: {}, advance: 0, pending: 0, credit: 0, reversed: 0, pendingOwedPaise: 0, creditOwedPaise: 0, by: {}, owedBy: {}, byAs: {} };
-  // The gaming floor's sessions and the hours played; a venue's bookings and hours booked (holds never counted).
-  const floorUse = () => {
-    const u = s.usage || {}, minutesPlayed = Object.values(u).reduce((n, x) => n + (Number(x.minutes) || 0), 0);
-    return { bookings: Object.keys(u).reduce((n, k) => n + (Number(k === 'PS5' ? u[k].groups : u[k].sessions) || 0), 0), hours: Math.round(minutesPlayed / 6) / 10 };
-  };
-  const of = v => courts[v.name] || empty, use = v => (v.played ? floorUse() : courtUse[v.name === 'Turf' ? 'Turf' : v.name] || { bookings: 0, hours: 0 });
-  const hoursWord = v => (v.played ? 'Hours played' : 'Hours booked'), countWord = v => (v.played ? ['session', 'sessions'] : ['booking', 'bookings']);
-  const twoPlaces = n => Math.round(n * 100) / 100;
-  const trendKey = courtsTrendStep + '|' + reportTo;
-  if (courtsTrendCache.key !== trendKey) loadCourtsTrend(trendKey);
-  const trend = courtsTrendCache.key === trendKey ? courtsTrendCache.data : null;
-  const tone = v => COURT_TONES[v.key] || 'pb';
-  const venueIcon = v => v.icon || (v.key === 'pickleball' ? 'pickleball' : 'badminton');
-  const label = b => (courtsTrendStep === 'monthly' ? new Date(b.fromKey + 'T00:00:00+05:30').toLocaleDateString('en-IN', { timeZone: IST, month: 'short' }) : new Date(b.toKey + 'T00:00:00+05:30').toLocaleDateString('en-IN', { timeZone: IST, day: 'numeric', month: 'short' }));
-  const seg = (options, value, choose, action) => h('div', { class: 'cd-seg', role: 'group' }, options.map(([key, text]) => h('button', { type: 'button', 'aria-pressed': String(value === key), data: { action: action + '-' + key }, onclick: () => choose(key) }, text)));
-
-  // Each venue's card as the owner's picture of 14 November: its bookings in the Revenue Trend's period (this week at first),
-  // up or down against the one before ("12% vs last week"), and a bar for each period of the trend, the latest brightest.
-  const versus = { daily: 'vs yesterday', weekly: 'vs last week', monthly: 'vs last month' }[courtsTrendStep];
-  const before = { daily: 'yesterday', weekly: 'last week', monthly: 'last month' }[courtsTrendStep];
-  const now = { daily: 'Today', weekly: 'This week', monthly: 'This month' }[courtsTrendStep];
-  const bars = v => {
-    const svg = svgEl('svg', { viewBox: '0 0 160 64', class: 'cd-bars', 'aria-hidden': 'true' });
-    const values = trend ? trend.map(b => (b.venues[v.trend || v.name] || {}).hours || 0) : [];
-    const top = Math.max(1, ...values), gap = 6, width = values.length ? (160 - gap * (values.length - 1)) / values.length : 0;
-    values.forEach((n, i) => svg.append(svgEl('rect', { x: i * (width + gap), y: 64 - Math.max(4, (n / top) * 60), width, height: Math.max(4, (n / top) * 60), rx: 3, class: i === values.length - 1 ? 'now' : '' })));
-    return svg;
-  };
-  const change = v => {
-    if (!trend || trend.length < 2) return null;
-    const cur = (trend[trend.length - 1].venues[v.trend || v.name] || {}).hours || 0, prev = (trend[trend.length - 2].venues[v.trend || v.name] || {}).hours || 0;
-    if (!prev) return h('span', { class: 'cd-hero-change', text: cur ? 'No ' + hoursWord(v).toLowerCase() + ' ' + before : 'None ' + before + ' either' });
-    const pct = Math.round(((cur - prev) / prev) * 100);
-    return h('span', { class: 'cd-hero-change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : '') }, pct ? icon(pct > 0 ? 'arrowUp' : 'arrowDown') : null, h('b', { class: 'num', text: Math.abs(pct) + '%' }), ' ' + versus);
-  };
-  const heroes = h('div', 'cd-heroes', venues.filter(v => !v.sold).map(v => {
-    // Hours booked, the same figure as the courts bar (owner, 14 November: "what shows on booking should reflect same in reports").
-    const last = trend && trend.length ? trend[trend.length - 1].venues[v.trend || v.name] || {} : null, latest = last ? last.hours || 0 : null;
-    return h('section', { class: 'cd-hero ' + tone(v), data: { courtReport: v.key } },
-      h('span', { class: 'cd-hero-art court-art-' + v.key, role: 'img', 'aria-label': v.name }),
-      h('div', 'cd-hero-text', h('span', { class: 'cd-hero-name', text: v.name }), h('small', { class: 'cd-hero-when', text: hoursWord(v) + ' · ' + now }),
-        h('b', { class: 'cd-hero-total num' + (latest == null ? ' loading' : ''), text: latest == null ? ' ' : bookedHoursText(latest) }),
-        last ? h('span', { class: 'cd-hero-hours', text: plural(last.bookings || 0, ...countWord(v)) }) : null, change(v)),
-      bars(v));
-  }));
-
-  // A ring, its total in the middle and each part's figure and share beside it.
-  const ringOf = (parts, centre, centreLabel, label) => {
-    const whole = parts.reduce((n, x) => n + x.value, 0), svg = svgEl('svg', { viewBox: '0 0 120 120', class: 'cd-ring', role: 'img', 'aria-label': label + ': ' + parts.map(x => x.name + ' ' + x.shown).join(', ') });
-    svg.append(svgEl('circle', { cx: 60, cy: 60, r: 46, class: 'cd-ring-track', pathLength: 100 }));
-    let from = 0;
-    for (const x of parts) {
-      const share = whole ? (x.value / whole) * 100 : 0;
-      if (share > 0) svg.append(svgEl('circle', { cx: 60, cy: 60, r: 46, class: 'cd-ring-arc ' + (x.tone || ''), pathLength: 100, 'stroke-dasharray': share + ' ' + (100 - share), 'stroke-dashoffset': -from, ...(x.color ? { style: 'stroke:' + x.color } : {}) }));
-      from += share;
-    }
-    return h('div', 'cd-overview',
-      h('div', 'cd-ring-wrap', svg, h('div', 'cd-ring-centre', h('b', { class: 'num', text: centre }), h('span', { text: centreLabel }))),
-      // One part only: the ring's total says it, never written again beside it.
-      parts.length < 2 ? null : h('ul', 'cd-legend', parts.map(x => h('li', null, h('i', { class: x.tone || '', ...(x.color ? { style: 'background:' + x.color } : {}) }), h('span', { text: x.name }), h('b', { class: 'num', text: x.shown }), h('small', { class: 'num', text: whole ? ((x.value / whole) * 100).toFixed(1) + '%' : '0%' })))));
-  };
-  // The two venues in one ring, as Bookings, Playtime, Revenue or Owed (owner, 14 November: "can you not keep only 1 pie chart
-  // and integrate all … when i click bookings booking ka thing shows").
-  const owedOf = v => of(v).pendingOwedPaise + of(v).creditOwedPaise;
-  const MIX = {
-    bookings: { value: v => use(v).bookings, shown: n => String(n), centre: n => String(n), label: floorSide ? 'Visits' : 'Total Bookings' },
-    playtime: { value: v => use(v).hours, shown: n => plural(twoPlaces(n), 'hour', 'hours'), centre: n => String(twoPlaces(n)), label: n => (n === 1 ? 'Hour played' : 'Hours played') },
-    revenue: { value: v => of(v).receivedPaise, shown: n => money(n), centre: n => money(n), label: 'Total Revenue' },
-    owed: { value: owedOf, shown: n => money(n), centre: n => money(n), label: 'Still Owed' }
-  };
-  const mixBy = floorSide && (courtsMixBy === 'bookings' || !MIX[courtsMixBy]) ? 'revenue' : MIX[courtsMixBy] ? courtsMixBy : 'bookings';
-  const how = MIX[mixBy], ringVenues = mixBy === 'revenue' || mixBy === 'owed' ? venues : venues.filter(v => !v.sold), howTotal = ringVenues.reduce((n, v) => n + how.value(v), 0);
-  const overview = h('section', { class: 'rep-card cd-card', data: { courtsPanel: 'overview' } },
-    h('div', 'cd-card-head', h('span', 'cd-card-title', icon('reports'), h('h2', { text: 'Activity Overview' })),
-      seg([...(floorSide ? [] : [['bookings', 'Bookings']]), ['playtime', 'Playtime'], ['revenue', 'Revenue'], ['owed', 'Owed']], mixBy, key => { courtsMixBy = key; render(); }, 'courts-mix')),
-    ringOf(ringVenues.map(v => ({ name: v.name, tone: tone(v), value: how.value(v), shown: how.shown(how.value(v)) })), how.centre(howTotal), typeof how.label === 'function' ? how.label(howTotal) : how.label, 'Activity'));
-  // What the money of both was for (owner, 14 November): the court, the memberships on their own (a day a membership is paid
-  // shows why it jumped), rentals, and the snacks, beverages and ice cream shared by both owners — money paid later included.
-  const byAll = k => venues.reduce((n, v) => n + ((of(v).by || {})[k] || 0), 0);
-  const sharedOf = by => ((by || {}).Snacks || 0) + ((by || {}).Beverages || 0) + ((by || {})['Ice cream'] || 0);
-  const sumBy = v => Object.values((of(v).by) || {}).reduce((n, x) => n + x, 0);
-  const floorVenue = venues.find(v => v.played), turfVenue = venues.find(v => v.key === 'turf'), soldVenue = venues.find(v => v.sold);
-  const gamesBy = floorVenue ? of(floorVenue).by || {} : {}, gamesKnown = floorGames().reduce((n, k) => n + (gamesBy[k] || 0), 0);
-  const mixParts = floorSide ? [
+  const of = name => data[name] || empty, sumOf = key => boxes.reduce((n, c) => n + (Number(c[key]) || 0), 0);
+  const courtUse = name => (s.courtUsage || {})[name] || { bookings: 0, hours: 0 };
+  const hoursBooked = n => bookedHoursText(n) + (Math.round(n * 60) % 60 ? ' booked' : n === 1 ? ' hour booked' : ' hours booked');
+  const playedHours = Object.values(s.usage || {}).reduce((n, x) => n + (Number(x.minutes) || 0), 0) / 60;
+  const total = sumOf('receivedPaise');
+  // 1. The money received, a tile for each source.
+  const tile = (key, glyphName, label, paise, sub) => h('section', { class: 'rs-tile', data: { reportTile: key } },
+    h('span', 'rs-tile-icon', icon(glyphName)), h('span', { class: 'rs-tile-label', text: label }), h('b', { class: 'rs-tile-amount num', text: money(paise) }), sub ? h('small', { text: sub }) : null);
+  const rentalsOf = name => (of(name).by || {}).rentals || 0;
+  const courtVenues = VENUES.filter(v => v.key !== 'turf');
+  const tiles = floorSide
+    ? [tile('floor', 'PS5', 'Gaming floor', of('Gaming floor').receivedPaise, bookedHoursText(Math.round(playedHours * 60) / 60) + ' played'),
+      tile('turf', 'football', 'Turf', of('Turf').receivedPaise, hoursBooked(courtUse('Turf').hours)),
+      tile('snacks', 'drink', 'Snacks & drinks', of('Snacks & drinks').receivedPaise)]
+    : [...courtVenues.sort((a, c) => (a.key === 'badminton' ? -1 : c.key === 'badminton' ? 1 : 0)).flatMap(v => [
+      tile(v.key, v.key === 'pickleball' ? 'pickleball' : 'badminton', v.name, of(v.name).receivedPaise - rentalsOf(v.name), hoursBooked(courtUse(v.name).hours)),
+      ...((v.rentals || []).length ? [tile(v.key + '-rentals', 'racket', 'Rentals', rentalsOf(v.name), (v.rentals || []).map(g => g.name.toLowerCase() + 's').join(' and ').replace(/^./, x => x.toUpperCase()))] : [])]),
+    tile('snacks', 'drink', 'Snacks & drinks', of('Snacks & drinks').receivedPaise)];
+  // 2. What this money is: the same total, by what each rupee was.
+  const advance = sumOf('advance'), pending = sumOf('pending'), credit = sumOf('credit'), back = sumOf('reversed');
+  const members = floorSide ? 0 : boxes.reduce((n, c) => n + (((c.byAs || {}).today || {}).membership || 0), 0);
+  const forToday = total - advance - pending - credit + back - members;
+  const parts = [['today', 'For today', forToday], ...(floorSide ? [] : [['members', 'Memberships', members]]), ['advance', 'Advance', advance], ['pending', 'Pending collected', pending], ['credit', 'Credit collected', credit], ...(back ? [['back', 'Taken back', -back]] : [])];
+  const owedPending = sumOf('pendingOwedPaise'), owedCredit = sumOf('creditOwedPaise');
+  const what = h('section', { class: 'rep-card rs-card', data: { reportWhat: '' } },
+    h('div', 'rs-head', h('span', 'cd-card-title', icon('wallet'), h('h2', { text: 'What this money is' })), h('b', { class: 'num', text: money(total) })),
+    h('div', 'rs-bar' + (total > 0 ? '' : ' none'), parts.filter(x => x[2] > 0).map(([key, , paise]) => h('i', { class: 'rs-' + key, style: 'flex:' + paise }))),
+    h('div', { class: 'rs-parts', style: '--parts:' + parts.length }, parts.map(([key, label, paise]) => h('div', { class: 'rs-part' + (paise ? '' : ' zero'), data: { reportPart: key } },
+      h('span', null, h('i', { class: 'rs-' + key }), label), h('b', { class: 'num', text: money(paise) })))),
+    owedPending || owedCredit ? h('p', { class: 'rs-owed', data: { reportOwed: '' } }, 'Still to come, not in this money: ', ...[owedPending ? ['Pending ', owedPending] : null, owedCredit ? ['On credit ', owedCredit] : null].filter(Boolean)
+      .flatMap(([label, paise], i) => [i ? ' · ' : '', label, h('b', { class: 'num', text: money(paise) })]).filter(Boolean)) : null);
+  // 3. How it came in: Cash and each UPI account (UPI from before the accounts as "UPI, no account").
+  const upiBy = {};
+  for (const c of boxes) for (const [k, v] of Object.entries(c.upiBy || {})) upiBy[k] = (upiBy[k] || 0) + v;
+  const ways = [['cash', 'Cash', sumOf('cashPaise'), 'cash'], ...(UPI_ACCOUNTS || []).map(a => [a.id, a.name, upiBy[a.id] || 0, a.icon || 'upi']), ...(upiBy[''] ? [['none', UPI_ACCOUNTS ? 'UPI, no account' : 'UPI', upiBy[''], 'upi']] : [])];
+  const how = h('section', { class: 'rep-card rs-card', data: { reportHow: '' } },
+    h('div', 'rs-head', h('span', 'cd-card-title', icon('cash'), h('h2', { text: 'How it came in' }))),
+    h('div', 'rs-rows', ways.map(([key, label, paise, glyphName]) => h('div', { class: 'rs-row' + (paise ? '' : ' zero'), data: { reportWay: key } }, h('span', null, icon(glyphName), label), h('b', { class: 'num', text: money(paise) })))));
+  // 4. The Revenue Mix: every rupee of the side once, its total the same as above.
+  const byAll = k => boxes.reduce((n, c) => n + ((c.by || {})[k] || 0), 0), sumBy = c => Object.values(c.by || {}).reduce((n, x) => n + x, 0);
+  const gamesBy = of('Gaming floor').by || {}, gamesKnown = floorGames().reduce((n, k) => n + (gamesBy[k] || 0), 0);
+  const mixParts = (floorSide ? [
     ...floorGames().map(k => ({ name: REPORT_PARTS[k].label, color: 'var(--part-' + REPORT_PARTS[k].tone + ')', value: gamesBy[k] || 0 })),
-    { name: 'Other games', tone: 'k-member', value: (floorVenue ? sumBy(floorVenue) : 0) - gamesKnown - (gamesBy.rentals || 0) },
-    { name: 'Turf', tone: 'k-court', value: (turfVenue ? sumBy(turfVenue) - ((of(turfVenue).by || {}).rentals || 0) : 0) },
+    { name: 'Other games', tone: 'k-member', value: sumBy(of('Gaming floor')) - gamesKnown - (gamesBy.rentals || 0) },
+    { name: 'Turf', tone: 'k-court', value: sumBy(of('Turf')) - ((of('Turf').by || {}).rentals || 0) },
     { name: 'Rentals', tone: 'k-rentals', value: byAll('rentals') },
-    { name: 'Snacks & drinks', tone: 'k-shared', value: soldVenue ? sumBy(soldVenue) : 0 }
-  ].filter(x => (x.name !== 'Rentals' && x.name !== 'Other games') || x.value).map(x => ({ ...x, shown: money(x.value) })) : [
+    { name: 'Snacks & drinks', tone: 'k-shared', value: sumBy(of('Snacks & drinks')) }
+  ].filter(x => (x.name !== 'Rentals' && x.name !== 'Other games') || x.value) : [
     { name: 'Court', tone: 'k-court', value: byAll('court') },
     { name: 'Memberships', tone: 'k-member', value: byAll('membership') },
     { name: 'Rentals', tone: 'k-rentals', value: byAll('rentals') },
-    { name: 'Snacks & drinks (shared)', tone: 'k-shared', value: byAll('Snacks') + byAll('Beverages') + byAll('Ice cream') }
-  ].map(x => ({ ...x, shown: money(x.value) }));
-  const mixTotal = mixParts.reduce((n, x) => n + x.value, 0);
-  const revenueMix = h('section', { class: 'rep-card cd-card', data: { courtsPanel: 'mix' } },
-    h('div', 'cd-card-head', h('span', 'cd-card-title', icon('wallet'), h('h2', { text: 'Revenue Mix' }))),
-    ringOf(mixParts, money(mixTotal), 'Total Revenue', 'Revenue mix'));
-
-  // The money over time, a line for each venue and the two together shaded.
-  const chart = svgEl('svg', { viewBox: '0 0 1100 250', class: 'cd-trend-chart', role: 'img', 'aria-label': 'Revenue trend' });
-  if (trend && trend.length) {
-    const L = 60, R = 1060, T = 14, B = 214, totals = trend.map(b => venues.reduce((n, v) => n + ((b.venues[v.trend || v.name] || {}).receivedPaise || 0), 0));
-    const top = Math.max(100000, ...totals), stepY = Math.ceil(top / 4 / 50000) * 50000, maxY = stepY * 4;
-    const x = i => (trend.length === 1 ? (L + R) / 2 : L + (i * (R - L)) / (trend.length - 1)), y = n => B - (n / maxY) * (B - T);
-    for (let g = 0; g <= 4; g++) {
-      chart.append(svgEl('line', { x1: L, x2: R, y1: y(g * stepY), y2: y(g * stepY), class: 'cd-grid' }));
-      const t = svgEl('text', { x: L - 8, y: y(g * stepY) + 4, class: 'cd-axis', 'text-anchor': 'end' });
-      t.textContent = '₹' + (g * stepY >= 100000 ? (g * stepY) / 100000 + 'k' : (g * stepY) / 100);
-      chart.append(t);
-    }
-    trend.forEach((b, i) => { const t = svgEl('text', { x: x(i), y: B + 22, class: 'cd-axis', 'text-anchor': 'middle' }); t.textContent = label(b); chart.append(t); });
-    const all = totals.map((n, i) => [x(i), y(n)]);
-    chart.append(svgEl('path', { d: smoothPath(all) + ' L' + all[all.length - 1][0] + ' ' + B + ' L' + all[0][0] + ' ' + B + ' Z', class: 'cd-area' }));
-    for (const v of venues) {
-      const pts = trend.map((b, i) => [x(i), y((b.venues[v.trend || v.name] || {}).receivedPaise || 0)]);
-      chart.append(svgEl('path', { d: smoothPath(pts), class: 'cd-line ' + tone(v) }));
-      pts.forEach(p => chart.append(svgEl('circle', { cx: p[0], cy: p[1], r: 4, class: 'cd-dot ' + tone(v) })));
-    }
+    { name: 'Snacks & drinks', tone: 'k-shared', value: sumBy(of('Snacks & drinks')) }
+  ]).map(x => ({ ...x, shown: money(x.value) }));
+  const mixTotal = mixParts.reduce((n, x) => n + x.value, 0), svg = svgEl('svg', { viewBox: '0 0 120 120', class: 'cd-ring', role: 'img', 'aria-label': 'Revenue mix: ' + mixParts.map(x => x.name + ' ' + x.shown).join(', ') });
+  svg.append(svgEl('circle', { cx: 60, cy: 60, r: 46, class: 'cd-ring-track', pathLength: 100 }));
+  let from = 0;
+  for (const x of mixParts) {
+    const share = mixTotal > 0 ? (Math.max(0, x.value) / mixTotal) * 100 : 0;
+    if (share > 0) svg.append(svgEl('circle', { cx: 60, cy: 60, r: 46, class: 'cd-ring-arc ' + (x.tone || ''), pathLength: 100, 'stroke-dasharray': share + ' ' + (100 - share), 'stroke-dashoffset': -from, ...(x.color ? { style: 'stroke:' + x.color } : {}) }));
+    from += share;
   }
-  const trendCard = h('section', { class: 'rep-card cd-card', data: { courtsPanel: 'trend' } },
-    h('div', 'cd-card-head', h('span', 'cd-card-title', icon('arrowUp'), h('h2', { text: 'Revenue Trend' })), seg([['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']], courtsTrendStep, key => { courtsTrendStep = key; render(); }, 'courts-trend')),
-    trend ? chart : loadingRows(3),
-    h('ul', 'cd-legend inline', venues.map(v => h('li', null, h('i', { class: tone(v) }), h('span', { text: v.name })))));
-
-  // Each venue: one ring with a tab for each way the money came in (owner, 14 November: "keep 2 tabs one is total and one more is
-  // pending collected … use the same logic every where"), its parts the court, memberships and rentals (the venue's owner) and the
-  // snacks, beverages and ice cream (shared by both owners), the two totals under it.
-  const VIEWS = [['total', 'Total', 'Total received'], ['today', 'Today', 'Paid for the day'], ['advance', 'Advance', 'Paid ahead'], ['pending', 'Pending collected', 'For earlier days'], ['credit', 'Credit collected', 'Into accounts'], ['owed', 'Owed', 'Still owed']];
-  const details = h('div', 'cd-details', venues.map(v => {
-    const c = of(v), view = VIEWS.some(x => x[0] === courtsVenueView[v.key]) ? courtsVenueView[v.key] : 'total';
-    const figures = (view === 'total' ? c.by : view === 'owed' ? c.owedBy : (c.byAs || {})[view]) || {};
-    // The gaming floor's parts are its games, each in its colour; a venue's its court (the turf), memberships and rentals.
-    const own = v.sold ? [['Snacks', 'Snacks', 'k-snack'], ['Beverages', 'Beverages', 'k-bev'], ['Ice cream', 'Ice cream', 'k-ice']]
-      : v.played ? floorGames().map(k => [k, REPORT_PARTS[k].label, '', 'var(--part-' + REPORT_PARTS[k].tone + ')'])
-        : [['court', floorSide ? 'Turf' : 'Court', 'k-court'], ...((v.memberships || []).length ? [['membership', 'Memberships', 'k-member']] : []), ...((v.rentals || []).length ? [['rentals', 'Rentals', 'k-rentals']] : [])];
-    const parts = own.map(([k, name, toneKey, color]) => ({ name, tone: toneKey, color, value: Math.max(0, figures[k] || 0), shown: money(figures[k] || 0) }));
-    // The box's total is all its money, so it is what came in below it; anything not one of its parts is Other, never left out.
-    const totalPaise = Object.values(figures).reduce((n, x) => n + x, 0), other = totalPaise - own.reduce((n, x) => n + (figures[x[0]] || 0), 0);
-    if (other) parts.push({ name: 'Other', tone: 'k-member', value: Math.max(0, other), shown: money(other) });
-    const label = VIEWS.find(x => x[0] === view)[2];
-    return h('section', { class: 'rep-card cd-card cd-detail ' + tone(v), data: { courtDetail: v.key } },
-      h('div', 'cd-card-head', h('span', 'cd-card-title', icon(venueIcon(v)), h('h2', { text: v.name })),
-        v.sold ? null : h('small', { class: 'cd-detail-use', text: plural(use(v).bookings, ...countWord(v)) + ' · ' + (Math.round(use(v).hours * 60) % 60 ? bookedHoursText(use(v).hours) : plural(use(v).hours, 'hour', 'hours')) + (v.played ? ' played' : '') })),
-      seg(VIEWS.map(x => [x[0], x[1]]), view, key => { courtsVenueView[v.key] = key; render(); }, 'court-view-' + v.key),
-      // Only the parts with money; one alone is named in the ring under its total, never written twice.
-      ringOf(parts, money(totalPaise), label, v.name + ' ' + label),
-      // How the total came in, Cash and each UPI account, adding up to it.
-      view === 'total' ? payWaysLine(c) : null,
-      view === 'owed' ? h('div', 'cd-detail-split muted', h('span', null, 'Pending ', h('b', { class: 'num', text: money(c.pendingOwedPaise) })), h('span', null, 'On credit ', h('b', { class: 'num', text: money(c.creditOwedPaise) }))) : null);
-  }));
-  return h('div', { class: 'cd', data: { side } }, heroes, h('div', 'cd-middle two', overview, revenueMix), trendCard, details);
+  const mix = h('section', { class: 'rep-card cd-card', data: { courtsPanel: 'mix' } },
+    h('div', 'cd-card-head', h('span', 'cd-card-title', icon('wallet'), h('h2', { text: 'Revenue Mix' }))),
+    h('div', 'cd-overview',
+      h('div', 'cd-ring-wrap', svg, h('div', 'cd-ring-centre', h('b', { class: 'num', text: money(mixTotal) }), h('span', { text: 'Total Revenue' }))),
+      h('ul', 'cd-legend', mixParts.map(x => h('li', null, h('i', { class: x.tone || '', ...(x.color ? { style: 'background:' + x.color } : {}) }), h('span', { text: x.name }), h('b', { class: 'num', text: x.shown }), h('small', { class: 'num', text: mixTotal ? ((x.value / mixTotal) * 100).toFixed(1) + '%' : '0%' }))))));
+  return h('div', { class: 'rs', data: { side } }, h('div', { class: 'rs-tiles', style: '--tiles:' + tiles.length }, tiles), what, h('div', 'rs-two', how, mix));
 }
 // How a box's money came in, adding up to its total (owner, 14 November: "the below written is not matching"): Cash and each UPI
 // account with money in it; UPI paid before the accounts were kept as "UPI, no account". Each figure once: with one way only it
@@ -19683,7 +19619,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "8cc344ba5f3b";
+const APP_BUILD = "7336969060a6";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
