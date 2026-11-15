@@ -3507,6 +3507,22 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .game-menu-card { cursor: default; }
 .carried-line .line-tick { margin-right: 4px; }
 .carried-line.off .line-main b, .carried-line.off .line-amount { color: var(--ink-3); text-decoration: line-through; }
+.bill-parts .bill-part { padding-left: 28px; }
+.bill-parts .bill-open { flex: none; }
+
+/* Memberships & academies (owner, 16 November): the balance opened out under its row, earlier bookings one row each. */
+.owed-open { margin-left: 6px; vertical-align: middle; }
+tr.owed-row > td { padding: 0 var(--gap-4, 16px) var(--gap-4, 16px); background: var(--card); }
+.owed-lines .line-main .small + .small { display: block; }
+.earlier-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.earlier-row input, .earlier-row select { min-width: 0; }
+.earlier-row .earlier-day { flex: 1 1 140px; }
+.earlier-row .earlier-court { flex: 1 1 140px; }
+.earlier-row .earlier-time { flex: 1 1 180px; }
+.earlier-row .earlier-for { flex: 0 1 110px; }
+td.num:has(.owed-open) { white-space: nowrap; }
+.earlier-row .line-amount { flex: none; min-width: 72px; text-align: right; }
+.whatsapp-records { margin-bottom: 16px; padding: 12px 16px; }
 </style>
 </head>
 <body>
@@ -3818,7 +3834,7 @@ var ArenaCore = (function () {
   // bookings (a Forever series kept would book its weeks again), late cancels, memberships, lane minutes, reservation notes and
   // academy statements. Every rate stays; an academy keeps its account, with nothing owed, so its rates still work; the
   // stock counts stay with the menu and go without it.
-  var RECORD_SETTINGS = ['counter-', 'turfSeries-', 'lateCancel-', 'member-', 'laneExtra-', 'reservationMoved-', 'reservationControllers-', 'academyStatement-'];
+  var RECORD_SETTINGS = ['counter-', 'turfSeries-', 'lateCancel-', 'member-', 'accountKind-', 'laneExtra-', 'reservationMoved-', 'reservationControllers-', 'academyStatement-'];
   // keepBookings (owner, 15 November: "add an option there not to erase turf and court bookings"): the turf and court bookings of today
   // and later stay, with their weekly series, each without its old bill (the money starts fresh with everything else).
   function freshStart(state, keepMenu, keepBookings, now) {
@@ -3827,7 +3843,11 @@ var ArenaCore = (function () {
     out.Equipment = (state.Equipment || []).slice();
     var today = new Date((now || Date.now()) + 19800000).toISOString().slice(0, 10);
     var record = function (id) { return (RECORD_SETTINGS.some(function (p) { return id.indexOf(p) === 0; }) && !(keepBookings && id.indexOf('turfSeries-') === 0)) || (!keepMenu && id.indexOf('stock-') === 0); };
-    if (keepBookings) out.TurfBookings = (state.TurfBookings || []).filter(function (b) { return b.status === 'booked' && String(b.dateKey) >= today; }).map(function (b) { var kept = JSON.parse(JSON.stringify(b)); kept.tabId = ''; kept.split = ''; return kept; });
+    // Only bookings not yet over (owner, 16 November: the day's bookings already played were kept without their bills and went to
+    // Pending by themselves at midnight, 35 of them); an academy's keep their marker, so they stay on its account.
+    var stillToCome = function (b) { return Date.parse(String(b.dateKey) + 'T00:00:00+05:30') + (Number(b.startHour) + Number(b.hours)) * 3600000 > (now || Date.now()); };
+    if (keepBookings) out.TurfBookings = (state.TurfBookings || []).filter(function (b) { return b.status === 'booked' && String(b.dateKey) >= today && stillToCome(b); }).map(function (b) { var kept = JSON.parse(JSON.stringify(b)); kept.tabId = ''; kept.split = ''; return kept; });
+    if (keepBookings) { var keptIds = out.TurfBookings.map(function (b) { return JSON.stringify([b.id]); }); out.Notes = (state.Notes || []).filter(function (n) { return n.kind === 'TURF_ACCOUNT' && keptIds.indexOf(n.refsJson) >= 0; }); }
     out.Settings = (state.Settings || []).filter(function (r) { return !record(String(r.id)); });
     var academies = out.Settings.filter(function (r) { return String(r.id).indexOf('academy-') === 0; }).map(function (r) { return String(r.id).slice(8); });
     out.CreditAccounts = (state.CreditAccounts || []).filter(function (a) { return academies.indexOf(a.id) >= 0; });
@@ -5473,6 +5493,11 @@ var ArenaViews = (function () {
     // Visits with a bill still owing: their turf bookings come too, whatever the day, for the Pending list.
     var owedTabs = {};
     bills.forEach(function (b) { if (b.totalPaise > b.paidPaise && details[b.id]) owedTabs[details[b.id].tabId] = true; });
+    // An academy's bookings on its account come too, for 120 days, so its balance opened out names each day and court even once paid
+    // off (owner, 16 November: "breakdown of cost with the date and court they booked").
+    var academyIds = {};
+    (state.Settings || []).forEach(function (r) { if (String(r.id).indexOf('academy-') === 0) academyIds[String(r.id).slice(8)] = true; });
+    (state.CreditTransfers || []).forEach(function (t) { if (academyIds[t.accountId] && Number(t.createdMs) >= now - 120 * 86400000 && details[t.billId]) owedTabs[details[t.billId].tabId] = true; });
     var turfLive = typeof ArenaTurf !== 'undefined' ? ArenaTurf.live(state, now, owedTabs) : [];
     var out = {
       Equipment: state.Equipment || [],
@@ -6706,7 +6731,7 @@ var ArenaReports = (function () {
    their own items, settled through the usual checkout. Every amount is an ordinary order on an ordinary tab. */
 var ArenaTurf = (function () {
   'use strict';
-  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY', 'PENDING_PART_PAY', 'PENDING_PART_CREDIT'];
+  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY', 'PENDING_PART_PAY', 'PENDING_PART_CREDIT', 'TURF_EARLIER', 'TURF_COACHING'];
   // Items bought for Team A, Team B or everyone are kept once, as bought, and each player's part is one line on their bill.
   var SHARED = 'Shared items', GROUPS = ['A', 'B', 'all'];
   // Every court of every venue comes from the branch's settings (Branch.gs), switched-off ones included, so old bookings and
@@ -6743,6 +6768,18 @@ var ArenaTurf = (function () {
     var y = Number(from.slice(0, 4)), m = Number(from.slice(5, 7)) - 1 + months, d = Number(from.slice(8, 10));
     var last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
     return addDays(new Date(Date.UTC(y, m, Math.min(d, last))).toISOString().slice(0, 10), -1);
+  }
+  // Rupees as written on a screen: "₹30,000".
+  function rupees(paise) { var r = String(Math.round(paise / 100)), last = r.slice(-3), rest = r.slice(0, -3); return '₹' + (rest ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' : '') + last; }
+  // A member's credit account: theirs by mobile, else by name, else a new one; marked a membership account so Credit lists it under
+  // Memberships & academies (owner, 16 November).
+  function memberAccount(state, person, actor, now, id) {
+    var digits = String(person.phone || '').replace(/\D/g, ''), detail = digits ? (state.CreditDetails || []).find(function (d) { return String(d.phone || '').replace(/\D/g, '') === digits; }) : null;
+    var found = detail ? (state.CreditAccounts || []).find(function (a) { return a.id === detail.id; }) : (state.CreditAccounts || []).find(function (a) { return String(a.name).trim().toLowerCase() === String(person.customer).trim().toLowerCase(); });
+    var accountId = found ? found.id : ArenaCredits.execute(state, { type: 'CREATE_CREDIT_ACCOUNT', name: person.customer, phone: person.phone || '', openingPaise: 0 }, actor, now, id + '-account').accountId;
+    state.Settings = state.Settings || [];
+    if (!state.Settings.some(function (r) { return r.id === 'accountKind-' + accountId; })) state.Settings.push({ id: 'accountKind-' + accountId, value: 'membership' });
+    return accountId;
   }
   function memberOf(booking) { var m = /^member:([^ ]+)/.exec(String(booking.reason || '')); return m ? m[1] : ''; }
   function hoursOf(court) { var c = courtOf(court); return c ? { open: c.venue.open, close: c.venue.close } : { open: OPEN_HOUR, close: CLOSE_HOUR }; }
@@ -6928,8 +6965,13 @@ var ArenaTurf = (function () {
   // Which bookings and players are on an academy's account: a marker kept once, when they are made.
   function accountOf(state, refId) {
     var note = (state.Notes || []).find(function (n) { return n.kind === 'TURF_ACCOUNT' && n.refsJson === JSON.stringify([refId]); });
-    if (!note) return null;
-    try { return JSON.parse(note.text); } catch (e) { return null; }
+    if (note) { try { return JSON.parse(note.text); } catch (e) { return null; } }
+    // A booking of a weekly series made for an academy is the academy's, even where its marker was lost (owner, 16 November: after
+    // an erase that kept the bookings, Victoria's 6–7pm "has become a regular customer booking … change that and any future of that
+    // booking to coaching only").
+    var b = (state.TurfBookings || []).find(function (x) { return x.id === refId; }), sid = b ? seriesOf(b) : '', plan = sid ? seriesPlan(state, sid) : null;
+    if (plan && plan.academyId && !(plan.academyFrom && b.dateKey < plan.academyFrom) && academies(state).some(function (a) { return a.accountId === plan.academyId; })) return { accountId: plan.academyId, mode: 'coaching' };
+    return null;
   }
   // Snacks and drinks on a bill, so a move to an academy's credit says what the amount was for.
   function goodsOf(state, tabId) {
@@ -7349,27 +7391,85 @@ var ArenaTurf = (function () {
       var plan2 = memberPlan(state, cmd.court, cmd.plan);
       check(!!plan2, 'Choose the membership.');
       var person2 = who(Object.assign({}, cmd, { sport: courtOf(cmd.court).venue.sports[0] }));
-      check(validKey(cmd.from) && cmd.from >= dateKeyOf(now), 'Choose the first day.');
+      // Started before the app (owner, 16 November: "i cannot move back to july … record it, he has done part payment"): a first day
+      // up to a year back, what was paid till then (never counted as received now), the rest on the member's account.
+      var earlier2 = cmd.paidBeforePaise != null, today2 = dateKeyOf(now);
+      if (earlier2) check(validKey(cmd.from) && cmd.from < today2 && cmd.from >= addDays(today2, -366), 'Choose the day it started.');
+      else check(validKey(cmd.from) && cmd.from >= today2, 'Choose the first day.');
+      if (earlier2) check(Number.isSafeInteger(cmd.paidBeforePaise) && cmd.paidBeforePaise >= 0 && cmd.paidBeforePaise <= plan2.pricePaise, 'Enter what was paid till now, up to ' + rupees(plan2.pricePaise) + '.');
+      // Part paid now (owner, 16 November: "people will pay half amount now and rest later … give option to select full or part").
+      var part2 = cmd.partPaise != null;
+      if (part2) check(!earlier2 && Number.isSafeInteger(cmd.partPaise) && cmd.partPaise > 0 && cmd.partPaise < plan2.pricePaise, 'Part payment is more than ₹0 and less than ' + rupees(plan2.pricePaise) + '.');
       // Monday to Saturday only: no membership hours on a Sunday (owner, 12 November: "we do not give on sundays").
       var days2 = Array.isArray(cmd.days) && cmd.days.length ? cmd.days : [1, 2, 3, 4, 5, 6];
       check(days2.every(function (d) { return Number.isInteger(d) && d >= 0 && d <= 6; }) && new Set(days2).size === days2.length, 'Choose the days.');
       check(days2.indexOf(0) < 0, 'Memberships run Monday to Saturday.');
       var openHours = hoursOf(cmd.court);
       check(Number.isSafeInteger(cmd.startHour) && Number.isSafeInteger(cmd.hours) && cmd.hours >= 1 && cmd.startHour >= openHours.open && cmd.startHour + cmd.hours <= openHours.close, hoursWords(cmd.court));
-      ArenaCore.payParts(state, Array.isArray(cmd.payments) && cmd.payments.length ? cmd : { amountPaise: 1, method: cmd.method });
+      if (!earlier2) ArenaCore.payParts(state, Array.isArray(cmd.payments) && cmd.payments.length ? cmd : { amountPaise: 1, method: cmd.method });
       var until2 = untilOf(cmd.from, plan2.months);
-      var run2 = bookPlan(state, { customer: person2.customer, phone: person2.phone, sport: person2.sport, academyId: '', onHold: '', days: days2.map(function (d) { return { weekday: d, courts: [cmd.court], startHour: cmd.startHour, hours: cmd.hours }; }) }, cmd.from, until2, now, id, '');
+      check(until2 >= today2, 'This membership has already ended.');
+      var run2 = bookPlan(state, { customer: person2.customer, phone: person2.phone, sport: person2.sport, academyId: '', onHold: '', days: days2.map(function (d) { return { weekday: d, courts: [cmd.court], startHour: cmd.startHour, hours: cmd.hours }; }) }, earlier2 ? today2 : cmd.from, until2, now, id, '');
       check(run2.made.length > 0, 'Every chosen hour is already taken.');
       run2.made.forEach(function (bid) { var b = row(state.TurfBookings, bid); b.ratePaise = 0; b.reason = 'member:' + id; b.confirmSent = 'yes'; });
-      // The payment: one bill for the membership, paid now.
+      // The payment: one bill for the membership. Paid in full now; or part now and the rest on the member's account; or, started
+      // earlier, what is left after what was paid till then, on the account.
       var what2 = courtOf(cmd.court).venue.name + ' membership · ' + plan2.name + ' · ' + COURT_NAMES[cmd.court] + ' · ' + hourText(cmd.startHour) + '–' + hourText(cmd.startHour + cmd.hours);
-      var bill2 = ArenaSales.execute(state, { type: 'QUICK_TAB', customer: person2.customer, phone: person2.phone }, actor, now, id + '-bill');
-      state.Orders.push({ id: id + '-fee', tabId: bill2.tabId, productId: '', label: what2, category: 'Membership', quantity: 1, unitPricePaise: plan2.pricePaise, totalPaise: plan2.pricePaise, createdMs: now, status: 'active', purchaser: person2.customer, durationMinutes: '', ratesJson: JSON.stringify({ member: id }), reason: 'Membership', revision: 1 });
-      var paid2 = ArenaLifecycle.execute(state, { type: 'SETTLE_REVIEW', tabId: bill2.tabId, settlement: 'pay', discountType: 'none', discountValue: 0, amountPaise: plan2.pricePaise, method: cmd.method, payments: cmd.payments }, actor, now, id + '-pay');
+      var owed2 = earlier2 ? plan2.pricePaise - cmd.paidBeforePaise : plan2.pricePaise, account2 = '', paid2 = {};
+      if ((part2 || earlier2) && owed2 > 0) account2 = memberAccount(state, person2, actor, now, id);
+      if (owed2 > 0) {
+        var bill2 = ArenaSales.execute(state, { type: 'QUICK_TAB', customer: person2.customer, phone: person2.phone }, actor, now, id + '-bill');
+        state.Orders.push({ id: id + '-fee', tabId: bill2.tabId, productId: '', label: what2 + (earlier2 && cmd.paidBeforePaise ? ' · from ' + shortDate(cmd.from) + ' · ' + rupees(cmd.paidBeforePaise) + ' paid before' : ''), category: 'Membership', quantity: 1, unitPricePaise: owed2, totalPaise: owed2, createdMs: now, status: 'active', purchaser: person2.customer, durationMinutes: '', ratesJson: JSON.stringify({ member: id }), reason: 'Membership', revision: 1 });
+        paid2 = account2
+          ? ArenaLifecycle.execute(state, { type: 'SETTLE_REVIEW', tabId: bill2.tabId, settlement: 'credit', discountType: 'none', discountValue: 0, amountPaise: part2 ? cmd.partPaise : 0, method: cmd.method || 'cash', payments: part2 ? cmd.payments : undefined, accountId: account2 }, actor, now, id + '-pay')
+          : ArenaLifecycle.execute(state, { type: 'SETTLE_REVIEW', tabId: bill2.tabId, settlement: 'pay', discountType: 'none', discountValue: 0, amountPaise: owed2, method: cmd.method, payments: cmd.payments }, actor, now, id + '-pay');
+      }
       state.Settings = state.Settings || [];
-      state.Settings.push({ id: 'member-' + id, value: JSON.stringify({ customer: person2.customer, phone: person2.phone, plan: plan2.id, court: cmd.court, startHour: cmd.startHour, hours: cmd.hours, days: days2, from: cmd.from, until: until2, pricePaise: plan2.pricePaise, billId: paid2.billId || '', createdMs: now }) });
+      state.Settings.push({ id: 'member-' + id, value: JSON.stringify({ customer: person2.customer, phone: person2.phone, plan: plan2.id, court: cmd.court, startHour: cmd.startHour, hours: cmd.hours, days: days2, from: cmd.from, until: until2, pricePaise: plan2.pricePaise, paidBeforePaise: earlier2 ? cmd.paidBeforePaise : 0, paidNowPaise: earlier2 ? 0 : part2 ? cmd.partPaise : plan2.pricePaise, accountId: account2, billId: paid2.billId || '', createdMs: now }) });
       if (typeof ArenaCustomers !== 'undefined') ArenaCustomers.touch(state, person2.customer, person2.phone, now, id + '-customer');
-      return { memberId: id, bookingIds: run2.made, skipped: run2.skipped, until: until2, billId: paid2.billId, receiptNumber: paid2.receiptNumber, message: 'Membership · ' + run2.made.length + ' slots booked to ' + shortDate(until2) + '.' };
+      var left2 = account2 ? owed2 - (part2 ? cmd.partPaise : 0) : 0;
+      return { memberId: id, bookingIds: run2.made, skipped: run2.skipped, until: until2, billId: paid2.billId || '', receiptNumber: paid2.receiptNumber || '', accountId: account2, leftPaise: left2, message: 'Membership · ' + run2.made.length + ' slots booked to ' + shortDate(until2) + '.' + (left2 ? ' ' + rupees(left2) + ' on ' + person2.customer + '’s account.' : '') };
+    }
+    if (cmd.type === 'TURF_EARLIER') {
+      // Bookings played before they were put in the app (owner, 16 November: Victoria's bookings of 2–15 November from WhatsApp,
+      // "record it and put the total of it in the account"): each on its day, court and hours, at the academy's coaching rate,
+      // straight onto its account, as any slot of its that is over.
+      var club5 = academy(state, cmd.academyId), list5 = Array.isArray(cmd.entries) ? cmd.entries : [], today5 = dateKeyOf(now), made5 = [], total5 = 0;
+      var phone5 = ((state.CreditDetails || []).find(function (d) { return d.id === club5.accountId; }) || {}).phone || '';
+      check(list5.length >= 1 && list5.length <= 40, 'Add up to 40 bookings at a time.');
+      list5.forEach(function (e, n) {
+        check(validKey(e.dateKey) && e.dateKey < today5 && e.dateKey >= addDays(today5, -366), 'Each booking is on a day before today.');
+        check(COURTS.indexOf(e.court) >= 0, 'Choose a court.');
+        var open5 = hoursOf(e.court);
+        check(Number.isSafeInteger(e.startHour) && Number.isSafeInteger(e.hours) && e.hours >= 1 && e.startHour >= open5.open && e.startHour + e.hours <= open5.close, hoursWords(e.court));
+        var other5 = clash(state, e.dateKey, e.court, e.startHour, e.hours, '');
+        if (other5) check(false, shortDate(e.dateKey) + ' · ' + COURT_NAMES[e.court] + ' is already booked for ' + other5.customer + '.');
+        var b5 = { id: id + '-' + n, dateKey: e.dateKey, startHour: e.startHour, hours: e.hours, court: e.court, sport: courtOf(e.court).venue.sports[0], customer: club5.name, phone: phone5, status: 'booked', confirmSent: 'yes', reason: 'earlier', createdMs: now, updatedMs: now, revision: 1, ratePaise: coachRate(state, club5, e.court), tabId: '', split: '', discountPaise: 0 };
+        state.TurfBookings.push(b5);
+        markAccount(state, b5.id, { accountId: club5.accountId, mode: 'coaching' }, now, b5.id + '-account');
+        ensureMain(state, b5, now, id + '-' + n);
+        sync(state, b5, now, id + '-' + n);
+        ArenaLifecycle.execute(state, { type: 'SETTLE_REVIEW', tabId: tabOf(state, b5.tabId).id, settlement: 'credit', discountType: 'none', discountValue: 0, amountPaise: 0, method: 'cash', accountId: club5.accountId }, actor, now, id + '-due-' + n);
+        made5.push(b5.id);
+        total5 += feeOf(b5);
+      });
+      return { bookingIds: made5, amountPaise: total5, message: made5.length + (made5.length === 1 ? ' booking' : ' bookings') + ' · ' + rupees(total5) + ' on ' + club5.name + '’s account.' };
+    }
+    if (cmd.type === 'TURF_COACHING') {
+      // A booking made an academy's coaching, at its coaching rate and on its account; a weekly one with every later week and the
+      // weeks still to be booked (owner, 16 November).
+      var club6 = academy(state, cmd.academyId), first6 = row(state.TurfBookings, cmd.id);
+      check(first6.status === 'booked' && !accountOf(state, first6.id), 'This booking is already on an account.');
+      check(!first6.tabId || !(state.Orders || []).some(function (o) { return o.tabId === first6.tabId && o.status === 'active' && o.category !== 'Turf'; }) && !(state.Payments || []).some(function (p) { var d = (state.BillDetails || []).find(function (x) { return x.id === p.billId; }); return d && d.tabId === first6.tabId; }), 'Settle or move this booking’s bill first.');
+      var sid6 = seriesOf(first6), plan6 = sid6 ? seriesPlan(state, sid6) : null, phone6 = ((state.CreditDetails || []).find(function (d) { return d.id === club6.accountId; }) || {}).phone || first6.phone;
+      var list6 = [first6].concat(plan6 ? seriesBookings(state, sid6).filter(function (b) { return b.id !== first6.id && b.dateKey > first6.dateKey && !b.tabId && !accountOf(state, b.id); }) : []);
+      list6.forEach(function (b) {
+        b.customer = club6.name; b.phone = phone6; b.ratePaise = coachRate(state, club6, b.court); b.updatedMs = now; b.revision = Number(b.revision || 0) + 1;
+        markAccount(state, b.id, { accountId: club6.accountId, mode: 'coaching' }, now, id + '-' + b.id);
+        if (b.tabId) sync(state, b, now, id + '-' + b.id);
+      });
+      if (plan6) { plan6.academyId = club6.accountId; plan6.academyFrom = first6.dateKey; plan6.customer = club6.name; plan6.phone = phone6; saveSeries(state, sid6, plan6); }
+      return { bookingIds: list6.map(function (b) { return b.id; }), message: list6.length === 1 ? 'Now ' + club6.name + '’s coaching.' : list6.length + ' bookings now ' + club6.name + '’s coaching.' };
     }
     if (cmd.type === 'TURF_SPOT') {
       // Spot booking (owner, 14 November: "people might come now ask to play from 6:15-7:00"): on the day, from a time to a time
@@ -8293,7 +8393,7 @@ var ArenaTurf = (function () {
   }
   return {
     handles: function (type) { return types.indexOf(type) >= 0; }, execute: execute, live: live, pendingFor: pendingFor, setPendingFor: setPendingFor, carryPendingFor: carryPendingFor, coachingTab: coachingTab, livePlayers: livePlayers, settlement: settlement, range: range, day: day, importRows: importRows, exportRows: exportRows,
-    memberOf: memberOf, memberPlan: memberPlan, untilOf: untilOf, clash: clash, meet: meet, rentalOf: rentalOf, hoursOf: hoursOf, courtOf: courtOf, linked: linked, holdOf: holdOf, maybeOf: maybeOf, dateKeyOf: dateKeyOf, feeOf: feeOf, rateFor: rateFor, locked: locked, meta: meta, COURTS: COURTS, SPORTS: SPORTS, OPEN_HOUR: OPEN_HOUR, CLOSE_HOUR: CLOSE_HOUR
+    memberOf: memberOf, memberPlan: memberPlan, accountOf: accountOf, untilOf: untilOf, clash: clash, meet: meet, rentalOf: rentalOf, hoursOf: hoursOf, courtOf: courtOf, linked: linked, holdOf: holdOf, maybeOf: maybeOf, dateKeyOf: dateKeyOf, feeOf: feeOf, rateFor: rateFor, locked: locked, meta: meta, COURTS: COURTS, SPORTS: SPORTS, OPEN_HOUR: OPEN_HOUR, CLOSE_HOUR: CLOSE_HOUR
   };
 })();
 
@@ -14371,8 +14471,8 @@ async function receiptSheet(billId, back) {
   let amount, how;
   // A pending bill of more than one part (nothing paid on it, no discount): each part with a tick, all ticked at first; Collect, Move
   // to Credit and Move act on what is ticked, each in one save (the ticked part becomes a bill of its own, the rest stays pending).
-  const onTurf = data.tab ? turfBookingForTab(data.tab.id) : null, parts = payable && !onTurf && !(bill.paidPaise > 0) && !((detail || {}).discountPaise > 0) ? billParts(data) : [];
-  const ticking = parts.length > 1, off = new Set();
+  const onTurf = data.tab ? turfBookingForTab(data.tab.id) : null, groups = payable && !onTurf && !(bill.paidPaise > 0) && !((detail || {}).discountPaise > 0) ? billParts(data) : [];
+  const parts = groups.flatMap(r => r.pieces), ticking = groups.length > 1 || (groups.length === 1 && parts.length > 1), off = new Set(), opened = new Set();
   const ticked = () => parts.filter(p => !off.has(p.key)), tickedSum = () => ticked().reduce((n, p) => n + p.paise, 0), partly = () => ticking && off.size > 0;
   const splitOf = () => ({ billId, segmentIds: ticked().flatMap(p => p.segmentIds), orderIds: ticked().flatMap(p => p.orderIds) });
   openSheet({
@@ -14406,10 +14506,24 @@ async function receiptSheet(billId, back) {
             : [...(correctable(data) && data.payments.length ? [] : [['Correct charges', () => reasonSheet({ title: 'Correct charges · Bill ' + data.number, sub: 'The visit opens again to be corrected and settled.', action: 'Open to correct', icon: 'pencil', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => (result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet()) }), false, 'pencil']]),
               ['Void bill', () => reasonSheet({ title: 'Void bill ' + data.number, sub: 'Cancelled completely: nothing is charged.', action: 'Void bill', icon: 'ban', tone: 'bad', command: reason => ({ type: 'VOID_BILL', billId, reason, whole: true }), then: result => { closeSheet(); render(); return { text: result.message }; } }), true, 'ban']]) : [])
         ], 'Bill actions'))));
-      if (ticking) ui.body.append(h('div', { class: 'lines end-pick bill-parts', data: { field: 'bill-parts' } }, parts.map(p => h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(!off.has(p.key)), data: { part: p.key }, onclick: () => { if (off.has(p.key)) off.delete(p.key); else off.add(p.key); ui.redraw(); } },
-        h('input', { type: 'checkbox', checked: !off.has(p.key), tabindex: '-1', 'aria-hidden': 'true' }),
-        h('div', 'line-main', h('b', { text: p.name }), h('span', { class: 'small muted', text: p.detail.join(' · ') })),
-        h('span', { class: 'line-amount', text: money(p.paise) })))));
+      if (ticking) {
+        const lines = [];
+        for (const r of groups) {
+          const keys = r.pieces.map(x => x.key), on = keys.filter(k => !off.has(k)).length, box = h('input', { type: 'checkbox', checked: on === keys.length, tabindex: '-1', 'aria-hidden': 'true' });
+          box.indeterminate = on > 0 && on < keys.length;
+          const opens = r.pieces.length > 1;
+          lines.push(h('div', { class: 'line pick bill-group-row', role: 'button', tabindex: '0', 'aria-pressed': String(on === keys.length), data: { part: r.key }, onclick: () => { if (on === keys.length) keys.forEach(k => off.add(k)); else keys.forEach(k => off.delete(k)); ui.redraw(); } },
+            box,
+            h('div', 'line-main', h('b', { text: r.name }), h('span', { class: 'small muted', text: r.detail })),
+            h('span', { class: 'line-amount', text: money(r.paise) }),
+            opens ? h('button', { type: 'button', class: 'icon-btn bill-open', 'aria-label': opened.has(r.key) ? 'Hide' : 'Show what it was', data: { action: 'bill-group-open' }, onclick: e => { e.stopPropagation(); if (opened.has(r.key)) opened.delete(r.key); else opened.add(r.key); ui.redraw(); } }, icon(opened.has(r.key) ? 'minus' : 'plus')) : null));
+          if (opens && opened.has(r.key)) for (const x of r.pieces) lines.push(h('div', { class: 'line pick bill-part', role: 'button', tabindex: '0', 'aria-pressed': String(!off.has(x.key)), data: { part: x.key }, onclick: () => { if (off.has(x.key)) off.delete(x.key); else off.add(x.key); ui.redraw(); } },
+            h('input', { type: 'checkbox', checked: !off.has(x.key), tabindex: '-1', 'aria-hidden': 'true' }),
+            h('div', 'line-main', h('b', { text: x.name }), h('span', { class: 'small muted', text: x.detail.join(' · ') })),
+            h('span', { class: 'line-amount', text: money(x.paise) })));
+        }
+        ui.body.append(h('div', { class: 'lines end-pick bill-parts', data: { field: 'bill-parts' } }, lines));
+      }
       else drawLines(ui.body, { segments: data.segments, orders: data.orders, customer, tab: data.tab || null, editable: false, detail: true, pauses: data.pauses });
       const notes = notesBlock([billId, data.tab ? data.tab.id : '']);
       if (notes) ui.body.append(notes);
@@ -14425,7 +14539,8 @@ async function receiptSheet(billId, back) {
         else if (data.carry) summary.append(kv('Moved to the booking on ' + turfDayName(data.carry.dateKey), money(data.carry.amountPaise), 'gold'));
         else if (data.payments.length || due !== bill.totalPaise) summary.append(kv('Outstanding', money(due), 'due ' + (due > 0 ? 'owing' : 'clear'), { data: { balance: '1' } }));
       }
-      section('Bill summary', summary);
+      // The whole-bill line already says the total; nothing else to sum up then (nothing paid, no discount).
+      if (!ticking) section('Bill summary', summary);
       for (const c of data.corrections.filter(c => c.kind === 'bill_void')) ui.body.append(h('p', { class: 'small muted', style: 'margin-top:10px', text: 'Voided: ' + c.reason + ' (was ' + money(Number(c.oldValue)) + ')' }));
 
       // 2. Each payment made towards this bill, with its receipt number.
@@ -14507,19 +14622,26 @@ async function receiptSheet(billId, back) {
   });
 }
 
-// A pending bill's parts to tick (owner, 15 November: "keep check box and i will click which i want to pay or do anything"): one row a
-// system with its time, one an item, one a balance from earlier.
+// A pending bill's parts to tick (owner, 15 November: "that bill had 2 right?? snooker and bowling, club those 2 … dont breakdown the
+// snooker bill, because it was previous pending moved to this, and if i need i will open it"): one row the bill's own lines (its
+// systems and items), one each bill moved onto it, one each balance from earlier; each opens to its pieces (a system with its
+// time, an item), each with its own tick.
 function billParts(data) {
-  const segs = (data.segments || []).filter(g => g.status !== 'void'), orders = (data.orders || []).filter(o => o.status === 'active'), groups = new Map();
-  for (const g of segs) {
-    const unit = unitOf(g.unitId) || {}, name = unit.name || 'Game';
-    if (!groups.has(name)) groups.set(name, { key: 'u:' + name, name, glyph: unit.category || 'list', detail: [], segmentIds: [], orderIds: [], paise: 0 });
-    const x = groups.get(name);
-    x.segmentIds.push(g.id);
-    x.paise += Number(g.totalPaise || 0);
-    x.detail.push(timerShort(g, timerWords(g, data.pauses || state.Pauses || [])));
-  }
-  return [...groups.values(), ...orders.map(o => ({ key: 'o:' + o.id, name: o.category === 'Carried' ? carriedOf(o).what : o.label + (Number(o.quantity) > 1 ? ' × ' + o.quantity : ''), glyph: o.category === 'Carried' ? 'history' : productIcon(o.category), detail: [o.category === 'Carried' ? 'From earlier' : priceEach(o)], segmentIds: [], orderIds: [o.id], paise: Number(o.totalPaise || 0) }))];
+  const segs = (data.segments || []).filter(g => g.status !== 'void'), orders = (data.orders || []).filter(o => o.status === 'active');
+  const pauses = data.pauses || state.Pauses || [];
+  const piecesOf = (gs, os) => {
+    const units = new Map();
+    for (const g of gs) { const unit = unitOf(g.unitId) || {}, name = unit.name || 'Game'; if (!units.has(name)) units.set(name, { key: 'u:' + g.id, name, detail: [], segmentIds: [], orderIds: [], paise: 0 }); const x = units.get(name); x.segmentIds.push(g.id); x.paise += Number(g.totalPaise || 0); x.detail.push(timerShort(g, timerWords(g, pauses))); }
+    return [...units.values(), ...os.map(o => ({ key: 'o:' + o.id, name: o.category === 'Carried' ? carriedOf(o).what : o.label + (Number(o.quantity) > 1 ? ' × ' + o.quantity : ''), detail: [o.category === 'Carried' ? 'From earlier' : priceEach(o)], segmentIds: [], orderIds: [o.id], paise: Number(o.totalPaise || 0) }))];
+  };
+  const row = (key, name, detail, pieces) => ({ key, name, detail, pieces, paise: pieces.reduce((n, x) => n + x.paise, 0) });
+  const moves = data.tab ? movedOnto(data.tab.id, segs, orders) : [], inMove = new Set(moves.flatMap(m => m.segments.map(g => g.id).concat(m.orders.map(o => o.id))));
+  const ownSegs = segs.filter(g => !inMove.has(g.id)), ownOrders = orders.filter(o => !inMove.has(o.id) && o.category !== 'Carried'), carried = orders.filter(o => !inMove.has(o.id) && o.category === 'Carried');
+  const rows = [];
+  if (ownSegs.length || ownOrders.length) { const pieces = piecesOf(ownSegs, ownOrders); rows.push(row('own', [...new Set(ownSegs.map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))].join(', ') || pieces.map(x => x.name).join(', '), pieces.length > 1 ? pieces.map(x => x.name).join(', ') : pieces[0].detail.join(' · '), pieces)); }
+  moves.forEach((m, i) => { const pieces = piecesOf(m.segments, m.orders); rows.push(row('move' + i, [...new Set(m.segments.map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))].join(', '), 'Moved here', pieces)); });
+  carried.forEach(o => { const pieces = piecesOf([], [o]); rows.push(row('carry:' + o.id, carriedOf(o).what, 'From earlier', pieces)); });
+  return rows;
 }
 // The items a move to credit names on the statement, by themselves (owner, 21 October: nothing to fill in): every item on the
 // bill, when they fit in the amount moved; otherwise none is named.
@@ -16288,7 +16410,8 @@ function accountSheet(accountId) {
           ['Adjust balance', () => creditAdjustSheet(account), false, 'settings'],
           // An academy gets its statement of bookings (owner, 24 October); everyone else the day's account summary.
           ...(phone ? [turfAcademies().some(a => a.accountId === account.id) ? ['Send statement on WhatsApp', () => academyStatementSheet(account), false, 'whatsapp'] : ['Send on WhatsApp', () => whatsapp(phone, dayStatementText(account)), false, 'whatsapp']] : []),
-          [phone ? 'Change mobile' : 'Add mobile', () => creditPhoneSheet(account, false), false, 'user']
+          [phone ? 'Change mobile' : 'Add mobile', () => creditPhoneSheet(account, false), false, 'user'],
+          ...(turfAcademies().some(a => a.accountId === account.id) ? [['Add earlier bookings', () => academyEarlierSheet(account.id), false, 'history']] : [])
         ], 'Account actions')));
       // A bill on this account opens out, in place, to show what it was for.
       const billRow = (billId, title, sub, amount) => {
@@ -16315,7 +16438,7 @@ function accountSheet(accountId) {
       const events = [];
       for (const e of state.CreditEntries.filter(e => e.accountId === account.id)) events.push({ at: e.createdMs, change: e.amountPaise, title: e.label + (e.reason && e.reason !== e.label ? ' · ' + e.reason : ''), who: e.purchaser && e.purchaser !== account.name ? 'for ' + e.purchaser : '', icon: e.amountPaise < 0 ? 'minus' : 'plusCircle' });
       // A bill row is only its number, the time and the amount: whose it was and what for is inside, one tap away.
-      for (const t of state.CreditTransfers.filter(t => t.accountId === account.id)) events.push({ at: t.createdMs, change: t.amountPaise, billId: t.billId, title: 'Bill ' + (numberOf(t.billId) || '') });
+      for (const t of state.CreditTransfers.filter(t => t.accountId === account.id)) events.push({ at: t.createdMs, change: t.amountPaise, billId: t.billId, title: coachingAccount(account.id) ? transferParts(t).map(p => p.title).join(', ') : 'Bill ' + (numberOf(t.billId) || ''), sub: coachingAccount(account.id) ? transferParts(t).map(p => p.sub).join(', ') : '' });
       for (const r of state.CreditReceipts.filter(r => r.accountId === account.id)) {
         const p = state.Payments.find(p => p.id === r.id);
         if (!p) continue;
@@ -16330,7 +16453,7 @@ function accountSheet(accountId) {
       const unsettled = events.slice(settledUpTo + 1), earlier = events.slice(0, settledUpTo + 1);
       // One line of the statement: a bill (opens out to what it was for), a charge, or a payment. Inside a day only the time.
       const lineOf = (e, timeOnly) => {
-        const sub = [e.who, timeOnly ? clock(e.at) : when(e.at)].filter(Boolean).join(' · '), off = e.change < 0;
+        const sub = e.sub || [e.who, timeOnly ? clock(e.at) : when(e.at)].filter(Boolean).join(' · '), off = e.change < 0;
         if (e.billId) return [...billRow(e.billId, e.title, sub, money(e.change)), ...[notesBlock([e.billId])].filter(Boolean)];
         return [h('div', { class: 'line', data: e.payment ? { payment: e.payment.id } : null }, glyph(e.icon, off ? 'jade' : '', 'sm'),
           h('div', 'line-main', h('b', { text: e.title }), h('span', { class: 'small muted', text: sub })),
@@ -16846,25 +16969,177 @@ const creditsPage = {
   title: 'Credit accounts',
   subtitle: 'Manage customer credit accounts, track outstanding balances and add items.',
   bar(bar) {
+    // Two tabs (owner, 16 November: "one for normal credit and one more for membership and coaching and this victoria or academy").
+    bar.append(h('div', 'bar-row', segmented([['credit', 'Credit', 'credits'], ['coaching', 'Memberships & academies', 'users']], creditTab, v => { creditTab = v; render(); }).node));
     bar.append(searchBox(creditSearch, 'Search accounts', v => { creditSearch = v; redrawKeepingFocus(); }));
     bar.append(btn([icon('download'), 'Export'], exportCredit, '', { data: { action: 'export-credit' } }), btn([icon('plus'), 'New account'], newAccountSheet, 'primary', { data: { action: 'new-account' } }));
   },
   render(page) {
     const text = creditSearch.trim().toLowerCase();
-    const accounts = state.CreditAccounts.filter(a => !text || (a.name + ' ' + creditPhone(a.id)).toLowerCase().includes(text))
+    const coaching = creditTab === 'coaching';
+    const accounts = state.CreditAccounts.filter(a => coachingAccount(a.id) === coaching && (!text || (a.name + ' ' + creditPhone(a.id)).toLowerCase().includes(text)))
       .sort((a, b) => creditSummary(b.id).outstandingPaise - creditSummary(a.id).outstandingPaise);
+    if (coaching) page.append(...[whatsappRecordsCard()].filter(Boolean));
+    const academy = id => turfAcademies().some(x => x.accountId === id);
     page.append(table(
       [{ label: 'Account' }, { label: 'Mobile', class: 'hide-s' }, { label: 'Outstanding' }, { label: 'Actions', class: 'r' }],
-      accounts.map(a => h('tr', { class: 'click', data: { account: a.id }, onclick: () => accountSheet(a.id) },
-        h('td', null, person(a.name)), h('td', { class: 'hide-s muted', text: creditPhone(a.id) || '—' }), h('td', { class: 'num' + (creditSummary(a.id).outstandingPaise > 0 ? ' owing' : ''), text: money(creditSummary(a.id).outstandingPaise) }),
-        h('td', { class: 'r' }, h('div', 'row-tools',
-          creditPhone(a.id)
-            ? iconButton('whatsapp', 'Send ' + a.name + ' today’s balance on WhatsApp', e => { e.stopPropagation(); whatsapp(creditPhone(a.id), dayStatementText(a)); }, { data: { action: 'account-whatsapp' } })
-            : iconButton('whatsapp', 'Add ' + a.name + '’s mobile, then send today’s balance on WhatsApp', e => { e.stopPropagation(); creditPhoneSheet(a, true); }, { data: { action: 'account-whatsapp-add' } }),
-          h('button', { type: 'button', class: 'btn', 'aria-label': 'Add snacks or beverages to ' + a.name, title: 'Add snacks or beverages', data: { action: 'account-items' }, onclick: e => { e.stopPropagation(); accountItemsSheet(a); } }, icon('sales'), h('span', { class: 'hide-s', text: 'Add Items' })))))),
-      'No credit accounts.', 'credits'));
+      accounts.flatMap(a => {
+        const due = creditSummary(a.id).outstandingPaise, open = openBreakdowns.has(a.id), kind = academy(a.id) ? 'Academy' : coaching ? 'Membership' : '';
+        // An academy's or a member's balance opens out with + to what it is made of (owner, 16 November: "when i click their balance,
+        // it should show breakdown of cost with the date and court they booked, when i click plus sign").
+        const amount = h('td', { class: 'num' + (due > 0 ? ' owing' : '') }, h('span', { text: money(due) }),
+          coaching && due > 0 ? iconButton(open ? 'minus' : 'plus', open ? 'Hide what ' + a.name + ' owes for' : 'Show what ' + a.name + ' owes for', e => { e.stopPropagation(); if (open) openBreakdowns.delete(a.id); else openBreakdowns.add(a.id); render(); }, { class: 'icon-btn owed-open', data: { action: 'account-breakdown' } }) : null);
+        const row = h('tr', { class: 'click', data: { account: a.id }, onclick: () => accountSheet(a.id) },
+          h('td', null, person(a.name, kind)), h('td', { class: 'hide-s muted', text: creditPhone(a.id) || '—' }), amount,
+          h('td', { class: 'r' }, h('div', 'row-tools',
+            creditPhone(a.id)
+              ? iconButton('whatsapp', 'Send ' + a.name + ' today’s balance on WhatsApp', e => { e.stopPropagation(); if (academy(a.id)) academyStatementSheet(a); else whatsapp(creditPhone(a.id), dayStatementText(a)); }, { data: { action: 'account-whatsapp' } })
+              : iconButton('whatsapp', 'Add ' + a.name + '’s mobile, then send today’s balance on WhatsApp', e => { e.stopPropagation(); creditPhoneSheet(a, true); }, { data: { action: 'account-whatsapp-add' } }),
+            // Pay beside WhatsApp (owner, 16 November: "so its simple to just click and pay how much ever they are giving").
+            due > 0 ? h('button', { type: 'button', class: 'btn', 'aria-label': 'Take a payment from ' + a.name, data: { action: 'account-pay' }, onclick: e => { e.stopPropagation(); creditPaySheet(a); } }, icon('wallet'), h('span', { text: 'Pay' })) : null,
+            h('button', { type: 'button', class: 'btn', 'aria-label': 'Add snacks or beverages to ' + a.name, title: 'Add snacks or beverages', data: { action: 'account-items' }, onclick: e => { e.stopPropagation(); accountItemsSheet(a); } }, icon('sales'), h('span', { class: 'hide-s', text: 'Add Items' })))));
+        return open && due > 0 ? [row, h('tr', { class: 'owed-row', data: { owed: a.id } }, h('td', { colspan: '4' }, owedBreakdown(a)))] : [row];
+      }),
+      coaching ? 'No academies or memberships on account.' : 'No credit accounts.', 'credits'));
   }
 };
+// ---------- Memberships & academies (owner, 16 November) ----------
+let creditTab = 'credit';
+const openBreakdowns = new Set();
+// An academy's account or a member's: listed under Memberships & academies, never with ordinary credit.
+const coachingAccount = id => turfAcademies().some(a => a.accountId === id) || (state.Settings || []).some(r => r.id === 'accountKind-' + id && r.value === 'membership');
+// The memberships on an account, as kept when they were made.
+function membershipsOf(accountId) {
+  return (state.Settings || []).filter(r => String(r.id).startsWith('member-')).map(r => { try { return Object.assign({ id: String(r.id).slice(7) }, JSON.parse(r.value)); } catch (e) { return null; } }).filter(m => m && m.accountId === accountId);
+}
+// A membership in words: the venue and plan; the dates, court and hours.
+function membershipWords(m) {
+  const venue = venueOf(courtInfo(m.court).venue), plan = (venue.memberships || []).find(p => p.id === m.plan);
+  return { title: venue.name + ' membership' + (plan ? ' · ' + plan.name : ''), sub: [shortDay(m.from) + ' – ' + shortDay(m.until), courtLabel(m.court), courtHours({ startHour: m.startHour, hours: m.hours })].join(' · ') };
+}
+// What one move to an account was for: an academy's bookings (day, court, hours, price) and its items; a membership (what, how
+// many months, the price and what was paid); anything else its bill.
+function transferParts(t) {
+  const detail = state.BillDetails.find(d => d.id === t.billId), tabId = detail ? detail.tabId : '';
+  const fee = tabId ? state.Orders.find(o => o.tabId === tabId && o.category === 'Membership' && o.status === 'active') : null;
+  if (fee) {
+    let memberId = '';
+    try { memberId = JSON.parse(fee.ratesJson || '{}').member || ''; } catch (e) { memberId = ''; }
+    const m = membershipsOf(t.accountId).find(x => x.id === memberId);
+    if (m) {
+      const words = membershipWords(m), paid = Number(m.paidBeforePaise || 0) + (Number(m.paidNowPaise || 0) < Number(m.pricePaise) ? Number(m.paidNowPaise || 0) : 0);
+      return [{ title: words.title, sub: words.sub, paise: t.amountPaise, note: 'Price ' + money(Number(m.pricePaise)) + ' · paid ' + money(paid) + (m.paidBeforePaise ? ' till ' + shortDay(dayKey(Number(m.createdMs))) : ' when it started') }];
+    }
+  }
+  const bookings = tabId ? (state.TurfBookings || []).filter(b => b.tabId === tabId).sort((x, y) => x.court.localeCompare(y.court)) : [];
+  if (!bookings.length) return [{ title: 'Bill ' + (numberOf(t.billId) || ''), sub: when(t.createdMs), paise: t.amountPaise }];
+  let turf = 0;
+  const parts = bookings.map(b => { const paise = turfFee(b) - Number(b.discountPaise || 0); turf += paise; return { title: shortDay(b.dateKey) + ' · ' + statementCourt(b.court), sub: courtHours(b), paise }; });
+  if (t.amountPaise > turf) parts.push({ title: 'Snacks & beverages', sub: shortDay(bookings[0].dateKey), paise: t.amountPaise - turf });
+  return parts;
+}
+// What an account owes for, since it last stood at nothing: each booking, membership or bill, and each payment after it.
+function owedBreakdown(account) {
+  const events = [];
+  for (const t of state.CreditTransfers.filter(t => t.accountId === account.id)) events.push({ at: t.createdMs, change: t.amountPaise, transfer: t });
+  for (const e of state.CreditEntries.filter(e => e.accountId === account.id)) events.push({ at: e.createdMs, change: e.amountPaise, entry: e });
+  for (const r of state.CreditReceipts.filter(r => r.accountId === account.id)) { const p = state.Payments.find(x => x.id === r.id); if (p) events.push({ at: p.createdMs, change: -p.amountPaise, payment: p }); }
+  events.sort((a, b) => a.at - b.at);
+  let running = 0, from = 0;
+  events.forEach((e, i) => { running += e.change; if (running === 0) from = i + 1; });
+  const line = (glyphName, title, sub, amount, good, note) => h('div', 'line', glyph(glyphName, good ? 'jade' : '', 'sm'),
+    h('div', 'line-main', h('b', { text: title }), h('span', { class: 'small muted', text: sub }), ...[note ? h('span', { class: 'small muted', text: note }) : null].filter(Boolean)),
+    h('span', { class: 'line-amount' + (good ? ' good' : ''), text: amount }));
+  return h('div', { class: 'lines owed-lines' }, events.slice(from).reverse().flatMap(e => {
+    if (e.transfer) return transferParts(e.transfer).map(p => line(p.title.startsWith('Bill') ? 'bills' : p.title === 'Snacks & beverages' ? 'sales' : 'turf', p.title, p.sub, money(p.paise), false, p.note));
+    if (e.entry) return [line('settings', e.entry.label || 'Adjustment', when(e.at), money(e.change), e.change < 0)];
+    return [line(isUpi(e.payment.method) ? 'upi' : 'cash', 'Paid · ' + methodText(e.payment.method), when(e.at), money(e.change), true)];
+  }));
+}
+// Take a payment from an account, any amount up to what it owes (owner, 16 November).
+function creditPaySheet(account) {
+  const due = creditSummary(account.id).outstandingPaise, phone = creditPhone(account.id), payStore = { method: 'cash' };
+  let amount, how;
+  openSheet({
+    title: 'Pay · ' + account.name,
+    sub: 'Outstanding ' + money(due),
+    icon: 'wallet',
+    tone: 'gold',
+    build(ui) {
+      amount = amount || h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: '', placeholder: String(due / 100), 'aria-label': 'Amount received', data: { field: 'pay-received' } });
+      const paint = () => { const b = current.primaryButton, split = how ? how.paid() : null, paise = split != null ? split : toPaise(amount.value || 0), label = paise > 0 ? 'Collect Payment · ' + money(paise) : 'Enter amount received'; b.dataset.label = label; b.textContent = label; b.disabled = !(paise > 0 && paise <= due); };
+      amount.oninput = paint;
+      ui.body.append(h('div', 'foot-row pay-foot', field('Received (₹)', amount), (how = payChoice(payStore, () => paint(), { amount, due: () => due })).node));
+      ui.primary('');
+      paint();
+    },
+    command: () => { const split = how.paid(), paise = split != null ? split : toPaise(amount.value); return { type: 'CREDIT_PAY', accountId: account.id, amountPaise: paise, ...how.value() }; },
+    then() {
+      closeSheet();
+      return { text: 'Payment saved · ' + account.name + '.', action: phone ? { label: 'Send confirmation', run: () => whatsapp(phone, dayStatementText(account)) } : null };
+    }
+  });
+}
+// Bookings an academy played before they were put in the app (owner, 16 November): each day, court and hours, at its coaching
+// rate, straight onto its account.
+function academyEarlierSheet(accountId, rows) {
+  const clubs = turfAcademies(), yesterday = dayKey(nowMs() - 86400000);
+  let club = accountId || (clubs.length === 1 ? clubs[0].accountId : '');
+  const list = (rows || [{ dateKey: yesterday, court: 'full', startHour: 18, hours: 1 }]).map(r => Object.assign({}, r));
+  const courts = VENUES.flatMap(v => v.courts.filter(c => !c.off).map(c => c.id));
+  const rateOf = court => { const c = clubs.find(x => x.accountId === club); return Number(c && c.coach[court]) || ArenaTurf.rateFor(state, court); };
+  const total = () => list.reduce((n, r) => n + rateOf(r.court) * r.hours, 0);
+  openSheet({
+    title: 'Earlier bookings',
+    sub: 'Played before they were put in the app · on the academy’s account',
+    icon: 'history',
+    tone: 'jade',
+    focus: false,
+    build(ui) {
+      if (clubs.length !== 1 || !accountId) ui.body.append(field('Academy', h('select', { 'aria-label': 'Academy', data: { field: 'earlier-academy' }, onchange: e => { club = e.target.value; ui.redraw(); } },
+        h('option', { value: '', text: 'Choose the academy', selected: !club }), clubs.map(c => h('option', { value: c.accountId, text: c.name, selected: c.accountId === club })))));
+      ui.body.append(h('div', { class: 'lines earlier-lines', data: { field: 'earlier-rows' } }, list.map((r, i) => {
+        const venue = venueOf(courtInfo(r.court).venue), starts = [];
+        for (let x = venue.open; x + r.hours <= venue.close; x++) starts.push(x);
+        return h('div', { class: 'line earlier-row', data: { earlier: String(i) } },
+          h('input', { type: 'date', class: 'earlier-day', value: r.dateKey, max: yesterday, 'aria-label': 'Day', onchange: e => { if (e.target.value) { r.dateKey = e.target.value; ui.redraw(); } } }),
+          h('select', { class: 'earlier-court', 'aria-label': 'Court', onchange: e => { r.court = e.target.value; const v = venueOf(courtInfo(r.court).venue); r.startHour = Math.min(Math.max(r.startHour, v.open), v.close - r.hours); ui.redraw(); } }, courts.map(c => h('option', { value: c, text: statementCourt(c), selected: c === r.court }))),
+          h('select', { class: 'earlier-time', 'aria-label': 'Time', onchange: e => { r.startHour = Number(e.target.value); ui.redraw(); } }, starts.map(x => h('option', { value: String(x), text: courtHours({ startHour: x, hours: r.hours }), selected: x === r.startHour }))),
+          h('select', { class: 'earlier-for', 'aria-label': 'For', onchange: e => { r.hours = Number(e.target.value); r.startHour = Math.min(r.startHour, venue.close - r.hours); ui.redraw(); } }, [1, 2, 3].map(n => h('option', { value: String(n), text: n === 1 ? '1 hour' : n + ' hours', selected: n === r.hours }))),
+          h('span', { class: 'line-amount', text: money(rateOf(r.court) * r.hours) }),
+          list.length > 1 ? iconButton('trash', 'Remove this booking', () => { list.splice(i, 1); ui.redraw(); }, { data: { action: 'earlier-remove' } }) : null);
+      })), h('div', 'station-links', btn([icon('plus'), 'Add a booking'], () => { const last = list[list.length - 1]; list.push(Object.assign({}, last)); ui.redraw(); }, 'quiet', { data: { action: 'earlier-add' } })));
+      const name = (clubs.find(c => c.accountId === club) || {}).name;
+      ui.primary(name ? 'Put ' + money(total()) + ' on ' + name + '’s account' : 'Choose the academy');
+      current.primaryButton.disabled = !name;
+    },
+    command() {
+      if (!club) throw new Error('Choose the academy.');
+      return { type: 'TURF_EARLIER', academyId: club, entries: list.map(r => ({ dateKey: r.dateKey, court: r.court, startHour: r.startHour, hours: r.hours })) };
+    },
+    then: result => { closeSheet(); return { text: result.message }; }
+  });
+}
+// The owner's WhatsApp records of 16 November, put in once (owner: "i need you to fill those past bookings … that clive is basically
+// victoria academy", and Puneet Acharya's membership: "i cannot move back to july, all details are there. record it"). Each opens its
+// form filled in, to check and save; each is gone once saved.
+const WHATSAPP_RECORDS = {
+  bookings: ['2026-11-02', '2026-11-03', '2026-11-05', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-15'].map(d => ({ dateKey: d, court: 'full', startHour: 18, hours: 1 })).concat([{ dateKey: '2026-11-15', court: 'left', startHour: 17, hours: 1 }]),
+  member: { customer: 'Puneet Acharya', phone: '', plan: '6m', court: 'bad-3', startHour: 20, from: '2026-07-17', paidBeforePaise: 3000000 }
+};
+function whatsappRecordsCard() {
+  const bookingsIn = (state.TurfBookings || []).some(b => b.reason === 'earlier' && b.dateKey === WHATSAPP_RECORDS.bookings[0].dateKey);
+  const memberIn = (state.Settings || []).some(r => String(r.id).startsWith('member-') && String(r.value).includes('"customer":"' + WHATSAPP_RECORDS.member.customer + '"'));
+  if (bookingsIn && memberIn) return null;
+  return h('div', { class: 'card whatsapp-records', data: { field: 'whatsapp-records' } },
+    h('div', 'group-title', icon('whatsapp'), 'From your WhatsApp messages · not recorded yet'),
+    h('div', 'lines', ...[
+      bookingsIn ? null : h('div', 'line', glyph('turf', '', 'sm'), h('div', 'line-main', h('b', { text: 'Clive (Victoria) · 8 bookings, 2–15 November' }), h('span', { class: 'small muted', text: 'Full court 2, 3, 5, 10, 11, 12, 15 Nov · Half court 15 Nov' })),
+        btn([icon('pencil'), 'Check and record'], () => academyEarlierSheet('', WHATSAPP_RECORDS.bookings), 'outline', { data: { action: 'record-victoria' } })),
+      memberIn ? null : h('div', 'line', glyph('users', '', 'sm'), h('div', 'line-main', h('b', { text: 'Puneet Acharya · Badminton membership' }), h('span', { class: 'small muted', text: '6 months from 17 Jul · Court 3 · 8:00pm - 9:00pm · ₹30,000 paid' })),
+        btn([icon('pencil'), 'Check and record'], () => { turfVenue = courtInfo(WHATSAPP_RECORDS.member.court).venue; turfMemberSheet(WHATSAPP_RECORDS.member); }, 'outline', { data: { action: 'record-puneet' } }))
+    ].filter(Boolean)));
+}
 
 // ---------- Customers ----------
 let customerSearch = '';
@@ -18246,9 +18521,23 @@ function turfAcademies() {
 }
 // The academy whose account a booking or a player is on, if any.
 function turfAccountOf(refId) {
-  const note = (state.Notes || []).find(n => n.kind === 'TURF_ACCOUNT' && n.refsJson === JSON.stringify([refId]));
-  if (!note) return null;
-  try { const mark = JSON.parse(note.text); return turfAcademies().find(a => a.accountId === mark.accountId) || { accountId: mark.accountId, name: 'Academy' }; } catch (e) { return null; }
+  const mark = ArenaTurf.accountOf(state, refId);
+  if (!mark) return null;
+  return turfAcademies().find(a => a.accountId === mark.accountId) || { accountId: mark.accountId, name: 'Academy' };
+}
+// A booking made an academy's coaching, with its later weeks (owner, 16 November).
+function turfCoachingSheet(b) {
+  openSheet({
+    title: 'Coaching · on an academy’s account',
+    sub: b.customer + ' · ' + turfDayName(b.dateKey) + ' · ' + courtHours(b),
+    icon: 'users',
+    tone: 'jade',
+    focus: false,
+    build(ui) {
+      ui.body.append(h('div', 'lines', turfAcademies().map(a => h('div', { class: 'line pick', role: 'button', tabindex: '0', data: { academy: a.accountId }, onclick: () => runCommand({ type: 'TURF_COACHING', id: b.id, academyId: a.accountId }, result => { turfDetailSheet(b.id); return { text: result.message }; }) },
+        glyph('users', '', 'sm'), h('div', 'line-main', h('b', { text: a.name }), h('span', { class: 'small muted', text: ArenaTurf.memberOf(b) ? '' : (String(b.reason || '').startsWith('series:') ? 'This booking and every later week' : 'This booking') })), icon('chevron')))));
+    }
+  });
 }
 // The mobile a booking is reached on: an academy's is its account's number as it is now (owner, 1 November: "i changed the
 // number of titans academy in settings. its not reflecting on the dates booked"); anyone else's, the one booked with.
@@ -18397,6 +18686,7 @@ function turfDetailSheet(id) {
           turfDetailSheet(b.id);
           return { text: 'Paid together: ' + (joinable.length + 1) + ' slots on one bill.' };
         }), false, 'transfer']] : []),
+        ...(!split && !turfAccountOf(b.id) && !ArenaTurf.memberOf(b) && turfAcademies().length && status.state === 'open' && !status.locked && !turfHasCharges(b) ? [['Coaching · on an academy’s account', () => turfCoachingSheet(b), false, 'users']] : []),
         ['Send confirmation', sendConfirmation, false, 'whatsapp'],
         ...(split && !status.locked ? [['One payer', () => runCommand({ type: 'TURF_SPLIT', id: b.id, revision: b.revision, on: false }, back), false, 'user']] : []),
         ...(!ended && !turfHeld(b) && status.state === 'open' && !turfHasCharges(b) ? [['Hold (Pay)', () => turfHoldSheet(b), false, 'clock'], ['Hold', () => runCommand({ type: 'TURF_HOLD', id: b.id, revision: b.revision, maybe: true }, back), false, 'clock']] : []),
@@ -19832,9 +20122,12 @@ function turfJumpButtons() {
 
 // A membership (owner, 22 October): who, the plan, the court and the time, from which day and on which days, and payment now
 // (Cash, UPI or CA). Every slot of the period is booked at once.
-function turfMemberSheet() {
-  const venue = venueHere(), plans = venue.memberships, today = dayKey(nowMs());
-  let who, plan = plans[0].id, court = courtsHere()[0], start = Math.min(Math.max(18, venue.open), venue.close - 1), hours = 1, from = today, days = new Set([1, 2, 3, 4, 5, 6]), date;
+function turfMemberSheet(pre = {}) {
+  const venue = venueHere(), plans = venue.memberships, today = dayKey(nowMs()), yearBack = dayKey(nowMs() - 366 * 86400000);
+  let who, plan = pre.plan || plans[0].id, court = pre.court || courtsHere()[0], start = pre.startHour != null ? pre.startHour : Math.min(Math.max(18, venue.open), venue.close - 1), hours = 1, from = pre.from || today, days = new Set([1, 2, 3, 4, 5, 6]), date;
+  // Full or part paid now (owner, 16 November: "give option to select full or part, if part payment then how much"); started before
+  // today, what was paid till then. The rest goes on the member's account, under Memberships & academies.
+  let part = false, partBox, beforeBox;
   const priceOf = id => { const saved = settingValue('memberPrice-' + venue.key + '-' + id, 0); return saved || plans.find(p => p.id === id).pricePaise; };
   openSheet({
     title: venue.name + ' membership',
@@ -19842,8 +20135,11 @@ function turfMemberSheet() {
     tone: 'jade',
     focus: false,
     build(ui) {
-      who = who || customerFields('', '', true);
-      date = date || h('input', { type: 'date', value: from, min: today, 'aria-label': 'First day', data: { field: 'member-from' }, onchange: () => { if (date.value) { from = date.value; ui.redraw(); } } });
+      who = who || customerFields(pre.customer || '', pre.phone || '', true);
+      date = date || h('input', { type: 'date', value: from, min: yearBack, 'aria-label': 'First day', data: { field: 'member-from' }, onchange: () => { if (date.value) { from = date.value; ui.redraw(); } } });
+      partBox = partBox || h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: '', 'aria-label': 'Paying now', data: { field: 'member-part' }, oninput: () => ui.redraw() });
+      beforeBox = beforeBox || h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: pre.paidBeforePaise != null ? String(pre.paidBeforePaise / 100) : '', 'aria-label': 'Paid till now', data: { field: 'member-before' }, oninput: () => ui.redraw() });
+      const earlier = from < today;
       const p = plans.find(x => x.id === plan), until = ArenaTurf.untilOf(from, p.months);
       const chips = (list, value, set, name) => h('div', { class: 'chips', data: { field: name } }, list.map(([v, text]) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(value(v)), onclick: () => { set(v); ui.redraw(); } }, text)));
       const startHours = [];
@@ -19858,15 +20154,32 @@ function turfMemberSheet() {
         h('div', 'field', h('span', { text: 'For' }), chips([1, 2].filter(n => start + n <= venue.close).map(n => [n, n === 1 ? '1 hour' : n + ' hours']), v => v === hours, v => { hours = v; }, 'member-hours')),
         h('div', 'foot-row', field('From', date), h('div', 'field', h('span', { text: 'Until' }), h('b', { class: 'member-until', text: turfDayName(until) }))),
         h('div', 'field', h('span', { text: 'Days' }), chips(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => [i + 1, d]), v => days.has(v), v => { if (days.has(v) && days.size > 1) days.delete(v); else days.add(v); }, 'member-days')));
+      const price = priceOf(plan), done = result => {
+        closeSheet();
+        const skipped = result.skipped && result.skipped.length ? ' Already taken, left out: ' + result.skipped.length + '.' : '';
+        return { text: result.message + (result.receiptNumber ? ' Paid · ' + result.receiptNumber + '.' : '') + skipped };
+      };
+      // A name is needed only when something goes on the member's account (credit accounts are named).
+      const asked = onAccount => {
+        if (onAccount && !who.name.value.trim()) { sheetStatus('error', 'Enter the member’s name: the rest goes on their account.'); return false; }
+        if (who.phone.value.replace(/\D/g, '').length < 10) { sheetStatus('error', 'Enter a 10-digit mobile number.'); return false; }
+        return true;
+      };
+      const base = () => ({ type: 'TURF_MEMBER', plan, court, startHour: start, hours, from, days: [...days].sort(), customer: who.name.value.trim(), phone: who.phone.value.trim() });
+      if (earlier) {
+        // Started before today: what was paid till then is not money taken now; the rest is on the member's account.
+        const before = Math.min(toPaise(beforeBox.value || 0), price), left = price - before;
+        ui.body.append(field('Paid till now (₹)', beforeBox), h('p', { class: 'small muted', data: { field: 'member-left' }, text: left > 0 ? money(left) + ' left · on ' + (who.name.value.trim() ? who.name.value.trim() + '’s account' : 'their account') + ' under Memberships & academies' : 'Paid in full' }));
+        ui.foot.append(btn([icon('checkCircle'), 'Record membership'], () => { if (asked(left > 0)) runCommand(Object.assign(base(), { paidBeforePaise: before }), done); }, 'primary block', { data: { action: 'member-record' } }));
+        return;
+      }
+      ui.body.append(h('div', 'field', h('span', { text: 'Payment' }), chips([[false, 'Full · ' + money(price)], [true, 'Part']], v => v === part, v => { part = v; }, 'member-payment')));
+      const now = part ? toPaise(partBox.value || 0) : price, partOk = !part || (now > 0 && now < price);
+      if (part) ui.body.append(field('Paying now (₹)', partBox), h('p', { class: 'small muted', data: { field: 'member-left' }, text: partOk ? money(price - now) + ' left · on ' + (who.name.value.trim() ? who.name.value.trim() + '’s account' : 'their account') + ' under Memberships & academies' : 'Enter less than ' + money(price) + '.' }));
       // Paid the one way money is taken on the courts (master, 23 October): Cash, UPI (Scanner / CA), or Cash + UPI.
-      ui.foot.append(turfPayChoice(priceOf(plan), 'member-pay', way => {
-        if (who.phone.value.replace(/\D/g, '').length < 10) { sheetStatus('error', 'Enter a 10-digit mobile number.'); return; }
-        runCommand({ type: 'TURF_MEMBER', plan, court, startHour: start, hours, from, days: [...days].sort(), ...way, customer: who.name.value.trim(), phone: who.phone.value.trim() }, result => {
-          closeSheet();
-          const skipped = result.skipped && result.skipped.length ? ' Already taken, left out: ' + result.skipped.length + '.' : '';
-          return { text: result.message + ' Paid · ' + result.receiptNumber + '.' + skipped };
-        });
-      }));
+      ui.foot.append(turfPayChoice(now, 'member-pay', way => {
+        if (asked(part)) runCommand(Object.assign(base(), way, part ? { partPaise: now } : {}), done);
+      }, { ready: partOk && now > 0 }));
     }
   });
 }
@@ -20527,7 +20840,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "5c5a1239af76";
+const APP_BUILD = "f28a6deaf2dc";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
