@@ -3487,6 +3487,26 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .audit-line-words { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .lane-step.late .lane-step-mark i { background: var(--warn); }
 .lane-step.late .lane-step-what small { color: var(--warn); }
+
+/* A balance brought from an earlier bill: what it was, its details behind Show (owner, 15 November). */
+.carried-line .line-main { display: grid; justify-items: start; gap: 2px; }
+.carried-show { padding: 0; border: 0; background: none; color: var(--primary); font: inherit; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
+.carried-detail { display: grid; gap: 2px; width: 100%; margin-top: 4px; }
+.carried-row { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-2); font-size: var(--text-xs); }
+.carried-row.muted { color: var(--ink-3); }
+
+/* The Game station (owner, 15 November): in Add Items, a card for PS5, Table and Bowling with quick choices; on the menu, their prices. */
+.game-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; grid-column: 1 / -1; }
+.game-card { display: grid; gap: 8px; align-content: start; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.game-card-head { display: flex; align-items: center; gap: 10px; }
+.game-times { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.game-time { display: grid; justify-items: center; gap: 2px; min-height: 52px; padding: 6px 8px; }
+.game-time b { font-size: var(--text-sm); }
+.game-chosen { grid-column: 1 / -1; margin-top: 4px; }
+.game-price-row { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-2); font-size: var(--text-sm); }
+.game-menu-card { cursor: default; }
+.carried-line .line-tick { margin-right: 4px; }
+.carried-line.off .line-main b, .carried-line.off .line-amount { color: var(--ink-3); text-decoration: line-through; }
 </style>
 </head>
 <body>
@@ -3784,8 +3804,13 @@ var ArenaCore = (function () {
     return result;
   }
   // A bill whose balance went on to a later turf booking: what it still showed as owing is owed there now.
+  // A balance carried onto another bill, unless its line was taken back (CARRY_UNDO voids it; the bill is pending again).
   function carryOf(state, billId) {
-    return (state.Carries || []).find(function (c) { return c.billId === billId; }) || null;
+    return (state.Carries || []).find(function (c) {
+      if (c.billId !== billId) return false;
+      var line = (state.Orders || []).find(function (o) { return o.id === c.orderId; });
+      return !line || line.status === 'active';
+    }) || null;
   }
   // A fresh start after trying the app out: every record goes; the venue's setup stays (stations, rates and settings,
   // festival dates) and, if asked, the menu. Bill and receipt numbers start again at the branch's 0001 (MP-0001, MR-0001).
@@ -4490,6 +4515,12 @@ var ArenaLifecycle=(function(){
    check(!(s.Advances||[]).some(function(a){return a.tabId===target.id&&a.status==='held';}),'Money was paid in advance on this bill. Settle it as one bill.');var ids=[],groupName=row(s.Tabs,endings[0].originalTabId).customer;endings.forEach(function(e,i){var g=e.segmentId?row(s.Segments,e.segmentId):null,own=newTab(s,id+'-'+i,underGroup(row(s.Tabs,e.originalTabId).customer,g?(g.controller?playerName(g):g.player):'Items'),target.phone,now),owned=JSON.parse(e.lineIdsJson);lines(s,target.id).filter(function(x){return owned.indexOf(x.id)>=0;}).forEach(function(x){x.tabId=own.id;});e.reviewTabId=own.id;ids.push(own.id);});
    if(lines(s,target.id).length)ids.push(target.id);else target.status='merged';return {tabIds:ids,groupName:groupName,message:'Individual charges separated. Shared extras remain on their own tab for assignment.'};
   }
+  // A carried balance unticked on the bill being settled goes back to its own bill, pending again (owner, 15 November).
+  if(c.type==='SETTLE_REVIEW'&&Array.isArray(c.uncarry)&&c.uncarry.length&&typeof ArenaTurf!=='undefined'){
+   check(c.uncarry.length<=20,'Too many lines.');
+   c.uncarry.forEach(function(oid,i){ArenaTurf.execute(s,{type:'CARRY_UNDO',orderId:oid},actor,now,id+'-uncarry-'+i);});
+   var rest=Object.assign({},c);delete rest.uncarry;return execute(s,rest,actor,now,id);
+  }
   if(c.type==='SETTLE_REVIEW'&&c.only&&typeof c.only==='object'){
    // Part of a bill settled now (owner, 21 October: they pay the juice; the controllers' time is moved, or the other way):
    // the lines ticked go to a bill of their own and are settled as asked; the rest stays on this bill, open, to be moved,
@@ -4816,6 +4847,20 @@ var ArenaSales=(function(){
  function setStock(s,pid,v){s.Settings=s.Settings||[];var r=s.Settings.find(function(x){return x.id==='stock-'+pid;}),keep={count:v&&v.count,since:v&&v.since};var value=v?JSON.stringify(keep):'';if(r)r.value=value;else s.Settings.push({id:'stock-'+pid,value:value});}
  function stockLine(s,id,pid,move,before,after,why,actor,now){s.Corrections=s.Corrections||[];s.Corrections.push({id:id,kind:'stock',targetId:pid,field:move,oldValue:before===null?'':String(before),newValue:after===null?'':String(after),reason:why||'',actor:actor&&actor.username||'',createdMs:now});}
  // Sold: taken from the count; beyond it, the rest is recorded as found first.
+ // A game added from the menu's Game station (owner, 15 November: "during add items when i click ps5, ask for controllers, and half or
+ // 1 hour … same for pool and snooker; bowling, ask how many people … put these money counts to their respective thing like ps5,
+ // table or bowling and not on snacks"): game:PS5:<30|60>:<controllers>, game:Pool|Snooker:<30|60>, game:Bowling:0:<people>, each at
+ // the rates on Settings → Rates, its category the game's, so Reports count it as that game.
+ function gameLine(s,id){
+  var part=String(id).split(':'),kind=part[1],minutes=Number(part[2]),count=Number(part[3]);
+  check(['PS5','Pool','Snooker','Bowling'].indexOf(kind)>=0,'Choose a game.');
+  if(kind==='Bowling'){var games=minutes||1,r=ArenaCore.bowlingRates(count,games,s);return {category:'Bowling',label:'Bowling · '+count+(count===1?' person':' people')+' · '+games+(games===1?' game':' games'),price:r.perPersonPaise*count*games,minutes:'',rates:JSON.stringify(r)};}
+  check(minutes===30||minutes===60,'Choose half an hour or an hour.');
+  var n=kind==='PS5'?count:1;
+  check(Number.isInteger(n)&&n>=1&&n<=4,'Choose 1 to 4 controllers.');
+  var prices=ArenaCore.pricesFor(s,kind),each=ArenaCore.bill(0,minutes*60000,prices).totalPaise;
+  return {category:kind,label:kind+' · '+(minutes===60?'1 hour':'Half an hour')+(kind==='PS5'?' · '+n+(n===1?' controller':' controllers'):''),price:each*n,minutes:minutes,rates:JSON.stringify(prices)};
+ }
  function takeStock(s,pid,q,actor,now,id){var st=stockOf(s,pid);if(!st||q<=0)return;if(st.count<q){stockLine(s,id+'-found',pid,'found',st.count,q,'',actor,now);st.count=q;}st.count-=q;setStock(s,pid,st);}
  // Off a bill again (− or the bin): back on the shelf, unless it went on the bill before the count was kept.
  function returnStock(s,pid,q,addedMs){var st=stockOf(s,pid);if(!st||q<=0||Number(addedMs)<Number(st.since))return;st.count+=q;setStock(s,pid,st);}
@@ -4900,8 +4945,10 @@ var ArenaSales=(function(){
    var first=c.items?execute(s,{type:'ADD_ITEMS',tabId:id,items:c.items,purchaser:t.customer},actor,now,id+'-items'):null;
    return {tabId:id,orderIds:first?first.orderIds:[],message:'Quick Sale opened.'};}
   if(c.type==='ADD_ORDER'){
-   var target=tab(s,c.tabId),q=quantity(c.quantity),product=c.productId?row(s.Products,c.productId):null,price,label,category,rates='',duration='';
-   if(product){check(product.available==='yes','This product is unavailable.');price=product.pricePaise;label=product.name;category=product.category;}
+   var game=typeof c.productId==='string'&&c.productId.indexOf('game:')===0?gameLine(s,c.productId):null;
+   var target=tab(s,c.tabId),q=quantity(c.quantity),product=c.productId&&!game?row(s.Products,c.productId):null,price,label,category,rates='',duration='';
+   if(game){price=game.price;label=game.label;category=game.category;duration=game.minutes;rates=game.rates;}
+   else if(product){check(product.available==='yes','This product is unavailable.');price=product.pricePaise;label=product.name;category=product.category;}
    else{
     check(target.kind==='quick_sale','This manual charge belongs in Quick Sale.');category=c.category;
     check(['PC','PS5','RC','Pool','Snooker','Manual'].indexOf(category)>=0,'Invalid gaming category.');label=text(c.label,100);
@@ -6655,7 +6702,7 @@ var ArenaReports = (function () {
    their own items, settled through the usual checkout. Every amount is an ordinary order on an ordinary tab. */
 var ArenaTurf = (function () {
   'use strict';
-  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE'];
+  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY'];
   // Items bought for Team A, Team B or everyone are kept once, as bought, and each player's part is one line on their bill.
   var SHARED = 'Shared items', GROUPS = ['A', 'B', 'all'];
   // Every court of every venue comes from the branch's settings (Branch.gs), switched-off ones included, so old bookings and
@@ -7404,12 +7451,54 @@ var ArenaTurf = (function () {
       turfLines(state, owner.id).filter(function (o) { return meta(o).playerId === player.id; }).forEach(function (o) { o.purchaser = player.name; });
       return { bookingId: owner.id, playerId: player.id, message: 'Player updated.' };
     }
+    if (cmd.type === 'CARRY_PAY') {
+      // A carried balance paid now while the game plays on (owner, 15 November: Pay Items with a tick): back on its own bill, which
+      // is then paid in full.
+      var undone = execute(state, { type: 'CARRY_UNDO', orderId: cmd.orderId }, actor, now, id + '-undo');
+      var its = (state.Bills || []).find(function (bl) { return bl.id === undone.billId; });
+      var paidIt = ArenaCore.engineFor('PAY').execute(state, { type: 'PAY', billId: undone.billId, amountPaise: its.totalPaise - its.paidPaise, method: cmd.method || 'cash' }, actor, now, id + '-pay');
+      return { billId: undone.billId, receiptNumber: paidIt.receiptNumber, method: cmd.method || 'cash', message: 'Paid ₹' + ((its.paidPaise) / 100) + '.' };
+    }
+    if (cmd.type === 'CARRY_UNDO') {
+      // A carried balance put back on its own bill (owner, 15 November): its line on the bill still open is voided, and that bill is
+      // pending again, to be paid, moved or kept.
+      var carriedLine = row(state.Orders, cmd.orderId), carry = (state.Carries || []).find(function (c) { return c.orderId === carriedLine.id; });
+      check(carriedLine.category === 'Carried' && carriedLine.status === 'active' && !!carry, 'This balance is no longer on the bill.');
+      var hostTab = tabOf(state, carriedLine.tabId);
+      check(!!hostTab && hostTab.status === 'open', 'This bill is already closed.');
+      carriedLine.status = 'void'; carriedLine.revision = Number(carriedLine.revision || 1) + 1;
+      var back = (state.Bills || []).find(function (bl) { return bl.id === carry.billId; }) || {};
+      return { billId: carry.billId, message: 'Back to pending · ₹' + ((back.totalPaise - back.paidPaise) / 100) + '.' };
+    }
+    if (cmd.type === 'PENDING_ADD_ITEMS') {
+      // Items added to a pending bill (owner, 15 November: "that pending bills, just keep add item … 100 was there, i will add items
+      // of 20, then it should show 120, when i open let it show the breakdown"): onto the same bill, its total raised by what was
+      // added, the bill and its number kept.
+      check(Array.isArray(cmd.items) && cmd.items.length >= 1, 'Choose what to add.');
+      var owes = pendingBill(state, cmd.billId);
+      var owesDetail = (state.BillDetails || []).find(function (d) { return d.id === owes.id; });
+      check(!!owesDetail, 'This bill was not found.');
+      var owesTab = row(state.Tabs, owesDetail.tabId), wasStatus = owesTab.status;
+      var onTab = function () { return (state.Orders || []).filter(function (o) { return o.tabId === owesTab.id && o.status === 'active'; }).reduce(function (n, o) { return n + Number(o.totalPaise || 0); }, 0); };
+      var before = onTab();
+      owesTab.status = 'open';
+      try { ArenaSales.execute(state, { type: 'ADD_ITEMS', tabId: owesTab.id, items: cmd.items, purchaser: owesTab.customer }, actor, now, id + '-items'); }
+      finally { owesTab.status = wasStatus; }
+      var added = onTab() - before;
+      check(added > 0, 'Nothing was added.');
+      owes.totalPaise = Number(owes.totalPaise) + added;
+      owesDetail.subtotalPaise = Number(owesDetail.subtotalPaise || 0) + added;
+      return { billId: owes.id, addedPaise: added, message: 'Added ₹' + (added / 100) + '. ' + (owesDetail.customer || owesTab.customer || 'Pending') + ' owes ₹' + ((owes.totalPaise - owes.paidPaise) / 100) + '.' };
+    }
     if (cmd.type === 'PENDING_MOVE') {
       // A pending bill moved on (owner, 15 November: "a person played snooker and i put it to pending, now once bowling is free, he
       // will play there, so i need an option to move the pending bill … to systems or turf … also to the reservation list"): onto a
       // bill running on a system, a free system they start on now, a turf or court booking's bill, or a reservation, whose check-in
       // brings it onto the new bill. Each bill's balance goes as one line, at its own amount; the bill is then no longer pending.
       check(Array.isArray(cmd.billIds) && cmd.billIds.length >= 1 && cmd.billIds.length <= 20, 'Choose the pending bills.');
+      // Balances carried onto a bill still open, moved on from its Pay Items: taken off it in the same save as the move, so nothing
+      // changes until the move is made (owner, 15 November: going back from Move had left the bill pending).
+      if (Array.isArray(cmd.uncarry)) { check(cmd.uncarry.length <= 20, 'Too many lines.'); cmd.uncarry.forEach(function (oid, i) { execute(state, { type: 'CARRY_UNDO', orderId: oid }, actor, now, id + '-uncarry-' + i); }); }
       var owing = cmd.billIds.map(function (bid) { return pendingBill(state, bid); });
       var firstDetail = (state.BillDetails || []).find(function (d) { return d.id === owing[0].id; }) || {}, firstTab = tabOf(state, firstDetail.tabId) || {};
       var payer = firstDetail.customer || firstTab.customer || 'Walk-in', payerPhone = firstTab.phone || '';
@@ -10964,7 +11053,17 @@ function segmented(options, initial, onchange) {
 
 // The kinds of product on the menu, each with its icon. Reports show what each kind earned.
 const PRODUCT_KINDS = [['Snacks', 'Snacks', 'snack'], ['Beverages', 'Beverages', 'drink'], ['Ice cream', 'Ice cream', 'icecream']];
-const productIcon = category => (PRODUCT_KINDS.find(k => k[0] === category) || PRODUCT_KINDS[0])[2];
+const productIcon = category => (GAME_KINDS.includes(category) ? category : (PRODUCT_KINDS.find(k => k[0] === category) || PRODUCT_KINDS[0])[2]);
+// The Game station's games on a bill (owner, 15 November): PS5, a pool or snooker table and bowling, counted as those games.
+const GAME_KINDS = ['PS5', 'Pool', 'Snooker', 'Bowling'];
+const isGameLine = o => GAME_KINDS.includes(o.category);
+// What a Game station choice costs, at the rates on Settings → Rates, as the server works it out (gameLine in Sales.gs).
+function gamePrice(kind, minutes, count) {
+  if (kind === 'Bowling') return ArenaCore.bowlingRates(count, minutes || 1, state).perPersonPaise * count * (minutes || 1);
+  return ArenaCore.bill(0, minutes * 60000, ArenaCore.pricesFor(state, kind)).totalPaise * (kind === 'PS5' ? count : 1);
+}
+const gameName = id => { const [, kind, minutes, count] = String(id).split(':'), n = Number(count); return kind === 'Bowling' ? 'Bowling · ' + n + (n === 1 ? ' person' : ' people') + ' · ' + (Number(minutes) || 1) + (Number(minutes) > 1 ? ' games' : ' game') : kind + ' · ' + (Number(minutes) === 60 ? '1 hour' : 'Half an hour') + (kind === 'PS5' ? ' · ' + n + (n === 1 ? ' controller' : ' controllers') : ''); };
+const gameCost = id => { const [, kind, minutes, count] = String(id).split(':'); return gamePrice(kind, Number(minutes), Number(count) || 1); };
 
 // An optional comment on a move (to credit, to someone's bill, to a system or the turf): a tick opens a box to write in,
 // with the cursor in it. The same element is kept through redraws, so what was written stays.
@@ -12393,7 +12492,10 @@ function productPicker(onchange) {
   const products = state.Products.filter(p => p.available === 'yes'), cart = new Map();
   const grid = h('div', 'tiles');
   const first = PRODUCT_KINDS.find(k => products.some(p => p.category === k[0])) || PRODUCT_KINDS[0];
-  const category = segmented(PRODUCT_KINDS, first[0], () => draw());
+  // The Game station after Ice cream (owner, 15 November): PS5, Table and Bowling, asked quickly and added at the rates.
+  const category = segmented([...PRODUCT_KINDS, ['Game', 'Game station', 'PS5']], first[0], () => draw());
+  const isGame = id => String(id).indexOf('game:') === 0, nameOf = id => (isGame(id) ? gameName(id) : (products.find(p => p.id === id) || {}).name), priceOf = id => (isGame(id) ? gameCost(id) : (products.find(p => p.id === id) || {}).pricePaise || 0);
+  let pads = 0, table = '', people = 0;
   function change(id, quantity) {
     if (quantity <= 0) cart.delete(id); else cart.set(id, Math.min(999, quantity));
     draw();
@@ -12401,6 +12503,7 @@ function productPicker(onchange) {
   }
   function draw() {
     grid.replaceChildren();
+    if (category.value() === 'Game') { drawGames(); return; }
     const list = products.filter(p => p.category === category.value());
     if (!list.length) grid.append(h('p', { class: 'muted', text: 'Nothing in this category.' }));
     for (const p of list) {
@@ -12415,22 +12518,68 @@ function productPicker(onchange) {
       h('span', 'tile-head', glyph(productIcon(p.category), quantity ? 'jade' : ''), h('span', 'tile-text', h('span', { class: 'tile-name', text: p.name }), h('span', { class: 'tile-price', text: money(p.pricePaise) }), stockNote(p, quantity))), stepper));
     }
   }
+  // PS5: how many controllers, then half an hour or an hour; Table: pool or snooker, then half an hour or an hour; Bowling: how many
+  // people. A choice adds it at once; what is added is listed under them with − and +.
+  function drawGames() {
+    const quick = (label, minutes, id, ready) => h('button', { type: 'button', class: 'btn game-time', disabled: !ready, data: { game: id || '' }, onclick: () => ready && change(id, (cart.get(id) || 0) + 1) },
+      h('span', { text: label }), ready ? h('b', { text: money(gameCost(id)) }) : null);
+    const chips = (options, chosen, pick, field) => h('div', { class: 'chips', data: { field } }, options.map(([v, label]) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(chosen === v), onclick: () => { pick(v); draw(); } }, label)));
+    const card = (glyphName, title, ...rows) => h('div', { class: 'game-card', data: { gameCard: title } }, h('div', 'game-card-head', glyph(glyphName, ''), h('b', { text: title })), ...rows);
+    grid.append(h('div', 'game-cards',
+      card('PS5', 'PS5', h('span', { class: 'small muted', text: 'Controllers' }), chips([1, 2, 3, 4].map(n => [n, String(n)]), pads, v => { pads = v; }, 'game-pads'),
+        h('div', 'game-times', quick('Half an hour', 30, pads ? 'game:PS5:30:' + pads : '', !!pads), quick('1 hour', 60, pads ? 'game:PS5:60:' + pads : '', !!pads))),
+      card('Pool', 'Table', chips([['Pool', 'Pool'], ['Snooker', 'Snooker']], table, v => { table = v; }, 'game-table'),
+        h('div', 'game-times', quick('Half an hour', 30, table ? 'game:' + table + ':30' : '', !!table), quick('1 hour', 60, table ? 'game:' + table + ':60' : '', !!table))),
+      card('Bowling', 'Bowling', h('span', { class: 'small muted', text: 'People · ' + money(gamePrice('Bowling', 1, 1)) + ' each a game' }), chips(Array.from({ length: ARENA_BRANCH.bowling.maxPlayers }, (_, i) => [i + 1, String(i + 1)]), people, v => { people = v; }, 'game-people'),
+        h('span', { class: 'small muted', text: 'Games' }),
+        h('div', { class: 'chips', data: { field: 'game-games' } }, Array.from({ length: ARENA_BRANCH.bowling.maxGames }, (_, i) => i + 1).map(g => h('button', { type: 'button', class: 'chip', disabled: !people, data: { game: people ? 'game:Bowling:' + g + ':' + people : '' }, onclick: () => { if (!people) return; const id = 'game:Bowling:' + g + ':' + people; change(id, (cart.get(id) || 0) + 1); } }, String(g)))))));
+    const chosen = [...cart].filter(([id]) => isGame(id));
+    if (chosen.length) grid.append(h('div', { class: 'lines game-chosen', data: { gameChosen: '' } }, chosen.map(([id, quantity]) => h('div', { class: 'line', data: { gameLine: id } },
+      h('div', 'line-main', h('b', { text: gameName(id) }), h('span', { class: 'small muted', text: money(gameCost(id)) + (quantity > 1 ? ' each' : '') })),
+      h('span', 'step', h('button', { type: 'button', 'aria-label': 'One fewer', onclick: () => change(id, quantity - 1) }, icon('minus')), h('b', { text: String(quantity) }), h('button', { type: 'button', 'aria-label': 'One more', onclick: () => change(id, quantity + 1) }, icon('plus'))),
+      h('span', { class: 'line-amount', text: money(gameCost(id) * quantity) })))));
+  }
   draw();
   return {
     empty: !products.length,
     node: h('div', null, h('div', { class: 'field' }, category.node), grid),
     items: () => [...cart].map(([productId, quantity]) => ({ productId, quantity })),
     // What is in the basket, for showing it back: name, how many, and what that comes to.
-    lines: () => [...cart].map(([id, quantity]) => { const p = products.find(p => p.id === id); return { id, name: p.name, quantity, unitPaise: p.pricePaise, totalPaise: p.pricePaise * quantity }; }),
+    lines: () => [...cart].map(([id, quantity]) => ({ id, name: nameOf(id), quantity, unitPaise: priceOf(id), totalPaise: priceOf(id) * quantity })),
     change,
     count: () => [...cart.values()].reduce((a, b) => a + b, 0),
-    total: () => [...cart].reduce((sum, [id, quantity]) => sum + products.find(p => p.id === id).pricePaise * quantity, 0),
+    total: () => [...cart].reduce((sum, [id, quantity]) => sum + priceOf(id) * quantity, 0),
     clear() { cart.clear(); draw(); }
   };
 }
 
 // Snacks and drinks on a bill (not the turf fee or a balance carried in): only these can move or be named as unpaid.
 const goodsOf = orders => orders.filter(o => o.category !== 'Turf' && o.category !== 'Carried');
+// What a balance brought from an earlier bill was (owner, 15 November: "what can you understand with that 40 … mention clearly if
+// its pool, ps5 whatever, bill name and all not required, date also. if i click show"): its systems by name, or its items; its
+// timers, items, bill and day behind Show.
+function carriedOf(o) {
+  const billId = turfMeta(o).carryOf || '', d = (state.BillDetails || []).find(x => x.id === billId), tabId = d ? d.tabId : '';
+  const segs = tabId ? segmentsOf(tabId).filter(g => g.status !== 'void') : [], items = tabId ? goodsOf(ordersOf(tabId)) : [];
+  const units = [...new Set(segs.map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))];
+  const itemWords = items.map(x => x.label + (Number(x.quantity) > 1 ? ' × ' + x.quantity : '')).join(', ');
+  const named = String(o.label || '').indexOf(' · Balance of bill') > 0 ? String(o.label).split(' · Balance of bill')[0] : '';
+  return { billId, segs, items, what: units.join(', ') || itemWords || named || 'Earlier bill', number: billId ? numberOf(billId) : '', day: String(o.reason || '').replace('Carried from ', '') };
+}
+function carriedLine(o, carryTicks) {
+  const c = carriedOf(o), more = [];
+  for (const g of c.segs) more.push(h('div', 'carried-row', h('span', { text: ((unitOf(g.unitId) || {}).name || '') + ' · ' + timerShort(g, timerWords(g, state.Pauses || [])) }), h('span', { class: 'num', text: money(g.totalPaise) })));
+  if (c.segs.length) for (const x of c.items) more.push(h('div', 'carried-row', h('span', { text: x.label + (Number(x.quantity) > 1 ? ' × ' + x.quantity : '') }), h('span', { class: 'num', text: money(x.totalPaise) })));
+  more.push(h('div', 'carried-row muted', h('span', { text: ['Bill ' + c.number, c.day].filter(s => s && s !== 'Bill ').join(' · ') })));
+  const detail = h('div', { class: 'carried-detail', hidden: true }, more);
+  // On the bill being settled it has a tick like every line (owner, 15 November: "give checkbox what to select"): unticked, it goes
+  // back to its own bill, pending again; paid now or moved while the game plays on, from Pay Items.
+  const tick = carryTicks ? h('input', { type: 'checkbox', class: 'line-tick', checked: !carryTicks.off.has(o.id), 'aria-label': 'Paying now', data: { action: 'carried-tick' }, onclick: e => { e.stopPropagation(); carryTicks.toggle(o.id); } }) : null;
+  const toggle = h('button', { type: 'button', class: 'carried-show', data: { action: 'carried-show' }, onclick: e => { e.stopPropagation(); detail.hidden = !detail.hidden; toggle.textContent = detail.hidden ? 'Show' : 'Hide'; } }, 'Show');
+  return h('div', { class: 'line carried-line' + (carryTicks && carryTicks.off.has(o.id) ? ' off' : ''), data: { order: o.id } }, tick,
+    h('div', 'line-main', h('b', { text: c.what }), toggle, detail),
+    h('span', { class: 'line-amount', text: money(o.totalPaise) }));
+}
 // Items already on a bill, each with a stepper from none up to how many are on it. counts survives a redraw.
 function itemChooser(orders, counts, onchange) {
   const node = h('div', 'lines');
@@ -12499,10 +12648,6 @@ function addItemsSheet(tab, options = {}) {
       // On a pool or snooker table, items belong to the game being played, so they are collected with it.
       const game = options.unit && isTable(options.unit) ? players.find(g => g.unitId === options.unit.id) : null;
       if (game) forSegment = game.id;
-      if (target.kind === 'group' && players.length > 1) {
-        const who = segmented([['', 'Whole group'], ...players.map(g => [g.id, controllerLabel(g)])], forSegment, v => { forSegment = v; });
-        ui.body.append(h('div', 'field', h('span', { text: 'For' }), who.node));
-      }
       const paint = () => { ui.foot.replaceChildren(); const n = picker.count(); ui.primary(n ? 'Add ' + n + (n === 1 ? ' item' : ' items') + ' · ' + money(picker.total()) : 'Add Items', !n); };
       picker = picker || productPicker(() => paint());
       ui.body.append(picker.node);
@@ -13111,10 +13256,8 @@ function drawLines(body, lines) {
   // The turf fee or a player's share of it: its own heading, and it follows the booking, so it has no edit menu here.
   // Rackets and shuttlecocks have their own group on a court bill (owner, 22 October).
   const isRental = o => typeof rentalIdOf === 'function' && !!rentalIdOf(o);
-  const turf = orders.filter(o => o.category === 'Turf'), brought = orders.filter(o => o.category === 'Carried'), goods = orders.filter(o => o.category !== 'Turf' && o.category !== 'Carried').sort((a, b) => Number(isRental(a)) - Number(isRental(b)));
-  if (brought.length) own.append(h('section', 'bill-group', h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', 'lines', brought.map(o => h('div', { class: 'line', data: { order: o.id } },
-    h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: o.reason.replace('Carried from ', 'from ') })),
-    h('span', { class: 'line-amount', text: money(o.totalPaise) }))))));
+  const turf = orders.filter(o => o.category === 'Turf'), brought = orders.filter(o => o.category === 'Carried'), goods = orders.filter(o => o.category !== 'Turf' && o.category !== 'Carried').sort((a, b) => (isGameLine(a) ? 0 : isRental(a) ? 2 : 1) - (isGameLine(b) ? 0 : isRental(b) ? 2 : 1));
+  if (brought.length) own.append(h('section', 'bill-group', h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', 'lines', brought.map(o => carriedLine(o, lines.carryTicks)))));
   if (turf.length) {
     const card = h('div', 'lines');
     for (const o of turf) card.append(h('div', { class: 'line', data: { order: o.id } },
@@ -13154,7 +13297,7 @@ function drawLines(body, lines) {
         const n = list.reduce((sum, x) => sum + lines.ticks.count(x), 0);
         const setTo = want => { let left = want; for (const x of list) { const k = Math.min(Number(x.quantity), Math.max(0, left)); lines.ticks.setCount(x, k); left -= k; } };
         card.append(h('div', { class: 'line with-tools', data: { order: o.id } },
-          h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: (product || turfMeta(o).hourPaise ? priceEach(o) : o.reason || 'Charge') + forWhom })),
+          h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: (isGameLine(o) ? '' : product || turfMeta(o).hourPaise ? priceEach(o) : o.reason || 'Charge') + forWhom })),
           h('span', { class: 'item-tools', data: { itemTools: o.label } }, h('span', 'step',
             h('button', { type: 'button', 'aria-label': 'Pay for one fewer ' + o.label, disabled: n === 0, data: { action: 'pay-less' }, onclick: () => setTo(n - 1) }, icon('minus')),
             h('b', { class: 'qty-n', text: n < qty ? n + ' of ' + qty : String(qty) }),
@@ -13164,15 +13307,18 @@ function drawLines(body, lines) {
         continue;
       }
       card.append(h('div', { class: 'line' + (open ? ' with-tools' : ''), data: { order: o.id } },
-        h('div', 'line-main', h('b', { text: o.label + (qty > 1 && !open ? ' × ' + qty : '') }), h('span', { class: 'small muted', text: (product || turfMeta(o).hourPaise ? priceEach(o) : o.reason || 'Charge') + forWhom })),
+        h('div', 'line-main', h('b', { text: o.label + (qty > 1 && !open ? ' × ' + qty : '') }), h('span', { class: 'small muted', text: (isGameLine(o) ? '' : product || turfMeta(o).hourPaise ? priceEach(o) : o.reason || 'Charge') + forWhom })),
         open ? itemTools(o.label, qty, change, product) : null,
         h('span', { class: 'line-amount', text: money(total) })));
     }
     // Snacks first, then the rentals under their own title, in the same card.
     const firstRental = [...card.children].find(n => { const o = goods.find(x => x.id === (n.dataset && n.dataset.order)); return o && isRental(o); });
     if (firstRental) card.insertBefore(h('div', { class: 'group-title rent-title', data: { rentals: '' } }, icon('badminton'), 'Rentals'), firstRental);
+    // Games under Game station, never under Snacks & beverages (owner, 15 November).
+    const games = goods.filter(isGameLine), firstSnack = [...card.children].find(n => { const o = goods.find(x => x.id === (n.dataset && n.dataset.order)); return o && !isGameLine(o) && !isRental(o); });
+    if (games.length && firstSnack) card.insertBefore(h('div', { class: 'group-title rent-title', data: { snacksTitle: '' } }, icon('sales'), 'Snacks & beverages'), firstSnack);
     const onlyRentals = goods.every(isRental);
-    own.append(h('section', 'bill-group', onlyRentals ? null : h('div', 'group-title', icon('sales'), 'Snacks & beverages', byUnit.size && card.querySelectorAll('[data-order]').length > 1 ? headTotal(goods.reduce((total, o) => total + Number(o.totalPaise || 0), 0)) : null), card));
+    own.append(h('section', 'bill-group', onlyRentals ? null : games.length ? h('div', 'group-title', icon('PS5'), 'Game station') : h('div', 'group-title', icon('sales'), 'Snacks & beverages', byUnit.size && card.querySelectorAll('[data-order]').length > 1 ? headTotal(goods.reduce((total, o) => total + Number(o.totalPaise || 0), 0)) : null), card));
   }
   // The own part in its outline (left out when it holds nothing), then each moved bill.
   if (hasMoved) body.append(...[own.childNodes.length ? own : null].filter(Boolean), ...movedOut);
@@ -13227,10 +13373,10 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
   const comment = commentField();
   // Lines not paid now (unticked): they stay on this bill, to be moved, put on credit or kept pending after.
   // skip: time unticked; payCount: how many of an item are paid now (all of it unless lowered).
-  const skip = new Set(), payCount = new Map();
+  const skip = new Set(), payCount = new Map(), carryOff = new Set();
   const paying = o => Math.min(Number(o.quantity), payCount.has(o.id) ? payCount.get(o.id) : Number(o.quantity));
   const partly = () => skip.size > 0 || ordersOf(tab.id).some(o => paying(o) < Number(o.quantity));
-  const subtotal = () => tabTotal(tab.id) - segmentsOf(tab.id).filter(g => skip.has(g.id)).reduce((total, g) => total + g.totalPaise, 0) - ordersOf(tab.id).reduce((total, o) => total + (Number(o.quantity) - paying(o)) * o.unitPricePaise, 0);
+  const subtotal = () => tabTotal(tab.id) - segmentsOf(tab.id).filter(g => skip.has(g.id)).reduce((total, g) => total + g.totalPaise, 0) - ordersOf(tab.id).reduce((total, o) => total + (Number(o.quantity) - paying(o)) * o.unitPricePaise, 0) - ordersOf(tab.id).filter(o => carryOff.has(o.id)).reduce((total, o) => total + Number(o.totalPaise), 0);
   // Charges from earlier on this bill (owner, 20 October): players who stopped and left their charge for the others, and a
   // table's games closed with Close & Open; with what was paid towards them. Shown apart from this session.
   const earlier = (() => {
@@ -13274,7 +13420,7 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
     build(ui) {
       // An item changed here redraws this bill in place, so the ticks and what was typed stay (owner, 21 October).
       // Ticks when there is more than one line and nothing that must go with the bill (a turf fee, a carried amount).
-      const all = segmentsOf(tab.id).concat(ordersOf(tab.id)), tickable = all.length > 1 && !stillPlaying(tab.id) && !all.some(x => x.category === 'Turf' || x.category === 'Carried');
+      const all = segmentsOf(tab.id).concat(ordersOf(tab.id)), tickable = all.length > 1 && !stillPlaying(tab.id) && !all.some(x => x.category === 'Turf');
       const ticks = tickable ? {
         off: skip,
         toggle: ids => { const on = ids.some(lid => skip.has(lid)); ids.forEach(lid => { if (on) skip.delete(lid); else skip.add(lid); }); draft.edited = false; ui.redraw(); },
@@ -13290,7 +13436,7 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
       // The lines, kept close together so the whole bill shows without scrolling (owner, 22 October).
       const linesBox = h('div', 'settle-lines');
       ui.body.append(linesBox);
-      const lines = drawLines(linesBox, { segments: segmentsOf(tab.id), orders: ordersOf(tab.id), customer: tab.customer, tab, editable: true, earlier: earlier.ids, brought: broughtIn(tab, earlier.ids), ticks, turfExtra: onTurf ? discountRow : null, after: () => { ui.redraw(); return null; } }), playing = stillPlaying(tab.id);
+      const lines = drawLines(linesBox, { segments: segmentsOf(tab.id), orders: ordersOf(tab.id), customer: tab.customer, tab, editable: true, earlier: earlier.ids, brought: broughtIn(tab, earlier.ids), ticks, carryTicks: { off: carryOff, toggle: oid => { if (carryOff.has(oid)) carryOff.delete(oid); else carryOff.add(oid); draft.edited = false; ui.redraw(); } }, turfExtra: onTurf ? discountRow : null, after: () => { ui.redraw(); return null; } }), playing = stillPlaying(tab.id);
       const notes = notesBlock([tab.id]);
       if (notes) ui.body.append(notes);
       const adds = h('div', 'station-links', btn([icon('sales'), 'Add Items'], () => addItemsSheet(tab), 'quiet', { data: { action: 'items' } }));
@@ -13420,7 +13566,8 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
         ...(asking && draft.rest === 'pending' ? { pending: { name: draft.pendingName.trim(), phone: draft.pendingPhone.trim() } } : {}),
         ...(mode === 'credit' ? { ...picker.value(), note: comment.value(), unpaidItems: itemsOnCredit(ordersOf(tab.id), due - paid) } : {}),
         // Some lines unticked: only the ticked ones are settled now; the rest stays on this bill.
-        ...(partly() ? { only: { ids: segmentsOf(tab.id).filter(g => !skip.has(g.id)).map(g => g.id), items: ordersOf(tab.id).filter(o => paying(o) > 0).map(o => ({ orderId: o.id, quantity: paying(o) })) } } : {}) };
+        ...(partly() ? { only: { ids: segmentsOf(tab.id).filter(g => !skip.has(g.id)).map(g => g.id), items: ordersOf(tab.id).filter(o => o.category !== 'Carried' || !carryOff.has(o.id)).filter(o => paying(o) > 0).map(o => ({ orderId: o.id, quantity: paying(o) })) } } : {}),
+        ...(carryOff.size ? { uncarry: [...carryOff] } : {}) };
     },
     // Paid in full: nothing more to look at. The sheet closes to where the receptionist was (the floor, the list of players
     // still to settle, or the turf booking), with a short note and the receipt one tap away. Anything still owing shows the bill.
@@ -13594,7 +13741,7 @@ async function costSheet(unit) {
   const tabs = [...new Set(players.map(g => g.tabId))].map(tabOf).filter(Boolean);
   // Controllers that stopped earlier and left their time for the others: a section of their own (owner, 27 October).
   const earlier = new Set(closedEarlier(players).map(g => g.id)), back = () => costSheet(unit);
-  const payable = tabs.filter(t => payableItems(t).length || payableTimers(t).length);
+  const payable = tabs.filter(t => payableItems(t).length || payableTimers(t).length || carriedOn(t).length);
   const made = tabs.filter(t => madeGroup(t, tabs)), people = tabs.filter(t => !made.includes(t));
   openSheet({
     title: unit.name + ' · so far',
@@ -13630,6 +13777,7 @@ async function costSheet(unit) {
 
 // Items on a bill, apart from the turf and what was carried from earlier.
 const payableItems = tab => ordersOf(tab.id).filter(o => o.category !== 'Turf' && o.category !== 'Carried');
+const carriedOn = tab => ordersOf(tab.id).filter(o => o.category === 'Carried');
 // Systems already closed on a bill that can be paid on their own (owner, 4 November): time moved onto it and controllers that
 // stopped earlier; a table's own closed games keep their own Collect.
 const payableTimers = tab => { const playing = new Set(unitsOfTab(tab.id)); return segmentsOf(tab.id).filter(g => g.status === 'ended' && !(isTable(unitOf(g.unitId) || {}) && playing.has(g.unitId))); };
@@ -13638,8 +13786,9 @@ const payableTimers = tab => { const playing = new Set(unitsOfTab(tab.id)); retu
 // own (TABLE_ITEMS_PAY) and the time and every other item stay on the system.
 function payItemsSheet(tab, back) {
   const picks = new Map(), pay = { method: 'cash' };
-  let rows = [], timeRows = [], how = null, ticked = false, whole = null;
-  const owed = () => timeRows.concat(rows).reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0);
+  let rows = [], timeRows = [], carryRows = [], how = null, ticked = false, whole = null;
+  const owed = () => timeRows.concat(rows, carryRows).reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0);
+  const carryPicked = () => carryRows.filter(row => picks.get(row.key));
   openSheet({
     title: 'Pay Items',
     sub: tab.customer,
@@ -13651,12 +13800,14 @@ function payItemsSheet(tab, back) {
       const parts = movedPicks(tab, payableTimers(tab), payableItems(tab));
       timeRows = parts.closed;
       rows = parts.items;
+      // A balance carried from an earlier bill, ticked to pay it now or move it (owner, 15 November).
+      carryRows = carriedOn(tab).map(o => ({ key: 'carry:' + o.id, order: o, name: carriedOf(o).what, most: 1, price: 'From earlier', worth: n => (n ? Number(o.totalPaise) : 0) }));
       // The closed systems ticked at first, to untick any not paid now (owner, 4 November: "by default click all and then i
       // will choose which to untick"), a moved system's items with them; other items unticked, as before.
       if (!ticked) for (const row of timeRows) picks.set(row.key, row.most);
       ticked = true;
       for (const row of timeRows.concat(rows)) if ((picks.get(row.key) || 0) > row.most) picks.set(row.key, row.most);
-      if (!rows.length && !timeRows.length) {
+      if (!rows.length && !timeRows.length && !carryRows.length) {
         ui.body.append(h('p', { class: 'muted', text: 'No items on this bill.' }));
         return;
       }
@@ -13665,6 +13816,7 @@ function payItemsSheet(tab, back) {
       // Its own items first, then what is closed or moved onto it (owner, 4 November).
       if (rows.length) ui.body.append(h('div', 'group-title', icon('snack'), ownItemsTitle(tab)), h('div', { class: 'lines end-pick', data: { field: 'pay-items' } }, pickLines(rows, picks, () => ui.redraw(), o => removeOne(o, () => { ui.redraw(); return null; }))));
       if (timeRows.length) ui.body.append(h('div', 'group-title', icon('history'), 'Closed'), ...pickBoxes(timeRows, picks, () => ui.redraw(), null, whole, 'pay-closed'));
+      if (carryRows.length) ui.body.append(h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', { class: 'lines end-pick', data: { field: 'pay-carried' } }, pickLines(carryRows, picks, () => ui.redraw())));
       const due = owed();
       const paint = () => {
         const button = current.primaryButton, split = how.paid(), blank = how.blank();
@@ -13673,17 +13825,40 @@ function payItemsSheet(tab, back) {
         button.textContent = label;
         button.disabled = !due || blank || (split !== null && split !== due);
       };
-      how = payChoice(pay, () => paint(), { due: () => due });
+      how = payChoice(pay, () => paint(), { due: () => due, splittable: !carryPicked().length });
       ui.foot.append(h('div', 'foot-row', h('div', { class: 'foot-label', text: 'To collect' }), h('div', { class: 'foot-total', text: money(due) })), h('div', 'foot-row pay-foot', how.node));
+      // The ticked balances from earlier can go somewhere else instead: back to pending, then the Move list.
+      const moving = carryPicked();
+      // One Move for whatever is ticked, to anywhere (owner, 15 November: "that move is not just the same system … keep it general").
+      if (moving.length) ui.foot.append(h('div', 'foot-row', btn([icon('transfer'), 'Move'], () => {
+        const orders = moving.map(row => row.order), billIds = orders.map(o => carriedOf(o).billId), sum = orders.reduce((n, o) => n + Number(o.totalPaise), 0);
+        // Nothing is saved until a place is chosen; Back returns here with everything as it was.
+        pendingMoveSheet(billIds, tab.customer, sum, () => payItemsSheet(tab, back), { uncarry: orders.map(o => o.id) });
+      }, 'block', { data: { action: 'pay-carried-move' } })));
       ui.primary('');
       paint();
     },
     command() {
-      const closed = pickedLines(timeRows, picks) || { ids: [], items: [] }, items = (pickedLines(rows, picks) || { items: [] }).items.concat(closed.items), segments = closed.ids;
-      if (!items.length && !segments.length) throw new Error('Choose what they pay for.');
+      const closed = pickedLines(timeRows, picks) || { ids: [], items: [] }, items = (pickedLines(rows, picks) || { items: [] }).items.concat(closed.items), segments = closed.ids, carried = carryPicked();
+      if (!items.length && !segments.length && !carried.length) throw new Error('Choose what they pay for.');
+      const method = how.value(owed()).method;
+      // A balance from earlier is paid on its own bill (CARRY_PAY); with items too, they follow.
+      if (carried.length) {
+        const rest = carried.slice(1).map(row => ({ type: 'CARRY_PAY', orderId: row.order.id, method })), itemsPart = owed() - carried.reduce((n, row) => n + row.worth(1), 0);
+        if (items.length || segments.length) rest.push({ type: 'TABLE_ITEMS_PAY', tabId: tab.id, items, ...(segments.length ? { segments } : {}), amountPaise: itemsPart, method });
+        pay.after = rest;
+        return { type: 'CARRY_PAY', orderId: carried[0].order.id, method };
+      }
       return { type: 'TABLE_ITEMS_PAY', tabId: tab.id, items, ...(segments.length ? { segments } : {}), amountPaise: owed(), ...how.value() };
     },
     then(result, command) {
+      if (command.type === 'CARRY_PAY') {
+        const more = pay.after || [];
+        pay.after = null;
+        const done = () => { render(); back(); sheetStatus('success', 'Paid · ' + money(owed()) + ' · ' + methodText(command.method) + '.'); };
+        if (more.length) saveAll(more, 'Paid.').then(done); else done();
+        return null;
+      }
       render();
       back();
       // Said on "so far", which opens again over the board.
@@ -14098,11 +14273,14 @@ function printReceipt(data) {
       else area.append(row(g.controller ? controllerLabel(g) : 'Gaming', money(g.totalPaise)), el('p-sub', [said.started, said.paused, said.ended].filter(Boolean).join(' · ')), el('p-sub', said.charged));
     }
   }
-  const turf = data.orders.filter(o => o.category === 'Turf'), brought = data.orders.filter(o => o.category === 'Carried'), goods = data.orders.filter(o => o.category !== 'Turf' && o.category !== 'Carried');
+  const turf = data.orders.filter(o => o.category === 'Turf'), brought = data.orders.filter(o => o.category === 'Carried');
+  let goods = data.orders.filter(o => o.category !== 'Turf' && o.category !== 'Carried');
   if (brought.length) area.append(el('p-head', 'Carried from earlier'));
-  for (const o of brought) area.append(row(o.label, money(o.totalPaise)), el('p-sub', o.reason));
+  for (const o of brought) { const c = carriedOf(o); area.append(row(c.what, money(o.totalPaise)), el('p-sub', ['Bill ' + c.number, c.day].filter(s => s && s !== 'Bill ').join(' · '))); }
   if (turf.length) area.append(el('p-head', turfWordOfLine(turf[0])));
   for (const o of turf) area.append(row(o.label, money(o.totalPaise)), ...(o.quantity > 1 ? [el('p-sub', o.quantity + ' × ' + money(o.unitPricePaise))] : []));
+  if (goods.some(isGameLine)) { area.append(el('p-head', 'Game station')); for (const o of goods.filter(isGameLine)) area.append(row(o.label, money(o.totalPaise))); }
+  goods = goods.filter(o => !isGameLine(o));
   if (goods.length) area.append(el('p-head', 'Snacks & beverages'));
   for (const o of goods) area.append(row(o.label, money(o.totalPaise)), el('p-sub', o.quantity + ' × ' + money(o.unitPricePaise)));
   area.append(el('p-rule'));
@@ -15698,10 +15876,7 @@ const menuPage = {
   // "make beautiful cards for each item").
   render(target) {
     const items = state.Products.filter(p => p.available !== 'removed');
-    if (!items.length) {
-      target.append(emptyState('menu', 'The menu is empty. Add your first item.'));
-      return;
-    }
+    if (!items.length) target.append(emptyState('menu', 'The menu is empty. Add your first item.'));
     for (const [kind, label, glyphName] of PRODUCT_KINDS) {
       const mine = items.filter(p => p.category === kind).sort((a, b) => a.name.localeCompare(b.name));
       if (!mine.length) continue;
@@ -15709,6 +15884,15 @@ const menuPage = {
         h('div', 'group-title', glyph(glyphName), label, h('span', { class: 'group-sum', text: mine.length + (mine.length === 1 ? ' item' : ' items') })),
         h('div', 'menu-cards', mine.map(menuCard))));
     }
+    // The Game station after Ice cream (owner, 15 November): what Add Items charges for each, from Settings → Rates.
+    const game = (glyphName, name, lines) => h('div', { class: 'menu-card game-menu-card', data: { gameMenu: name } }, h('div', 'menu-card-top', h('span', { class: 'menu-card-icon game' }, icon(glyphName)), h('div', 'menu-card-text', h('b', { class: 'menu-card-name', text: name }), ...lines.map(([k, v]) => h('div', 'game-price-row', h('span', { text: k }), h('b', { class: 'num', text: v }))))));
+    const half = kind => money(gamePrice(kind, 30, 1)), hour = kind => money(gamePrice(kind, 60, 1));
+    target.append(h('section', { class: 'menu-group', data: { menuKind: 'Game' } },
+      h('div', 'group-title', glyph('PS5'), 'Game station', h('span', { class: 'group-sum', text: '3 games' })),
+      h('div', 'menu-cards',
+        game('PS5', 'PS5', [['Half an hour · each controller', half('PS5')], ['1 hour · each controller', hour('PS5')]]),
+        game('Pool', 'Table', [['Pool · half an hour', half('Pool')], ['Pool · 1 hour', hour('Pool')], ['Snooker · half an hour', half('Snooker')], ['Snooker · 1 hour', hour('Snooker')]]),
+        game('Bowling', 'Bowling', [['Each person · one game', money(gamePrice('Bowling', 0, 1))]]))));
   }
 };
 // Put the counter basket on a credit account.
@@ -16199,7 +16383,7 @@ function pendingReminderText(name, amountPaise, what, detail = []) {
   return lines.join('\n');
 }
 function pendingRows() {
-  const voided = new Set(state.Corrections.filter(c => c.kind === 'bill_void').map(c => c.targetId)), onCredit = new Set(state.CreditTransfers.map(t => t.billId)), carried = new Set((state.Carries || []).map(c => c.billId));
+  const voided = new Set(state.Corrections.filter(c => c.kind === 'bill_void').map(c => c.targetId)), onCredit = new Set(state.CreditTransfers.map(t => t.billId)), carried = new Set((state.Carries || []).filter(c => ArenaCore.carryOf(state, c.billId)).map(c => c.billId));
   const rows = [], byBooking = new Map();
   for (const bill of state.Bills) {
     if (bill.totalPaise <= bill.paidPaise || voided.has(bill.id) || onCredit.has(bill.id) || carried.has(bill.id)) continue;
@@ -16266,7 +16450,8 @@ function pendingLine(r, back) {
       glyph('turf', '', 'sm'),
       h('div', 'line-main', h('b', { text: turfWord(b.court) + ' · ' + courtLabel(b.court) }), h('span', { class: 'small muted', text: turfRange(b) })),
       h('span', { class: 'line-amount', text: money(r.owed) }),
-      h('div', 'pending-tools', btn([icon('transfer'), 'Move'], () => pendingMoveSheet(r.parts.map(x => x.billId), b.customer, r.owed, back), 'quiet', { data: { action: 'pending-move' } }),
+      h('div', 'pending-tools', btn([icon('plus'), 'Add Items'], () => pendingItemsSheet(r.parts[0].billId, b.customer, r.owed, back), 'quiet', { data: { action: 'pending-items' } }),
+        btn([icon('transfer'), 'Move'], () => pendingMoveSheet(r.parts.map(x => x.billId), b.customer, r.owed, back), 'quiet', { data: { action: 'pending-move' } }),
         btn([icon('wallet'), 'Collect'], () => turfPendingSheet(r), 'go', { data: { action: 'pending-collect-one' } })));
   }
   const where = [...new Set(segmentsOf(r.detail.tabId).map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))].join(', ');
@@ -16276,8 +16461,32 @@ function pendingLine(r, back) {
     h('div', 'line-main', h('b', { text: where || numberOf(r.bill.id) || 'Bill' }), h('span', { class: 'small muted', text: [clock(r.detail.createdMs), where ? numberOf(r.bill.id) : ''].filter(Boolean).join(' · ') }),
       heldBy ? h('span', { class: 'pending-held', data: { pendingHeld: heldBy.id } }, icon('reservations'), 'Comes with ' + heldBy.customer + ' · ' + reservationWhat(heldBy) + ' ' + reservationAt(heldBy)) : null),
     h('span', { class: 'line-amount', text: money(r.owed) }),
-    h('div', 'pending-tools', btn([icon('transfer'), 'Move'], () => pendingMoveSheet([r.bill.id], (r.tab || {}).customer || r.detail.customer, r.owed, back), 'quiet', { data: { action: 'pending-move' } }),
+    h('div', 'pending-tools', btn([icon('plus'), 'Add Items'], () => pendingItemsSheet(r.bill.id, (r.tab || {}).customer || r.detail.customer, r.owed, back), 'quiet', { data: { action: 'pending-items' } }),
+      btn([icon('transfer'), 'Move'], () => pendingMoveSheet([r.bill.id], (r.tab || {}).customer || r.detail.customer, r.owed, back), 'quiet', { data: { action: 'pending-move' } }),
       btn([icon('wallet'), 'Collect'], () => receiptSheet(r.bill.id, back), 'go', { data: { action: 'pending-collect-one' } })));
+}
+// Add Items to a pending bill (owner, 15 November): onto the same bill, what it then owes on the button.
+function pendingItemsSheet(billId, name, owed, back) {
+  let picker;
+  const say = () => { const sum = picker.total(); return sum ? 'Add ' + money(sum) + ' · owes ' + money(owed + sum) : 'Choose what to add'; };
+  openSheet({
+    title: 'Add Items',
+    sub: (name || 'Walk-in') + ' · owes ' + money(owed),
+    icon: 'plus',
+    focus: false,
+    onClose: back || null,
+    build(ui) {
+      picker = picker || productPicker(() => { const b = current.primaryButton; if (b) { b.textContent = say(); b.dataset.label = say(); b.disabled = !picker.total(); } });
+      ui.body.append(picker.node);
+      ui.primary(say(), !picker.total());
+    },
+    command() {
+      const items = picker.items();
+      if (!items.length) throw new Error('Choose what to add.');
+      return { type: 'PENDING_ADD_ITEMS', billId, items };
+    },
+    then(result) { closeSheet(); render(); return { text: result.message }; }
+  });
 }
 // The reservation a pending bill is held for, to come onto its bill at check-in (owner, 15 November).
 function pendingHeldBy(billId) {
@@ -16285,14 +16494,15 @@ function pendingHeldBy(billId) {
 }
 // What a reservation brings with it: its held bills still pending, and how much.
 function pendingHeldFor(r) {
-  const voided = new Set(state.Corrections.filter(c => c.kind === 'bill_void').map(c => c.targetId)), onCredit = new Set(state.CreditTransfers.map(t => t.billId)), carried = new Set((state.Carries || []).map(c => c.billId));
+  const voided = new Set(state.Corrections.filter(c => c.kind === 'bill_void').map(c => c.targetId)), onCredit = new Set(state.CreditTransfers.map(t => t.billId)), carried = new Set((state.Carries || []).filter(c => ArenaCore.carryOf(state, c.billId)).map(c => c.billId));
   const bills = ArenaTurf.pendingFor(state, r.id).map(id => state.Bills.find(x => x.id === id)).filter(x => x && x.totalPaise > x.paidPaise && !voided.has(x.id) && !onCredit.has(x.id) && !carried.has(x.id));
   return { bills, owed: bills.reduce((n, x) => n + x.totalPaise - x.paidPaise, 0) };
 }
 // Move a pending bill (owner, 15 November: "a person played snooker and i put it to pending, now once bowling is free, he will play
 // there … move the pending bill to systems or turf … also to the reservation list"): onto a system playing now, a free system they
 // start on, a turf or court booking, or a reservation, whose check-in brings it onto the new bill. The balance goes as one line.
-function pendingMoveSheet(billIds, name, owed, back) {
+// opts.uncarry: carried lines this move takes off the bill they are on, in the same save.
+function pendingMoveSheet(billIds, name, owed, back, opts = {}) {
   const running = playingBills({ id: '' }), free = CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && !inUse(u)));
   const today = dayKey(nowMs()), bookings = turfTakers({ kind: '' }).filter(x => x.dateKey >= today && x.split !== 'yes' && !turfAccountOf(x.id));
   const reservations = state.Reservations.filter(r => RES_PENDING.includes(r.status) && !isWalkIn(r)).sort((x, y) => x.arrivalMs - y.arrivalMs);
@@ -16337,7 +16547,7 @@ function pendingMoveSheet(billIds, name, owed, back) {
     },
     command() {
       if (!to) throw new Error('Choose where it goes.');
-      const base = { type: 'PENDING_MOVE', billIds };
+      const base = { type: 'PENDING_MOVE', billIds, ...(opts.uncarry ? { uncarry: opts.uncarry } : {}) };
       if (to.kind === 'unit') { const unit2 = unitOf(to.unitId); return { ...base, unitId: to.unitId, startMs: time.value(), ...(unit2.category === 'PS5' ? { controllers: Number(pads.count.value()) } : {}), ...(unit2.category === 'Bowling' ? laneChoice(lane) : {}) }; }
       if (to.kind === 'booking') return { ...base, bookingId: to.bookingId };
       if (to.kind === 'reservation') return { ...base, reservationId: to.reservationId };
@@ -16350,7 +16560,7 @@ function pendingMoveSheet(billIds, name, owed, back) {
 // if i need to clear the payment or put to pending or credit or move somewhere else"): what they owe, and Collect, Move to Credit,
 // Move or Keep pending.
 function pendingCancelSheet(r, billIds) {
-  const bills = billIds.map(id => state.Bills.find(x => x.id === id)).filter(x => x && x.totalPaise > x.paidPaise && !(state.Carries || []).some(c => c.billId === x.id) && !state.CreditTransfers.some(t => t.billId === x.id));
+  const bills = billIds.map(id => state.Bills.find(x => x.id === id)).filter(x => x && x.totalPaise > x.paidPaise && !ArenaCore.carryOf(state, x.id) && !state.CreditTransfers.some(t => t.billId === x.id));
   if (!bills.length) return;
   const owed = bills.reduce((n, x) => n + x.totalPaise - x.paidPaise, 0), again = () => pendingCancelSheet(r, billIds);
   openSheet({
@@ -16521,6 +16731,7 @@ function pendingList(page) {
           h('td', { class: 'num owing', text: money(r.owed) }),
           h('td', { class: 'r' }, h('div', 'row-tools',
             iconButton('whatsapp', 'Remind ' + b.customer + ' on WhatsApp', e => { e.stopPropagation(); whatsapp(b.phone, pendingReminderText(b.customer, r.owed, turfPendingWhat(b), detail)); }, { data: { action: 'pending-remind' } }),
+            h('button', { type: 'button', class: 'btn', data: { action: 'pending-items' }, onclick: e => { e.stopPropagation(); pendingItemsSheet(r.parts[0].billId, b.customer, r.owed); } }, icon('plus'), h('span', { class: 'hide-s', text: 'Add Items' })),
             h('button', { type: 'button', class: 'btn', data: { action: 'pending-move' }, onclick: e => { e.stopPropagation(); pendingMoveSheet(r.parts.map(x => x.billId), b.customer, r.owed); } }, icon('transfer'), h('span', { class: 'hide-s', text: 'Move' })),
             h('button', { type: 'button', class: 'btn', data: { action: 'pending-collect' }, onclick: e => { e.stopPropagation(); turfPendingSheet(r); } }, icon('wallet'), h('span', { class: 'hide-s', text: 'Collect' })))));
       }
@@ -16534,6 +16745,7 @@ function pendingList(page) {
         h('td', { class: 'num owing', text: money(r.owed) }),
         h('td', { class: 'r' }, h('div', 'row-tools',
           phone ? iconButton('whatsapp', 'Remind ' + r.detail.customer + ' on WhatsApp', e => { e.stopPropagation(); whatsapp(phone, pendingReminderText(r.detail.customer, r.owed, what)); }, { data: { action: 'pending-remind' } }) : null,
+          h('button', { type: 'button', class: 'btn', data: { action: 'pending-items' }, onclick: e => { e.stopPropagation(); pendingItemsSheet(r.bill.id, r.detail.customer, r.owed); } }, icon('plus'), h('span', { class: 'hide-s', text: 'Add Items' })),
           h('button', { type: 'button', class: 'btn', data: { action: 'pending-move' }, onclick: e => { e.stopPropagation(); pendingMoveSheet([r.bill.id], r.detail.customer, r.owed); } }, icon('transfer'), h('span', { class: 'hide-s', text: 'Move' })),
           h('button', { type: 'button', class: 'btn', data: { action: 'pending-collect' }, onclick: e => { e.stopPropagation(); receiptSheet(r.bill.id); } }, icon('wallet'), h('span', { class: 'hide-s', text: 'Collect' })))));
     }),
@@ -18151,9 +18363,7 @@ function turfDetailSheet(id) {
       else turfOnePayerBody(ui, b, status, main, mainOpen, mainPart);
       // Brought from an earlier booking of this customer, to be paid with this one.
       const brought = main && main.status === 'open' ? ordersOf(main.id).filter(turfCarried) : [];
-      if (brought.length) ui.body.append(h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', 'lines', brought.map(o => h('div', { class: 'line', data: { order: o.id } },
-        h('div', 'line-main', h('b', { text: o.label + (o.quantity > 1 && o.category !== 'Turf' ? ' × ' + o.quantity : '') }), h('span', { class: 'small muted', text: o.reason.replace('Carried from ', 'from ') })),
-        h('span', { class: 'line-amount', text: money(o.totalPaise) })))));
+      if (brought.length) ui.body.append(h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', 'lines', brought.map(carriedLine)));
       const notes = notesBlock([b.id, b.tabId, ...turfPlayersOf(b).map(x => x.tabId)]);
       if (notes) ui.body.append(notes);
       // Play brought from the gaming floor (a group that played before the turf), at its saved price.
@@ -18489,7 +18699,7 @@ function turfOnePayerBody(ui, b, status, main, mainOpen, mainPart) {
   if (!mainOpen && mainPart && !bill) {
     const [text, tone] = TURF_PART[mainPart.state] || ['', ''];
     // Moved: where to, "Moved · PS5 2" (the bill it went to, or the balance's line there).
-    const carry = mainPart.billId ? (state.Carries || []).find(c => c.billId === mainPart.billId) : null;
+    const carry = mainPart.billId ? ArenaCore.carryOf(state, mainPart.billId) : null;
     const fee = state.Orders.find(o => turfMeta(o).bookingId === b.id && turfMeta(o).part === 'fee' && o.tabId !== b.tabId);
     const where = mainPart.state === 'moved' ? turfSettledText({ movedTo: carry ? carry.tabId : fee ? fee.tabId : '' }, mainPart) : text;
     ui.body.append(h('div', { class: 'turf-paid', style: 'margin-top:12px' }, h('span', { class: 'badge ' + tone, data: mainPart.state === 'moved' ? { turfMoved: '1' } : {}, text: where })));
@@ -20237,7 +20447,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "7e66a584e4cb";
+const APP_BUILD = "e253550ce4e4";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
