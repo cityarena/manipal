@@ -6706,7 +6706,7 @@ var ArenaReports = (function () {
    their own items, settled through the usual checkout. Every amount is an ordinary order on an ordinary tab. */
 var ArenaTurf = (function () {
   'use strict';
-  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY', 'PENDING_PART_PAY'];
+  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY', 'PENDING_PART_PAY', 'PENDING_PART_CREDIT'];
   // Items bought for Team A, Team B or everyone are kept once, as bought, and each player's part is one line on their bill.
   var SHARED = 'Shared items', GROUPS = ['A', 'B', 'all'];
   // Every court of every venue comes from the branch's settings (Branch.gs), switched-off ones included, so old bookings and
@@ -7480,6 +7480,12 @@ var ArenaTurf = (function () {
       if (their && their.status === 'open') their.customer = (player.name + ' · Turf').slice(0, 80);
       turfLines(state, owner.id).filter(function (o) { return meta(o).playerId === player.id; }).forEach(function (o) { o.purchaser = player.name; });
       return { bookingId: owner.id, playerId: player.id, message: 'Player updated.' };
+    }
+    if (cmd.type === 'PENDING_PART_CREDIT') {
+      // Part of a pending bill moved to a credit account; the rest stays pending.
+      var creditPart = splitPending(state, cmd.billId, cmd.segmentIds, cmd.orderIds, now, id + '-split');
+      var moved = ArenaCore.engineFor('TRANSFER_CREDIT_INLINE').execute(state, { type: 'TRANSFER_CREDIT_INLINE', billId: creditPart, accountId: cmd.accountId, newAccount: cmd.newAccount }, actor, now, id + '-credit');
+      return Object.assign({}, moved, { billId: creditPart, message: 'Moved to credit. The rest stays pending.' });
     }
     if (cmd.type === 'PENDING_PART_PAY') {
       // Part of a pending bill paid now; the rest stays pending.
@@ -14363,6 +14369,12 @@ async function receiptSheet(billId, back) {
   const paidHere = data.transfer ? data.payments.reduce((sum, p) => sum + p.amountPaise, 0) : bill.paidPaise;
   const payStore = { method: 'cash' };
   let amount, how;
+  // A pending bill of more than one part (nothing paid on it, no discount): each part with a tick, all ticked at first; Collect, Move
+  // to Credit and Move act on what is ticked, each in one save (the ticked part becomes a bill of its own, the rest stays pending).
+  const onTurf = data.tab ? turfBookingForTab(data.tab.id) : null, parts = payable && !onTurf && !(bill.paidPaise > 0) && !((detail || {}).discountPaise > 0) ? billParts(data) : [];
+  const ticking = parts.length > 1, off = new Set();
+  const ticked = () => parts.filter(p => !off.has(p.key)), tickedSum = () => ticked().reduce((n, p) => n + p.paise, 0), partly = () => ticking && off.size > 0;
+  const splitOf = () => ({ billId, segmentIds: ticked().flatMap(p => p.segmentIds), orderIds: ticked().flatMap(p => p.orderIds) });
   openSheet({
     title: 'Bill ' + data.number,
     sub: data.tab && data.tab.kind === 'quick_sale' ? 'Counter sale' : '',
@@ -14394,7 +14406,11 @@ async function receiptSheet(billId, back) {
             : [...(correctable(data) && data.payments.length ? [] : [['Correct charges', () => reasonSheet({ title: 'Correct charges · Bill ' + data.number, sub: 'The visit opens again to be corrected and settled.', action: 'Open to correct', icon: 'pencil', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => (result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet()) }), false, 'pencil']]),
               ['Void bill', () => reasonSheet({ title: 'Void bill ' + data.number, sub: 'Cancelled completely: nothing is charged.', action: 'Void bill', icon: 'ban', tone: 'bad', command: reason => ({ type: 'VOID_BILL', billId, reason, whole: true }), then: result => { closeSheet(); render(); return { text: result.message }; } }), true, 'ban']]) : [])
         ], 'Bill actions'))));
-      drawLines(ui.body, { segments: data.segments, orders: data.orders, customer, tab: data.tab || null, editable: false, detail: true, pauses: data.pauses });
+      if (ticking) ui.body.append(h('div', { class: 'lines end-pick bill-parts', data: { field: 'bill-parts' } }, parts.map(p => h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(!off.has(p.key)), data: { part: p.key }, onclick: () => { if (off.has(p.key)) off.delete(p.key); else off.add(p.key); ui.redraw(); } },
+        h('input', { type: 'checkbox', checked: !off.has(p.key), tabindex: '-1', 'aria-hidden': 'true' }),
+        h('div', 'line-main', h('b', { text: p.name }), h('span', { class: 'small muted', text: p.detail.join(' · ') })),
+        h('span', { class: 'line-amount', text: money(p.paise) })))));
+      else drawLines(ui.body, { segments: data.segments, orders: data.orders, customer, tab: data.tab || null, editable: false, detail: true, pauses: data.pauses });
       const notes = notesBlock([billId, data.tab ? data.tab.id : '']);
       if (notes) ui.body.append(notes);
 
@@ -14446,13 +14462,14 @@ async function receiptSheet(billId, back) {
       }
 
       if (payable) {
-        amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: String(due / 100), 'aria-label': 'Amount received', data: { field: 'received' } });
+        const owing = ticking ? tickedSum() : due;
+        amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: String(owing / 100), 'aria-label': 'Amount received', data: { field: 'received' } });
         const receivedBox = field('Received (₹)', amount);
         const primary = () => { const b = current.primaryButton, split = how ? how.paid() : null, paise = split != null ? split : toPaise(amount.value || 0), label = 'Collect Payment · ' + money(paise); b.dataset.label = label; b.textContent = label; b.disabled = !(paise > 0 && paise <= due); };
         amount.oninput = primary;
         ui.foot.append(
-          h('div', 'foot-row', h('div', { class: 'foot-label', text: 'Outstanding' }), h('div', { class: 'foot-total', text: money(due) })),
-          h('div', 'foot-row pay-foot', receivedBox, (how = payChoice(payStore, () => primary(), { amount, due: () => due })).node));
+          h('div', 'foot-row', h('div', { class: 'foot-label', text: partly() ? 'Ticked' : 'Outstanding' }), h('div', { class: 'foot-total', text: money(owing) })),
+          h('div', 'foot-row pay-foot', receivedBox, (how = payChoice(payStore, () => primary(), { amount, due: () => owing, splittable: !partly() })).node));
         ui.primary('');
         primary();
         // A turf bill can also go to the team's next booking: the turf chooser offers both.
@@ -14460,11 +14477,8 @@ async function receiptSheet(billId, back) {
         // A turf bill's balance can also go onto a bill running on a system (owner, 2 November: "where is it??").
         const toSystem = turfOwner && !turfAccountOf(turfPlayer ? turfPlayer.id : turfOwner.id) && !(turfOwner.split === 'yes' && !turfPlayer) ? btn([icon('transfer'), 'Move to System'], () => turfMoveSheet(turfOwner, turfPlayer), 'quiet', { data: { action: 'bill-move-system' } }) : null;
         // Any other bill left pending can go onto a system, a booking or a reservation (owner, 15 November).
-        const toPlace = !turfOwner && !ArenaCore.carryOf(state, billId) ? btn([icon('transfer'), 'Move'], () => pendingMoveSheet([billId], (data.tab || {}).customer, due, () => receiptSheet(billId)), 'quiet', { data: { action: 'bill-move-pending' } }) : null;
-        // Part of it paid or moved (owner, 15 November): a bill of more than one part, nothing paid on it and no discount.
-        const parts = new Set((data.segments || []).filter(g => g.status !== 'void').map(g => g.unitId)).size + (data.orders || []).filter(o => o.status === 'active').length;
-        const toPart = !turfOwner && parts > 1 && !(data.bill.paidPaise > 0) && !((data.detail || {}).discountPaise > 0) ? btn([icon('wallet'), 'Pay or move part'], () => pendingPartSheet(billId, data, () => receiptSheet(billId, back)), 'quiet', { data: { action: 'bill-part' } }) : null;
-        ui.foot.append(h('div', 'foot-links', toPart, btn([icon('credits'), 'Move to Credit'], () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, due, goodsOf(data.orders))), 'quiet', { data: { action: 'bill-credit' } }), toSystem, toPlace, btn('Close', dismissSheet, 'quiet')));
+        const toPlace = !turfOwner && !ArenaCore.carryOf(state, billId) && owing > 0 ? btn([icon('transfer'), 'Move'], () => pendingMoveSheet([billId], (data.tab || {}).customer, owing, () => receiptSheet(billId, back), partly() ? { split: splitOf() } : {}), 'quiet', { data: { action: 'bill-move-pending' } }) : null;
+        ui.foot.append(h('div', 'foot-links', owing > 0 ? btn([icon('credits'), 'Move to Credit'], () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, owing, goodsOf(data.orders), partly() ? splitOf() : null)), 'quiet', { data: { action: 'bill-credit' } }) : null, toSystem, toPlace, btn('Close', dismissSheet, 'quiet')));
       } else {
         // Nothing left to collect: say so plainly, then offer the receipt.
         const done = data.status === 'paid' ? ['', 'checkCircle', 'Paid in full', money(bill.totalPaise) + ' settled' + (extras.length ? ' · ' + money(receivedAll) + ' received in all' : '')]
@@ -14476,7 +14490,12 @@ async function receiptSheet(billId, back) {
         ui.foot.append(h('div', 'foot-row', btn([icon('printer'), 'Print Receipt'], () => printReceipt(data), 'block', { data: { action: 'print' } }), btn([icon('check'), 'Done'], dismissSheet, 'primary block', { data: { action: 'done' } })));
       }
     },
-    command: () => { if (!payable) return null; const split = how.paid(), paise = split != null ? split : toPaise(amount.value); return { type: 'PAY', billId, amountPaise: paise, ...how.value() }; },
+    command: () => {
+      if (!payable) return null;
+      if (partly()) { if (!ticked().length) throw new Error('Tick what they pay for.'); return { type: 'PENDING_PART_PAY', ...splitOf(), method: how.value(tickedSum()).method }; }
+      const split = how.paid(), paise = split != null ? split : toPaise(amount.value);
+      return { type: 'PAY', billId, amountPaise: paise, ...how.value() };
+    },
     // Paid off now: back to where the bill was opened from, with a note. Still owing: the bill again.
     then: result => {
       const after = state.Bills.find(x => x.id === billId);
@@ -14488,13 +14507,28 @@ async function receiptSheet(billId, back) {
   });
 }
 
+// A pending bill's parts to tick (owner, 15 November: "keep check box and i will click which i want to pay or do anything"): one row a
+// system with its time, one an item, one a balance from earlier.
+function billParts(data) {
+  const segs = (data.segments || []).filter(g => g.status !== 'void'), orders = (data.orders || []).filter(o => o.status === 'active'), groups = new Map();
+  for (const g of segs) {
+    const unit = unitOf(g.unitId) || {}, name = unit.name || 'Game';
+    if (!groups.has(name)) groups.set(name, { key: 'u:' + name, name, glyph: unit.category || 'list', detail: [], segmentIds: [], orderIds: [], paise: 0 });
+    const x = groups.get(name);
+    x.segmentIds.push(g.id);
+    x.paise += Number(g.totalPaise || 0);
+    x.detail.push(timerShort(g, timerWords(g, data.pauses || state.Pauses || [])));
+  }
+  return [...groups.values(), ...orders.map(o => ({ key: 'o:' + o.id, name: o.category === 'Carried' ? carriedOf(o).what : o.label + (Number(o.quantity) > 1 ? ' × ' + o.quantity : ''), glyph: o.category === 'Carried' ? 'history' : productIcon(o.category), detail: [o.category === 'Carried' ? 'From earlier' : priceEach(o)], segmentIds: [], orderIds: [o.id], paise: Number(o.totalPaise || 0) }))];
+}
 // The items a move to credit names on the statement, by themselves (owner, 21 October: nothing to fill in): every item on the
 // bill, when they fit in the amount moved; otherwise none is named.
 function itemsOnCredit(orders, creditPaise) {
   const goods = goodsOf(orders), total = goods.reduce((sum, o) => sum + o.totalPaise, 0);
   return goods.length && total <= creditPaise ? goods.map(o => ({ orderId: o.id, quantity: Number(o.quantity) })) : undefined;
 }
-function creditTransferSheet(billId, number, due, goods = []) {
+// split: part of a pending bill moved to credit (PENDING_PART_CREDIT), in one save.
+function creditTransferSheet(billId, number, due, goods = [], split = null) {
   const store = newAccountStore(), comment = commentField();
   let picker;
   openSheet({
@@ -14509,6 +14543,7 @@ function creditTransferSheet(billId, number, due, goods = []) {
       ui.primary('Move to credit');
     },
     command() {
+      if (split) return { type: 'PENDING_PART_CREDIT', ...split, ...picker.value() };
       return { type: 'TRANSFER_CREDIT_INLINE', billId, ...picker.value(), note: comment.value(), unpaidItems: itemsOnCredit(goods, due) };
     },
     then: () => receiptSheet(billId)
@@ -16507,44 +16542,6 @@ function pendingLine(r, back) {
     h('div', 'pending-tools', btn([icon('plus'), 'Add Items'], () => pendingItemsSheet(r.bill.id, (r.tab || {}).customer || r.detail.customer, r.owed, back), 'quiet', { data: { action: 'pending-items' } }),
       btn([icon('transfer'), 'Move'], () => pendingMoveSheet([r.bill.id], (r.tab || {}).customer || r.detail.customer, r.owed, back), 'quiet', { data: { action: 'pending-move' } }),
       btn([icon('wallet'), 'Collect'], () => receiptSheet(r.bill.id, back), 'go', { data: { action: 'pending-collect-one' } })));
-}
-// Pay or move part of a pending bill (owner, 15 November: "how can i pay move or do anything for just one like just snooker"): each
-// system, item and balance from earlier with a tick, nothing ticked at first; Collect pays what is ticked, Move sends it anywhere,
-// each in one save (the part becomes a bill of its own; the rest stays pending). Back changes nothing.
-function pendingPartSheet(billId, data, back) {
-  const segs = (data.segments || []).filter(g => g.status !== 'void'), orders = (data.orders || []).filter(o => o.status === 'active');
-  const groups = new Map();
-  for (const g of segs) { const name = (unitOf(g.unitId) || {}).name || 'Game'; if (!groups.has(name)) groups.set(name, { key: 'u:' + name, name, segmentIds: [], orderIds: [], paise: 0 }); const x = groups.get(name); x.segmentIds.push(g.id); x.paise += Number(g.totalPaise || 0); }
-  const rows = [...groups.values(), ...orders.map(o => ({ key: 'o:' + o.id, name: o.category === 'Carried' ? carriedOf(o).what : o.label + (Number(o.quantity) > 1 ? ' × ' + o.quantity : ''), segmentIds: [], orderIds: [o.id], paise: Number(o.totalPaise || 0) }))];
-  const picked = new Set(), pay = { method: 'cash' }, who = (data.tab || {}).customer || (data.detail || {}).customer || '';
-  let how = null;
-  const chosen = () => rows.filter(r => picked.has(r.key)), sum = () => chosen().reduce((n, r) => n + r.paise, 0), whole = () => chosen().length === rows.length;
-  const split = () => ({ billId, segmentIds: chosen().flatMap(r => r.segmentIds), orderIds: chosen().flatMap(r => r.orderIds) });
-  openSheet({
-    title: 'Pay or move part',
-    sub: (who || 'Walk-in') + ' · owes ' + money(data.bill.totalPaise - data.bill.paidPaise),
-    icon: 'wallet',
-    focus: false,
-    onClose: back,
-    build(ui) {
-      ui.body.append(h('div', { class: 'lines end-pick', data: { field: 'pending-part' } }, rows.map(r => h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(picked.has(r.key)), data: { part: r.key }, onclick: () => { if (picked.has(r.key)) picked.delete(r.key); else picked.add(r.key); ui.redraw(); } },
-        h('input', { type: 'checkbox', checked: picked.has(r.key), tabindex: '-1', 'aria-hidden': 'true' }),
-        h('div', 'line-main', h('b', { text: r.name })),
-        h('span', { class: 'line-amount', text: money(r.paise) })))));
-      const due = sum();
-      how = payChoice(pay, () => {}, { due: () => due, splittable: false });
-      ui.foot.append(h('div', 'foot-row', h('div', { class: 'foot-label', text: 'Ticked' }), h('div', { class: 'foot-total', text: money(due) })), h('div', 'foot-row pay-foot', how.node));
-      if (due) ui.foot.append(h('div', 'foot-row', btn([icon('transfer'), 'Move'], () => (whole() ? pendingMoveSheet([billId], who, due, () => pendingPartSheet(billId, data, back)) : pendingMoveSheet([billId], who, due, () => pendingPartSheet(billId, data, back), { split: split() })), 'block', { data: { action: 'pending-part-move' } })));
-      ui.primary(due ? 'Collect ' + money(due) : 'Tick what they pay or move', !due);
-    },
-    command() {
-      if (!sum()) throw new Error('Tick what they pay or move.');
-      const method = how.value(sum()).method;
-      if (whole()) return { type: 'PAY', billId, amountPaise: sum(), method };
-      return { type: 'PENDING_PART_PAY', ...split(), method };
-    },
-    then(result) { closeSheet(); render(); return { text: result.message || 'Paid.' }; }
-  });
 }
 // Add Items to a pending bill (owner, 15 November): onto the same bill, what it then owes on the button.
 function pendingItemsSheet(billId, name, owed, back) {
@@ -20530,7 +20527,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "5e1798ec3956";
+const APP_BUILD = "5c5a1239af76";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
