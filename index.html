@@ -3392,6 +3392,99 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .res-pending svg { width: 16px; height: 16px; flex: none; }
 .pending-cancel-tools { display: flex; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 640px) { .pending-tools { width: 100%; } }
+
+/* A lane started by a move asks how many play and how many games, nothing chosen at first (owner, 15 November). */
+.lane-ask { display: grid; gap: 4px; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--primary-line); border-radius: var(--r-md); background: var(--primary-soft); }
+
+/* Reconciliation, 15 November: each side what should have come in (a statement that adds up), the payments into its own account
+   for the passbook, and what went into another account with one Transfer for its total. */
+.recon-sidebox { display: grid; gap: 14px; }
+.recon-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.recon-stack { display: grid; gap: 16px; }
+.rx-card { display: grid; gap: 12px; padding: 18px; }
+.rx-count { color: var(--ink-3); font-size: var(--text-sm); }
+.rx-lines { display: grid; }
+.rx-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.rx-row:first-child { border-top: 0; }
+.rx-label { display: grid; gap: 2px; min-width: 0; }
+.rx-label small { color: var(--ink-3); font-size: var(--text-xs); }
+.rx-row b { font-size: var(--text-md); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rx-row.less b { color: var(--danger); }
+.rx-row.more b { color: var(--accent-ink); }
+.rx-names { display: grid; gap: 6px; padding: 0 0 10px 16px; }
+.rx-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.rx-name > span:first-child { display: grid; gap: 2px; min-width: 0; }
+.rx-name small { color: var(--ink-3); font-size: var(--text-xs); }
+.rx-name:hover { border-color: var(--primary-line); }
+.rx-sub { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px dashed var(--line-strong); font-weight: 600; }
+.rx-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid var(--primary-line); border-radius: var(--r-md); background: var(--primary-soft); }
+.rx-total span { font-weight: 600; }
+.rx-total b { font-size: var(--text-2xl); font-variant-numeric: tabular-nums; }
+.rx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.rx-tile { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.rx-tile.warn { border-color: var(--gold-line); background: var(--gold-soft); }
+.rx-tile-name { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: var(--text-xs); }
+.rx-tile-name svg { width: 16px; height: 16px; flex: none; }
+.rx-tile b { font-size: var(--text-xl); font-variant-numeric: tabular-nums; }
+.rx-into { display: grid; }
+.rx-pay { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 4px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.rx-pay:first-child { border-top: 0; }
+.rx-pay:disabled { cursor: default; }
+.rx-pay:not(:disabled):hover { background: var(--primary-soft); }
+.rx-time { color: var(--ink-3); font-size: var(--text-sm); }
+.rx-pay-who { display: grid; gap: 2px; min-width: 0; }
+.rx-pay-who small { color: var(--ink-3); font-size: var(--text-xs); }
+.rx-wrong { display: grid; gap: 10px; }
+.recon-item.opens { cursor: pointer; }
+.recon-item.opens:hover { border-color: var(--primary-line); }
+.rx-move { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 16px; border: 1px solid var(--gold-line); border-radius: var(--r-md); background: var(--gold-soft); }
+.rx-move > span { color: var(--ink); }
+.rx-move small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+@media (max-width: 1100px) { .recon-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .rx-card { padding: 14px; } .rx-pay { grid-template-columns: 64px minmax(0, 1fr) auto; gap: 8px; } }
+
+/* Reconciliation as an audit (owner, 15 November: "neat tables … neat and professional to the eyes"): one column, a white card for
+   each table, a plain heading, figures right-aligned in tabular numbers, a fine rule between rows, totals ruled above. */
+.audit-page { display: grid; gap: 28px; max-width: 1040px; }
+.audit-side { display: grid; gap: 14px; }
+.audit-side-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; padding-bottom: 8px; border-bottom: 2px solid var(--ink); }
+.audit-side-head h2 { margin: 0; font-size: var(--text-xl); }
+.audit-sub { color: var(--ink-3); font-size: var(--text-sm); }
+.audit-card { display: grid; gap: 10px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-md); background: #ffffff; }
+.audit-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.audit-head h3 { margin: 0; font-size: var(--text-md); font-weight: 700; }
+.audit-wrap { overflow-x: auto; }
+.audit { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.audit th { padding: 8px 10px; border-bottom: 1px solid var(--ink-3); color: var(--ink-2); font-weight: 600; text-align: left; white-space: nowrap; }
+.audit td { padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink); vertical-align: top; }
+.audit .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.audit tr.a-group td { padding-top: 14px; border-bottom: 0; color: var(--ink-2); font-weight: 600; }
+.audit tr.a-line td:first-child { padding-left: 22px; }
+.audit tr.a-sum td { border-top: 1px solid var(--ink-3); font-weight: 700; }
+.audit tr.a-total td { border-top: 1px solid var(--ink-3); border-bottom: 0; font-weight: 700; }
+.audit tr.a-grand td { border-top: 1px solid var(--ink); border-bottom: 3px double var(--ink); font-weight: 700; font-size: var(--text-md); }
+.audit tr.a-done td { color: var(--ink-3); }
+.audit tr.opens { cursor: pointer; }
+.audit tr.opens:hover td { background: var(--surface); }
+.audit-moved { white-space: nowrap; }
+.audit-link { padding: 0; border: 0; background: none; color: var(--primary); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.audit-move { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 16px; padding: 10px 10px 0; border-top: 1px solid var(--ink-3); }
+.audit-move > span { margin-right: auto; color: var(--ink); }
+.audit-move > b { font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .audit-card { padding: 12px; } .audit th, .audit td { padding: 7px 6px; } }
+.audit td.zero { color: var(--ink-3); }
+.audit tr.a-fold { cursor: pointer; }
+.audit tr.a-fold:hover td { background: var(--surface); }
+.audit .a-chev { display: inline-flex; width: 18px; margin-right: 4px; vertical-align: -3px; color: var(--ink-3); transform: rotate(-90deg); transition: transform 170ms ease; }
+.audit .a-chev svg { width: 16px; height: 16px; }
+.audit tr.a-fold[aria-expanded="true"] .a-chev { transform: none; }
+.audit tr.a-kid td { padding-top: 6px; padding-bottom: 6px; background: var(--surface); color: var(--ink-2); font-size: var(--text-xs); }
+.audit tr.a-kid td:first-child { padding-left: 34px; }
+.audit tr.a-warn td:first-child { color: var(--ink); font-weight: 600; }
+.audit-wrap + .audit-wrap { margin-top: 6px; }
+.audit-transfer { min-height: 34px; padding: 0 12px; font-size: var(--text-xs); }
+@media (prefers-reduced-motion: reduce) { .audit .a-chev { transition: none; } }
+.audit-line-words { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 </style>
 </head>
 <body>
@@ -5554,7 +5647,7 @@ var ArenaViews = (function () {
    Charges raised and money received are always reported separately: a bill moved to credit is a charge, not a receipt. */
 var ArenaReports = (function () {
   'use strict';
-  var types = ['CLOSE_DAY', 'BUSINESS_DAY_SETTING', 'PAY_QR_SETTING', 'UPI_MOVE', 'UPI_MOVE_UNDO'], DAY_MS = 86400000, GAMING = ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling', 'Manual'];
+  var types = ['CLOSE_DAY', 'BUSINESS_DAY_SETTING', 'PAY_QR_SETTING', 'UPI_MOVE', 'UPI_MOVE_UNDO', 'UPI_MOVE_ALL'], DAY_MS = 86400000, GAMING = ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling', 'Manual'];
 
   function check(ok, message) { ArenaCore.check(ok, message); }
   function setting(state, key, fallback) {
@@ -6189,6 +6282,112 @@ var ArenaReports = (function () {
     owedOn(courtSide, out.courts);
     owedOn(floorSide, out.floor);
 
+    // What should have come in (owner, 15 November: "how much payment i should have received today … if i have given discount then
+    // mention who i have discount and after discount how much i should have got … i am verifying with my passbook"). For each
+    // side, the bills of these dates (by the day each was played): what each came to before and after its discount, what was paid
+    // before, in or after these dates, and what is still owed (left pending or on credit, each by name). What was paid in these
+    // dates for them, and what came in for other days, is exactly the money received, in cash and each UPI account.
+    var firstDay = dateKeyOf(state, fromMs), lastDay = dateKeyOf(state, toMs - 1), payAt = {}, refNumber = {};
+    (state.Payments || []).forEach(function (x) { payAt[x.id] = x.createdMs; });
+    (state.References || []).forEach(function (r) { refNumber[r.id] = r.number; });
+    var billDay = function (d) {
+      var days = Object.keys(partsFor(d.id) || {}).filter(function (k) { return k.indexOf('@') > 0; }).map(function (k) { return k.slice(k.lastIndexOf('@') + 1); }).sort();
+      return days[0] || dateKeyOf(state, d.createdMs);
+    };
+    var bookingOfTab = function (tabId) {
+      var o = (ordersBy[tabId] || []).find(function (x) { return x.status === 'active' && x.category === 'Turf' && ArenaTurf.meta(x).bookingId; });
+      return o ? ArenaTurf.meta(o).bookingId : '';
+    };
+    var expectFor = function (sideOf, target, sideName) {
+      var places = {}, e = { places: places, discounts: [], pending: [], credit: [], earlier: [], later: [], earlierPaise: 0, paidPaise: 0, laterPaise: 0, discountPaise: 0, pendingPaise: 0, creditPaise: 0 };
+      var placeOf = function (name) { places[name] = places[name] || { netPaise: 0, discountPaise: 0, bills: 0, bookings: 0, hours: 0, seen: {} }; return places[name]; };
+      var addMap = function (map) {
+        var sum = 0;
+        Object.keys(map).forEach(function (k) { if (!map[k]) return; placeOf(k.slice(0, k.indexOf('|'))).netPaise += map[k]; sum += map[k]; });
+        return sum;
+      };
+      (state.Bills || []).forEach(function (bl) {
+        var d = details[bl.id];
+        if (!d || voided[bl.id]) return;
+        var day = billDay(d);
+        if (day < firstDay || day > lastDay) return;
+        var share = sideOf.share(d);
+        if (!(share > 0)) return;
+        var f = sideOf.fill(d), home = (sideName === 'courts' ? tabPlace(d.tabId) : tabPlace(d.tabId) ? '' : tabHome(d.tabId)) || '', who = d.customer || (tabs[d.tabId] || {}).customer || 'Walk-in', number = refNumber[bl.id] || '';
+        var before = 0, after = 0;
+        Object.keys(f.each).forEach(function (pid) {
+          var at = payAt[pid] || 0, sum = addMap(f.each[pid]);
+          if (at < fromMs) before += sum; else if (at >= toMs) after += sum; else e.paidPaise += sum;
+        });
+        // Paid before these dates (an advance) or after them, each bill by name.
+        if (before) { e.earlierPaise += before; e.earlier.push({ customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: before }); }
+        if (after) { e.laterPaise += after; e.later.push({ customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: after }); }
+        var owed = addMap(f.owed);
+        if (owed > 0) {
+          var row = { customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: owed };
+          if (onCreditBill[bl.id]) { e.credit.push(row); e.creditPaise += owed; } else { e.pending.push(row); e.pendingPaise += owed; }
+        }
+        var off = Math.round((Number(d.discountPaise) || 0) * share);
+        if (home) placeOf(home).bills++;
+        // The bookings on these bills and their hours, each once (never one still to be billed).
+        (ordersBy[d.tabId] || []).forEach(function (o) {
+          if (o.status !== 'active' || o.category !== 'Turf') return;
+          var bid = ArenaTurf.meta(o).bookingId, at = bookingPlace[bid] || 'Turf', bk = (state.TurfBookings || []).find(function (x) { return x.id === bid; });
+          if (!bk || (sideName === 'courts') !== (at !== 'Turf') || placeOf(at).seen[bid]) return;
+          placeOf(at).seen[bid] = true;
+          placeOf(at).bookings++;
+          placeOf(at).hours += Number(bk.hours) || 0;
+        });
+        if (off > 0) {
+          if (home) placeOf(home).discountPaise += off;
+          e.discountPaise += off;
+          e.discounts.push({ customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: off });
+        }
+        // A booking's own discount is on its fee line (Discount beside Paid in advance), the court venue's or the turf's.
+        (ordersBy[d.tabId] || []).forEach(function (o) {
+          if (o.status !== 'active' || o.category !== 'Turf') return;
+          var fee = ArenaTurf.meta(o), cut = Number(fee.discountPaise) || 0, at = bookingPlace[fee.bookingId] || 'Turf';
+          if (!(cut > 0) || (sideName === 'courts') !== (at !== 'Turf')) return;
+          placeOf(at).discountPaise += cut;
+          e.discountPaise += cut;
+          e.discounts.push({ customer: who, number: number, billId: bl.id, place: at, bookingId: fee.bookingId, paise: cut });
+        });
+      });
+      // The money received on this side in these dates, and how; what is not for these dates' bills came in for other days.
+      e.receivedPaise = 0; e.cashPaise = 0; e.upiBy = {}; e.advance = 0; e.pendingCollected = 0; e.creditCollected = 0; e.reversed = 0;
+      Object.keys(target).forEach(function (name) {
+        var c = target[name];
+        e.receivedPaise += c.receivedPaise; e.cashPaise += c.cashPaise; e.advance += c.advance; e.pendingCollected += c.pending; e.creditCollected += c.credit; e.reversed += c.reversed;
+        Object.keys(c.upiBy).forEach(function (k) { e.upiBy[k] = (e.upiBy[k] || 0) + c.upiBy[k]; });
+      });
+      e.otherPaise = e.receivedPaise - e.paidPaise;
+      Object.keys(places).forEach(function (k) { delete places[k].seen; });
+      // What came in for other days, each payment by name (owner, 15 November: "advance you need to tell me which … do not write
+      // advance, pending and all together"): an advance for a later day, pending of an earlier day collected, credit collected,
+      // and a payment of an earlier day taken back.
+      e.advances = []; e.pendingIn = []; e.creditIn = []; e.takenBack = [];
+      var lists = { advance: e.advances, pending: e.pendingIn, credit: e.creditIn, reversed: e.takenBack };
+      (state.Payments || []).forEach(function (pay) {
+        var piece = payPieces[pay.id];
+        if (!piece) return;
+        var sums = {}, place = {};
+        (piece[sideName] || []).forEach(function (x) { if (lists[x.as]) { sums[x.as] = (sums[x.as] || 0) + x.paise; place[x.as] = place[x.as] || x.place; } });
+        Object.keys(sums).forEach(function (as) {
+          if (!sums[as]) return;
+          var detail = pay.billId ? details[pay.billId] : null, held = !detail && (state.Advances || []).find(function (a) { return a.id === pay.id; });
+          var tabId = detail ? detail.tabId : held ? held.tabId : '';
+          lists[as].push({ customer: piece.found.customer || (tabs[tabId] || {}).customer || 'Walk-in', number: pay.billId ? refNumber[pay.billId] || '' : refNumber[pay.id] || '', billId: pay.billId || '', at: pay.createdMs, place: place[as] || '', bookingId: tabId ? bookingOfTab(tabId) : '', method: pay.method, paise: as === 'reversed' ? -sums[as] : sums[as] });
+        });
+      });
+      var named = 0;
+      e.advances.concat(e.pendingIn, e.creditIn).forEach(function (x) { named += x.paise; });
+      e.takenBack.forEach(function (x) { named -= x.paise; });
+      // Anything for other days not named above (never expected; said, so the statement still adds up).
+      e.otherRestPaise = e.otherPaise - named;
+      return e;
+    };
+    out.expect = { floor: expectFor(floorSide, out.floor, 'floor'), courts: expectFor(courtSide, out.courts, 'courts') };
+
     // Reconciliation (owner, 14 November): the gaming floor and the turf's UPI belongs in CA GPay, badminton and pickleball's in
     // Badminton PhonePe; anything paid into another account (Francis is nobody's) is listed under whose money it is, with the
     // whole bill and the part paid into the wrong account, which Transfer records as moved (Settings upiMove-<payment>-<side>).
@@ -6197,6 +6396,9 @@ var ArenaReports = (function () {
     (ARENA_BRANCH.upiAccounts || []).forEach(function (a) { accountsOf[a.id] = a; });
     var properFor = { floor: '', courts: '' };
     (ARENA_BRANCH.upiAccounts || []).forEach(function (a) { if (a.side && !properFor[a.side]) properFor[a.side] = a.id; });
+    // Snacks and drinks paid by UPI belong in CA GPay, whichever counter sold them (owner, 15 November: "snacks, drinks payment that
+    // has been made in upi (badminton gpay and francis) is wrong, so that put separately in reconciliation").
+    properFor.snacks = properFor.floor;
     var numberOf = {};
     (state.References || []).forEach(function (r) { numberOf[r.id] = r.number; });
     var settingOf = {};
@@ -6222,26 +6424,35 @@ var ArenaReports = (function () {
         if (o.status !== 'active') return;
         var court = o.category === 'Turf' || o.category === 'Rentals' ? bookingPlace[ArenaTurf.meta(o).bookingId] : '';
         var side = o.category === 'Turf' ? (court && court !== 'Turf' ? 'courts' : 'floor') : GAMING.indexOf(o.category) >= 0 ? 'floor' : tabPlace(tabId) && !movedOrder[o.id] ? 'courts' : 'floor';
-        lines.push({ label: o.label + (Number(o.quantity) > 1 && o.category !== 'Turf' ? ' × ' + o.quantity : ''), paise: Number(o.totalPaise) || 0, side: side, kind: o.category === 'Turf' ? (court || 'Turf') : o.category });
+        lines.push({ label: o.label + (Number(o.quantity) > 1 && o.category !== 'Turf' ? ' × ' + o.quantity : ''), paise: Number(o.totalPaise) || 0, side: side, snack: SHARED.indexOf(o.category) >= 0, kind: o.category === 'Turf' ? (court || 'Turf') : o.category });
       });
       return lines;
     };
-    out.recon = { items: [], moves: [], accounts: (ARENA_BRANCH.upiAccounts || []).map(function (a) { return { id: a.id, name: a.name, side: a.side || '' }; }) };
+    out.recon = { items: [], moves: [], paid: [], accounts: (ARENA_BRANCH.upiAccounts || []).map(function (a) { return { id: a.id, name: a.name, side: a.side || '' }; }) };
     Object.keys(groupOf).forEach(function (key) {
       var group = groupOf[key], whole = sideTotal(group.map(function (x) { return { paise: x.amountPaise }; }));
-      var courtsAll = 0, floorAll = 0;
-      group.forEach(function (x) { courtsAll += sideTotal(payPieces[x.id].courts); floorAll += sideTotal(payPieces[x.id].floor); });
+      var courtsAll = 0, floorAll = 0, snacksAll = 0, courtsFull = 0, floorFull = 0;
+      group.forEach(function (x) {
+        payPieces[x.id].courts.forEach(function (s) { courtsFull += s.paise; if (s.place === SNACKS) snacksAll += s.paise; else courtsAll += s.paise; });
+        payPieces[x.id].floor.forEach(function (s) { floorFull += s.paise; if (s.place === SNACKS) snacksAll += s.paise; else floorAll += s.paise; });
+      });
       group.forEach(function (pay) {
         var acct = String(pay.method).indexOf('upi:') === 0 ? String(pay.method).slice(4) : '';
         if (!accountsOf[acct]) return;
-        var mine = { courts: Math.round(courtsAll * pay.amountPaise / whole), floor: Math.round(floorAll * pay.amountPaise / whole) };
+        var mine = { courts: Math.round(courtsAll * pay.amountPaise / whole), floor: Math.round(floorAll * pay.amountPaise / whole), snacks: Math.round(snacksAll * pay.amountPaise / whole) };
+        // All that landed in the account for each side, snacks and drinks included, for its payments in the account.
+        var landed = { courts: Math.round(courtsFull * pay.amountPaise / whole), floor: Math.round(floorFull * pay.amountPaise / whole) };
         var detail = pay.billId ? details[pay.billId] : null, advance = !detail && (state.Advances || []).find(function (a) { return pay.id === a.id; });
         var tabId = detail ? detail.tabId : advance ? advance.tabId : '';
         ['floor', 'courts'].forEach(function (side) {
-          if (!(mine[side] > 0) || accountsOf[acct].side === side) return;
+          if (landed[side] > 0) out.recon.paid.push({ side: side, account: acct, paymentId: pay.id, billId: pay.billId || '', at: pay.createdMs, paise: landed[side],
+            customer: payPieces[pay.id].found.customer || (tabs[tabId] || {}).customer || '', billNumber: pay.billId ? numberOf[pay.billId] || '' : numberOf[pay.id] || '', place: !tabId ? '' : side === 'floor' ? (tabPlace(tabId) ? 'Gaming floor' : tabHome(tabId)) : tabPlace(tabId) || tabHome(tabId) });
+        });
+        ['floor', 'courts', 'snacks'].forEach(function (side) {
+          if (!(mine[side] > 0) || (side === 'snacks' ? acct === properFor.snacks : accountsOf[acct].side === side)) return;
           var moveId = 'upiMove-' + pay.id + '-' + side, moved = null;
           try { moved = settingOf[moveId] ? JSON.parse(settingOf[moveId]) : null; } catch (e) { moved = null; }
-          out.recon.items.push({ id: moveId, paymentId: pay.id, side: side, at: pay.createdMs, account: acct, should: properFor[side], wrongPaise: mine[side], paidPaise: pay.amountPaise,
+          out.recon.items.push({ id: moveId, paymentId: pay.id, billId: pay.billId || '', side: side, at: pay.createdMs, account: acct, should: properFor[side], wrongPaise: mine[side], paidPaise: pay.amountPaise,
             customer: payPieces[pay.id].found.customer || (tabs[tabId] || {}).customer || '', billNumber: pay.billId ? numberOf[pay.billId] || '' : '', receiptNumber: numberOf[pay.id] || '',
             as: payPieces[pay.id].found.as || 'today', lines: tabId ? linesOf(tabId) : [], moved: moved, place: tabId ? tabPlace(tabId) || tabHome(tabId) : '' });
           if (moved) out.recon.moves.push({ id: moveId, from: acct, to: moved.to, amountPaise: moved.amountPaise, at: moved.at, side: side });
@@ -6249,6 +6460,7 @@ var ArenaReports = (function () {
       });
     });
     out.recon.items.sort(function (a, c) { return c.at - a.at; });
+    out.recon.paid.sort(function (a, c) { return a.at - c.at; });
 
     // Credit movements. None of these is money received.
     (state.CreditTransfers || []).forEach(function (t) { if (inRange(t.createdMs, fromMs, toMs)) out.creditTransfersPaise += t.amountPaise; });
@@ -6326,8 +6538,22 @@ var ArenaReports = (function () {
     // Reconciliation's Transfer (owner, 14 November: "an option when i click to transfer that amount to other upi"): the money is
     // moved in the bank's own app; this records that the part of a payment paid into the wrong account was moved, from where to
     // where and how much (never more than was paid), or takes that record back.
+    // The whole of a total moved in one go (owner, 15 November: "in the end you only total … and then i will click and transfer where
+    // i want"): each payment's part recorded as UPI_MOVE does, all of them or none.
+    if (cmd.type === 'UPI_MOVE_ALL') {
+      check(Array.isArray(cmd.moves) && cmd.moves.length >= 1 && cmd.moves.length <= 200, 'Choose the payments.');
+      var total = 0;
+      cmd.moves.forEach(function (m, i) {
+        execute(state, { type: 'UPI_MOVE', paymentId: m.paymentId, side: cmd.side, to: cmd.to, amountPaise: m.amountPaise }, actor, now, id + '-' + i);
+        total += m.amountPaise;
+      });
+      var names = function (k) { return ((ARENA_BRANCH.upiAccounts || []).find(function (a) { return a.id === k; }) || { name: k }).name; };
+      // ₹1,520 as the screens write it, in Indian grouping.
+      var whole = String(Math.floor(total / 100)), grouped = whole.length > 3 ? whole.slice(0, -3).replace(/B(?=(d{2})+(?!d))/g, ',') + ',' + whole.slice(-3) : whole;
+      return { message: 'Moved ₹' + grouped + (total % 100 ? '.' + String(total % 100).padStart(2, '0') : '') + ' to ' + names(cmd.to) + ' · ' + cmd.moves.length + (cmd.moves.length === 1 ? ' payment.' : ' payments.') };
+    }
     if (cmd.type === 'UPI_MOVE' || cmd.type === 'UPI_MOVE_UNDO') {
-      check(typeof cmd.paymentId === 'string' && (cmd.side === 'floor' || cmd.side === 'courts'), 'Choose the payment.');
+      check(typeof cmd.paymentId === 'string' && (cmd.side === 'floor' || cmd.side === 'courts' || cmd.side === 'snacks'), 'Choose the payment.');
       var paid = (state.Payments || []).find(function (x) { return x.id === cmd.paymentId; });
       check(!!paid && paid.amountPaise > 0 && String(paid.method).indexOf('upi:') === 0, 'Choose a UPI payment.');
       state.Settings = state.Settings || [];
@@ -7206,7 +7432,7 @@ var ArenaTurf = (function () {
       if (cmd.unitId) {
         // A free system (owner, 2 November: "where are free systems"): they start playing there, on a bill of its own,
         // and what is owed goes onto it.
-        var opened = ArenaApp.execute(state, { type: 'OPEN_TAB', unitId: cmd.unitId, customer: mover ? mover.name : whose.customer, phone: mover ? '' : whose.phone, controllers: cmd.controllers || 1, startMs: cmd.startMs, confirmTime: cmd.confirmTime, acknowledge: cmd.acknowledge }, actor, now, id + '-open');
+        var opened = ArenaApp.execute(state, { type: 'OPEN_TAB', unitId: cmd.unitId, customer: mover ? mover.name : whose.customer, phone: mover ? '' : whose.phone, controllers: cmd.controllers || 1, players: cmd.players, games: cmd.games, startMs: cmd.startMs, confirmTime: cmd.confirmTime, acknowledge: cmd.acknowledge }, actor, now, id + '-open');
         to = tabOf(state, opened.tabId);
       } else to = tabOf(state, cmd.tabId);
       check(!!to && to.status === 'open' && (!from || to.id !== from.id), 'That bill is closed. Refresh and choose again.');
@@ -7250,11 +7476,14 @@ var ArenaTurf = (function () {
       check(typeof cmd.court === 'string' && home.courts.some(function (c) { return c.id === cmd.court; }), 'Choose a court of the ' + home.name.toLowerCase() + '.');
       check(cmd.court !== booking.court, 'This booking is already on ' + (COURT_NAMES[cmd.court] || cmd.court) + '.');
       var aStart = Number(booking.startHour), aHours = Number(booking.hours), fromCourt = booking.court;
-      var there = booked(state).filter(function (b) { return b.id !== booking.id && b.dateKey === booking.dateKey && b.court === cmd.court && Number(b.startHour) < aStart + aHours && aStart < Number(b.startHour) + Number(b.hours); });
+      // A booking already over is in nobody's way (owner, 15 November: Yashvi on Court 3 from 5 to 7 could not swap with Mohan on
+      // Court 1 because Abhinandan had Court 1 from 5 to 6, long finished): only bookings not yet over count.
+      var live = booked(state).filter(function (b) { return endOf(b) > now; });
+      var there = live.filter(function (b) { return b.id !== booking.id && b.dateKey === booking.dateKey && b.court === cmd.court && Number(b.startHour) < aStart + aHours && aStart < Number(b.startHour) + Number(b.hours); });
       check(there.length <= 1, (COURT_NAMES[cmd.court] || cmd.court) + ' has ' + there.length + ' bookings in these hours: ' + there.map(function (b) { return b.customer || b.phone; }).join(', ') + '. Switch one at a time.');
       var other = there[0] || null;
       var spaceFor = function (b, court, skip) {
-        return booked(state).find(function (x) { return skip.indexOf(x.id) < 0 && x.dateKey === b.dateKey && meet(x.court, court) && Number(x.startHour) < Number(b.startHour) + Number(b.hours) && Number(b.startHour) < Number(x.startHour) + Number(x.hours); }) || null;
+        return live.find(function (x) { return skip.indexOf(x.id) < 0 && x.dateKey === b.dateKey && meet(x.court, court) && Number(x.startHour) < Number(b.startHour) + Number(b.hours) && Number(b.startHour) < Number(x.startHour) + Number(x.hours); }) || null;
       };
       var skip = [booking.id].concat(other ? [other.id] : []);
       var inWay = spaceFor(booking, cmd.court, skip);
@@ -13532,6 +13761,21 @@ function swapSheet(unit) {
     then(result) { closeSheet(); render(); return { text: result && result.swapped ? unit.name + ' and ' + unitOf(to).name + ' switched. Both games run on.' : (lane ? 'Switched from ' : 'Moved from ') + unit.name + ' to ' + unitOf(to).name + (lane ? '. The game runs on.' : '. The time runs on.') }; }
   });
 }
+// A lane started by a move: how many play and how many games, asked there and then (owner, 15 November: "i play pool … and move
+// to bowling, when lane is free. it directly starts, it does not ask for players games and all"): nothing chosen at first, the
+// question brought into view, and the button waits until both are chosen. keep holds the choices between redraws.
+function laneQuestions(ui, keep) {
+  const rules = ARENA_BRANCH.bowling, upTo = n => Array.from({ length: n }, (_, i) => [i + 1, String(i + 1)]), fresh = !keep.players;
+  keep.players = segmented(upTo(rules.maxPlayers), keep.players ? keep.players.value() : '', () => ui.redraw());
+  keep.games = segmented(upTo(rules.maxGames), keep.games ? keep.games.value() : '', () => ui.redraw());
+  const box = h('div', { class: 'lane-ask', data: { laneAsk: '' } },
+    h('div', { class: 'field', data: { field: 'players' } }, h('span', { text: 'How many players?' }), keep.players.node),
+    h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'How many games?' }), keep.games.node));
+  if (fresh) requestAnimationFrame(() => box.scrollIntoView({ block: 'nearest' }));
+  return box;
+}
+const laneReady = keep => !!keep.players && Number(keep.players.value()) > 0 && Number(keep.games.value()) > 0;
+const laneChoice = keep => ({ players: Number(keep.players.value()), games: Number(keep.games.value()) });
 // One Move (owner, 21 October), three places: a system playing now (this bill goes onto theirs, nobody starts playing),
 // today's turf (paid with the booking; the calendar beside it shows another day's, owner, 2 November: "tomorrow or any
 // other days turf booking"), or a free system (they carry on playing there; pick two or more and a timer starts on each,
@@ -13547,7 +13791,8 @@ function moveSheet(tab) {
   const chosen = new Set();
   // How many stopped on this bill; the usual number to start again, but fewer may play on.
   const movers = Math.max(1, state.Endings.filter(e => e.reviewTabId === tab.id && e.status === 'review' && e.segmentId).length);
-  let joinTab = '', time, controllers = 0, acked = false, turfTo = '', billTo = '', players = null, games = null, turfDay = today, dayBox = null;
+  let joinTab = '', time, controllers = 0, acked = false, turfTo = '', billTo = '', turfDay = today, dayBox = null;
+  const lane = {};
   const comment = commentField();
   const onePs5 = () => { const only = chosen.size === 1 ? unitOf([...chosen][0]) : null; return only && only.category === 'PS5' ? only : null; };
   const seatCount = () => { const unit = onePs5(); return unit ? Math.min(controllers || movers, freeSlots(unit)) : 0; };
@@ -13601,17 +13846,14 @@ function moveSheet(tab) {
         ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'move-controllers' } }, h('span', { text: 'Controllers starting' }), segmented(options, seatCount(), v => { controllers = Number(v); }).node));
       }
       // A bowling lane chosen: how many play and how many games, as when a lane starts (owner, 22 October).
-      if (units.some(u => u.category === 'Bowling')) {
-        const rules = ARENA_BRANCH.bowling, upTo = n => Array.from({ length: n }, (_, i) => [i + 1, String(i + 1)]);
-        players = segmented(upTo(rules.maxPlayers), players ? players.value() : Math.min(movers, rules.maxPlayers), () => {});
-        games = segmented(upTo(rules.maxGames), games ? games.value() : 1, () => {});
-        ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'players' } }, h('span', { text: 'Players' }), players.node), h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'Games' }), games.node));
-      }
+      const toLane = units.some(u => u.category === 'Bowling');
+      if (toLane) ui.body.append(laneQuestions(ui, lane));
       // A free system chosen here that someone has booked soon: said here, before the move.
       const clashes = units.map(u => [u, bookingClash(u)]).filter(([, list]) => list.length);
       for (const [u, list] of clashes) ui.body.append(h('div', { style: 'margin-top:16px' }, clashNotice(u, list, acked, on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; })));
       time = time || timeChoice('Starts');
       ui.body.append(h('div', { style: 'margin-top:16px' }, time.node), h('div', { style: 'margin-top:16px' }, comment.node));
+      if (toLane && !laneReady(lane)) { ui.primary('Choose players and games', true); return; }
       ui.primary((only && inUse(only) ? 'Join ' : 'Move to ') + units.map(u => u.name).join(' + '), clashes.length > 0 && !acked);
     },
     command() {
@@ -13625,7 +13867,7 @@ function moveSheet(tab) {
         return target.home ? { type: 'CONSOLIDATE_TABS', sourceTabId: tab.id, tabId: target.home.id, note } : { type: 'ATTACH_TO_GROUP', sourceTabId: tab.id, memberTabId: target.members[0].id, note };
       }
       if (!chosen.size) throw new Error('Choose where they are moving to.');
-      return { type: 'MOVE_REVIEW', tabId: tab.id, unitIds: [...chosen], startMs: time.value(), joinTabId: chosen.size === 1 && joinTab ? joinTab : undefined, controllers: onePs5() ? seatCount() : undefined, ...([...chosen].some(id => (unitOf(id) || {}).category === 'Bowling') ? { players: Number(players.value()), games: Number(games.value()) } : {}), note };
+      return { type: 'MOVE_REVIEW', tabId: tab.id, unitIds: [...chosen], startMs: time.value(), joinTabId: chosen.size === 1 && joinTab ? joinTab : undefined, controllers: onePs5() ? seatCount() : undefined, ...([...chosen].some(id => (unitOf(id) || {}).category === 'Bowling') ? laneChoice(lane) : {}), note };
     },
     then(result, command) {
       if (command.type === 'ATTACH_TO_GROUP') {
@@ -14331,52 +14573,16 @@ function payWaysLine(c) {
   if (ways.length === 1) return h('div', { class: 'cd-detail-split', data: { payWays: '1' } }, h('span', { text: ways[0][0] === 'Cash' ? 'All in cash' : 'All by ' + ways[0][0] }));
   return h('div', { class: 'cd-detail-split', data: { payWays: String(ways.length) } }, ways.map(([name, paise]) => h('span', { data: { upiAccount: name } }, name + ' ', h('b', { class: 'num', text: money(paise) }))));
 }
-// Reports → Total (owner, 14 November: "i need total like money received from gaming floor+turf, pickleball and badminton
-// together and total … everywhere the total has to be accurate and match"): the money received, the share of each side, each side
-// made of its boxes exactly as its own tab shows them, and how the money came in, adding up to the total. Each figure once.
-function totalReport(s) {
-  const period = reportFrom === reportTo ? (reportFrom === businessToday() ? 'Today' : turfDayName(reportFrom)) : turfDayName(reportFrom) + ' – ' + turfDayName(reportTo);
-  // Each side's own income, its snacks, beverages and ice cream apart (owner, 14 November: "snacks should be separate … total from
-  // both write together separately").
-  const sides = [['floor', 'Gaming floor + Turf', 'PS5'], ['courts', 'Badminton & Pickleball', 'badminton']].map(([key, title, glyphName]) => {
-    const data = (key === 'floor' ? s.floor : s.courts) || {};
-    const rows = sideVenues(key).filter(v => !v.sold).map(v => ({ name: v.name, icon: v.icon || (v.key === 'pickleball' ? 'pickleball' : 'badminton'), tone: COURT_TONES[v.key] || 'pb', paise: (data[v.name] || {}).receivedPaise || 0 }));
-    return { key, title, glyphName, rows, paise: rows.reduce((n, r) => n + r.paise, 0), snacks: data['Snacks & drinks'] || { receivedPaise: 0, by: {} } };
-  });
-  // Snacks & drinks of both sides together: what each kind brought in, and where it was sold.
-  const kinds = PRODUCT_KINDS.map(([k, label, glyphName]) => ({ name: label, icon: glyphName, paise: sides.reduce((n, x) => n + ((x.snacks.by || {})[k] || 0), 0) }));
-  const soldPaise = sides.reduce((n, x) => n + (x.snacks.receivedPaise || 0), 0);
-  const parts = [...sides.map(x => ({ key: x.key, title: x.title, paise: x.paise })), { key: 'snacks', title: 'Snacks & drinks', paise: soldPaise }];
-  const total = parts.reduce((n, x) => n + x.paise, 0);
-  const share = paise => (total ? Math.round((paise / total) * 1000) / 10 : 0) + '%';
-  const lead = h('section', { class: 'rep-card total-lead', data: { totalReport: 'lead' } },
-    h('div', 'total-lead-top', h('span', 'cd-card-title', icon('wallet'), h('h2', { text: 'Total received' })), h('span', 'recon-period', icon('reservations'), h('span', { text: period }))),
-    h('b', { class: 'total-big num', text: money(total) }),
-    h('div', 'total-bar' + (total ? '' : ' none'), parts.map(x => h('i', { class: 'side-' + x.key, style: 'flex:' + Math.max(x.paise, 0) }))),
-    h('ul', 'total-shares', parts.map(x => h('li', null, h('i', { class: 'side-' + x.key }), h('span', { text: x.title }), h('b', { class: 'num', text: share(x.paise) })))));
-  const card = (key, title, glyphName, paise, rows, foot) => h('section', { class: 'rep-card total-side', data: { totalSide: key } },
-    h('div', 'total-side-head', h('span', 'cd-card-title', icon(glyphName), h('h2', { text: title })), h('b', { class: 'num', text: money(paise) })),
-    h('div', 'total-rows', rows.map(r => h('div', { class: 'total-row', data: { totalRow: r.name } }, h('span', 'total-row-name', r.tone ? h('i', { class: 'cd-legend-dot ' + r.tone }) : null, icon(r.icon), h('span', { text: r.name })), h('b', { class: 'num', text: money(r.paise) })))),
-    foot || null);
-  const soldAt = h('p', { class: 'total-sold-at', data: { totalSoldAt: '' } }, sides.map(x => h('span', null, 'At ' + x.title + ' ', h('b', { class: 'num', text: money(x.snacks.receivedPaise || 0) }))));
-  const cards = h('div', 'total-sides three', ...sides.map(x => card(x.key, x.title, x.glyphName, x.paise, x.rows)), card('snacks', 'Snacks & drinks', 'drink', soldPaise, kinds, soldAt));
-  const ways = payWaysLine({ cashPaise: s.cashPaise, upiPaise: s.upiPaise, upiBy: s.upiByScanner || {} });
-  const how = h('section', { class: 'rep-card total-how', data: { totalReport: 'how' } }, h('div', 'cd-card-head', h('span', 'cd-card-title', icon('cash'), h('h2', { text: 'How it came in' }))), ways);
-  return h('div', { class: 'total-report', data: { side: 'total' } }, lead, cards, how);
-}
-// Reconciliation (owner, 14 November): UPI only, never cash. The gaming floor and the turf's money belongs in CA GPay,
-// badminton and pickleball's in Badminton PhonePe, nobody's in Francis. A column for each side lists every payment of the dates
-// whose money went into another account: the whole bill, the lines that are this side's marked, and only that part to transfer
-// (Transfer records it; the money moves in the bank's app). Then what was moved where.
-const RECON_SIDES = [['floor', 'Gaming floor + Turf', 'PS5'], ['courts', 'Badminton & Pickleball', 'badminton']];
-const accountName = id => ((UPI_ACCOUNTS || []).find(a => a.id === id) || { name: id || 'UPI' }).name;
-// The owner's photographs for a bill's venue, and for the account money was moved into.
-// The pictures are in styles.css (.recon-thumb.at-*), where the build puts them in the page.
-const RECON_PICTURES = { 'Gaming floor': 'floor', Turf: 'turf', Badminton: 'badminton', Pickleball: 'pickleball' };
-const reconPicture = place => h('span', { class: 'recon-thumb ' + (RECON_PICTURES[place] ? 'at-' + RECON_PICTURES[place] : 'plain'), 'aria-hidden': 'true' }, RECON_PICTURES[place] ? null : icon('upi'));
-// A line of the bill as a chip with its kind's icon; this side's lines (the money in the wrong account) marked.
-const RECON_ICONS = { Snacks: 'snack', Beverages: 'drink', 'Ice cream': 'icecream', Rentals: 'racket', Turf: 'football', Badminton: 'badminton', Pickleball: 'pickleball', Membership: 'users', Manual: 'pencil' };
-const reconIcon = kind => (ICONS[kind] ? kind : RECON_ICONS[kind] || 'list');
+// Reconciliation (owner, 14 and 15 November), set out like an audit in plain tables, one under the other ("please neat tables,
+// extra designs which complicates everything is not required … it should look neat and professional"). For each side — the gaming
+// floor and the turf, whose UPI belongs in CA GPay, and badminton and pickleball, whose UPI belongs in Badminton PhonePe (Francis is
+// nobody's) — the money received from each source in cash and in each account (rentals are the court's, so badminton's); the
+// statement of what should have come in, every discount, advance, pending and credit by name, adding up to that money; each
+// payment into its own account; and what went into another account, with one Transfer for each account's total. Then what was
+// moved, and each account before and after.
+const RECON_SIDES = [['floor', 'Gaming floor + Turf'], ['courts', 'Badminton & Pickleball']];
+const RECON_PLACES = { courts: ['Badminton', 'Pickleball', 'Snacks & drinks'], floor: ['Gaming floor', 'Turf', 'Snacks & drinks'] };
+const accountName = id => ((UPI_ACCOUNTS || []).find(a => a.id === id) || { name: id || 'UPI, no account' }).name;
 // Reconciliation's own figures changed in place, so the page stays where it is (owner, 14 November: "after every transfer it goes
 // to top"): the item marked moved or not, the summary with it, then drawn again at the same scroll.
 function reconMark(item, moved) {
@@ -14389,102 +14595,168 @@ function reconMark(item, moved) {
   render();
   if (main) main.scrollTop = top;
 }
+// A plain table: a heading row, rows of cells (text, or { text, num, cls, node, span }), a row opening its bill when it has one.
+// A row with kids is one line that opens to them (owner, 15 November: "when there is so much bookings, it will be so long … if i
+// click let it open for details"); which are open is kept while Reports stay open.
+const reconOpen = new Set();
+function auditTable(headings, rows, field) {
+  const cell = (tag, c, i) => {
+    const v = c && typeof c === 'object' && !(c instanceof Node) ? c : { text: c };
+    const node = h(tag, { class: [i > 0 && v.num !== false && (v.num || typeof v.text === 'number') ? 'num' : '', v.cls || ''].filter(Boolean).join(' ') || null, colspan: v.span || null });
+    if (v.node) node.append(v.node); else node.textContent = typeof v.text === 'number' ? money(v.text) : v.text == null ? '' : String(v.text);
+    return node;
+  };
+  const body = h('tbody');
+  for (const r of rows.filter(Boolean)) {
+    const kids = (r.kids || []).filter(Boolean), open = r.fold && reconOpen.has(r.fold);
+    const tr = h('tr', { class: [r.cls || '', r.open ? 'opens' : '', kids.length ? 'a-fold' : ''].filter(Boolean).join(' ') || null, data: { ...(r.data || {}), ...(r.fold ? { fold: r.fold } : {}) }, 'aria-expanded': kids.length ? String(!!open) : null, title: r.open ? 'Open the bill' : kids.length ? 'Show the details' : null }, r.cells.map((c, i) => cell('td', c, i)));
+    if (kids.length) tr.firstChild.prepend(h('span', { class: 'a-chev', 'aria-hidden': 'true' }, icon('chevron')));
+    const kidRows = kids.map(k => h('tr', { class: ['a-kid', k.cls || '', k.open ? 'opens' : ''].filter(Boolean).join(' '), hidden: !open, data: k.data || {}, onclick: k.open || null, title: k.open ? 'Open the bill' : null }, k.cells.map((c, i) => cell('td', c, i))));
+    tr.onclick = kids.length ? () => { const now = tr.getAttribute('aria-expanded') !== 'true'; tr.setAttribute('aria-expanded', String(now)); kidRows.forEach(k => { k.hidden = !now; }); if (now) reconOpen.add(r.fold); else reconOpen.delete(r.fold); } : r.open || null;
+    body.append(tr, ...kidRows);
+  }
+  return h('div', 'audit-wrap', h('table', { class: 'audit', data: { audit: field } },
+    headings ? h('thead', null, h('tr', null, headings.map((t, i) => h('th', { scope: 'col', class: i > 0 && t.num !== false ? 'num' : null, text: typeof t === 'object' ? t.text : t })))) : null, body));
+}
+const auditSection = (title, sub, ...content) => h('section', 'audit-card', h('div', 'audit-head', h('h3', { text: title }), sub ? h('span', { class: 'audit-sub', text: sub }) : null), ...content.filter(Boolean));
+// What a named line was for, said once: its court and hours (the day only when it is another day), else where it was.
+function reconFor(x, day) {
+  const bk = x.bookingId ? (state.TurfBookings || []).find(y => y.id === x.bookingId) : null;
+  return bk ? courtLabel(bk.court) + ' · ' + (bk.dateKey === day ? '' : turfDayName(bk.dateKey) + ' · ') + turfRange(bk) : x.place || '';
+}
 function reconReport(s) {
   const recon = s.recon || { items: [], moves: [] }, items = recon.items || [];
   const proper = side => ((UPI_ACCOUNTS || []).find(a => a.side === side) || {}).id || '';
-  const asWords = { advance: 'Advance', pending: 'Pending collected', credit: 'Credit collected' };
-  // Each payment, every fact once (owner, 14 November: "how many times have you repeated the figure?? can you understand which
-  // account the amount was wrongly transferred to??"): the venue's photograph, who with the bill and time, the bill's lines (their
-  // amounts only when there is more than one; this side's marked), the account it was wrongly paid into as the one clear tag
-  // (the column says where it belongs), and at the right the amount to move once, "of ₹640 paid" under it only when the payment
-  // was more, and Transfer. Once moved: where it went and when, and Undo.
-  const card = item => {
-    const moved = item.moved, lines = item.lines || [], several = lines.length > 1, amount = moved ? moved.amountPaise : item.wrongPaise;
-    // A line's amount is left off when it is the amount to move itself (the only line in the wrong account).
-    const wrongLines = lines.filter(l => l.side === item.side).length, showAmount = l => several && !(l.side === item.side && wrongLines === 1);
-    return h('article', { class: 'recon-item' + (moved ? ' moved' : ''), data: { reconItem: item.id } },
-      reconPicture(item.place),
-      h('div', 'recon-who', h('b', { text: item.customer || 'Walk-in' }), h('span', { class: 'recon-when', text: [item.billNumber || item.receiptNumber, when(item.at), asWords[item.as]].filter(Boolean).join(' · ') })),
-      lines.length ? h('div', 'recon-chips', lines.map(l => h('span', { class: 'recon-chip' + (l.side === item.side ? ' wrong' : ''), data: { reconLine: l.side } }, icon(reconIcon(l.kind)), h('span', { text: l.label }), showAmount(l) ? h('b', { class: 'num', text: money(l.paise) }) : null))) : null,
-      h('div', 'recon-side',
-        h('b', { class: 'recon-amount num', text: money(amount) }),
-        item.paidPaise !== amount ? h('span', { class: 'recon-of', text: 'of ' + money(item.paidPaise) + ' paid' }) : null,
-        moved
-          ? h('button', { type: 'button', class: 'recon-undo', data: { action: 'recon-undo' }, onclick: () => runCommand({ type: 'UPI_MOVE_UNDO', paymentId: item.paymentId, side: item.side }, result => { reconMark(item, null); return { text: result.message }; }) }, icon('undo'), h('span', { text: 'Undo' }))
-          : h('button', { type: 'button', class: 'recon-transfer', data: { action: 'recon-transfer' }, onclick: () => reconTransferSheet(item) }, icon('transfer'), h('span', { text: 'Transfer' }))),
-      h('div', 'recon-wrong-to',
-        h('span', 'recon-wrong-tag', icon('alert'), h('span', null, 'Wrongly paid to ', h('b', { text: accountName(item.account) }))),
-        moved ? h('span', 'recon-moved-tag', icon('checkCircle'), h('span', null, 'Moved to ', h('b', { text: accountName(moved.to) }), ' · ' + when(moved.at))) : null));
-  };
-  const columns = RECON_SIDES.map(([side, title, glyphName]) => {
-    const mine = items.filter(x => x.side === side), open = mine.filter(x => !x.moved), left = open.reduce((n, x) => n + x.wrongPaise, 0);
-    return h('section', { class: 'rep-card recon-column', data: { reconSide: side } },
-      h('div', 'recon-head',
-        h('span', 'recon-title', icon(glyphName), h('span', null, h('h2', { text: title }), h('small', { text: !mine.length ? 'Nothing in another account' : open.length ? open.length + ' to move' : 'All moved' }))),
-        h('span', 'recon-head-side', h('span', { class: 'recon-proper', text: 'Belongs in ' + accountName(proper(side)) }), left ? h('b', { class: 'recon-left num', text: money(left) }) : null)),
-      ...mine.map(card));
-  });
-  // What was moved where, as the owner's picture of 14 November: from each account to each, the latest time, how many, how much,
-  // and the total in its own box.
-  const moves = {};
-  for (const m of recon.moves || []) {
-    const k = m.from + '>' + m.to;
-    moves[k] = moves[k] || { from: m.from, to: m.to, count: 0, paise: 0, at: 0 };
-    moves[k].count++;
-    moves[k].paise += m.amountPaise;
-    moves[k].at = Math.max(moves[k].at, m.at || 0);
-  }
-  const moveRows = Object.values(moves).sort((x, y) => y.at - x.at);
-  const placeOfAccount = id => { const a = (UPI_ACCOUNTS || []).find(x => x.id === id); return a && a.side === 'courts' ? 'Badminton' : a && a.side === 'floor' ? 'Turf' : ''; };
-  const longWhen = ms => new Date(ms).toLocaleDateString('en-IN', { timeZone: IST, day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + clock(ms);
   const period = reportFrom === reportTo ? (reportFrom === businessToday() ? 'Today' : turfDayName(reportFrom)) : turfDayName(reportFrom) + ' – ' + turfDayName(reportTo);
-  const summary = h('section', { class: 'rep-card recon-summary', data: { reconSummary: '' } },
-    h('div', 'recon-summary-head', h('span', 'recon-title big', icon('history'), h('h2', { text: 'Moved' })), h('span', 'recon-period', icon('reservations'), h('span', { text: period }))),
-    moveRows.length ? h('div', 'recon-moves', moveRows.map(m => h('div', { class: 'recon-move', data: { reconMove: m.from + '-' + m.to } },
-      reconPicture(placeOfAccount(m.to)),
-      h('span', 'recon-move-main', h('span', 'recon-move-way', h('b', { text: accountName(m.from) }), icon('arrowRight'), h('b', { text: accountName(m.to) })), h('small', { text: longWhen(m.at) })),
-      h('span', 'recon-count', icon('refresh'), h('span', { text: plural(m.count, 'transfer', 'transfers') })),
-      h('b', { class: 'recon-move-amount num', text: money(m.paise) })))) : h('p', { class: 'muted recon-none', text: 'Nothing moved in these dates yet.' }),
-    moveRows.length ? h('div', 'recon-total', h('span', 'recon-total-name', icon('wallet'), h('b', { text: 'Total moved' })), h('b', { class: 'num', text: money(moveRows.reduce((n, m) => n + m.paise, 0)) })) : null);
-  // Each account before and after reconciliation (owner, 14 November: "last write like after reconciliation, so so amount … in
-  // reconciliation only before and after you write"): Before is where the money was paid in the dates, as the Total tab's How it came
-  // in; After takes in every transfer recorded here. Cash and the total are the same in both; an account emptied reads ₹0.
-  const before = { cash: s.cashPaise || 0, upi: { ...(s.upiByScanner || {}) } }, after = { cash: before.cash, upi: { ...before.upi } };
-  for (const m of recon.moves || []) { after.upi[m.from] = (after.upi[m.from] || 0) - m.amountPaise; after.upi[m.to] = (after.upi[m.to] || 0) + m.amountPaise; }
-  const accounts = [['cash', 'Cash'], ...(UPI_ACCOUNTS || []).map(a => [a.id, a.name]), ['', 'UPI, no account']]
-    .filter(([id]) => id === 'cash' || before.upi[id] || after.upi[id]);
-  const amountOf = (side, id) => (id === 'cash' ? side.cash : side.upi[id] || 0);
-  // The account names once across the top, Before and After under them, so each account's change reads straight down.
-  const balanceRow = (label, side, cls) => h('tr', { class: cls, data: { reconBalance: cls } }, h('th', { scope: 'row', text: label }),
-    accounts.map(([id]) => h('td', { class: 'num' + (cls === 'after' && amountOf(after, id) !== amountOf(before, id) ? ' changed' : ''), data: { account: id || 'none' }, text: money(amountOf(side, id)) })));
-  const balances = h('section', { class: 'rep-card recon-balances', data: { reconBalances: '' } },
-    h('div', 'recon-summary-head', h('span', 'recon-title', icon('wallet'), h('h2', { text: 'Accounts' }))),
-    h('div', 'recon-balance-wrap', h('table', 'recon-balance-table',
-      h('thead', null, h('tr', null, h('th', { scope: 'col', 'aria-label': 'When' }), accounts.map(([, name]) => h('th', { scope: 'col', text: name })))),
-      h('tbody', null, balanceRow('Before', before, 'before'), balanceRow('After reconciliation', after, 'after')))));
-  return h('div', { class: 'recon', data: { side: 'recon' } }, h('div', 'recon-columns', columns), summary, balances);
+  const oneDay = reportFrom === reportTo, day = oneDay ? reportFrom : '', dayWords = oneDay ? (reportFrom === businessToday() ? 'today' : turfDayName(reportFrom)) : 'these dates';
+  const sides = RECON_SIDES.map(([side, title]) => {
+    const e = (s.expect || {})[side], own = proper(side);
+    return h('div', { class: 'audit-side', data: { reconSide: side } },
+      h('div', 'audit-side-head', h('h2', { text: title }), h('span', { class: 'audit-sub', text: period + ' · UPI belongs in ' + accountName(own) })),
+      reconReceived(s, side, own, (recon.paid || []).filter(x => x.side === side && x.account === own), items.filter(x => x.side === side), oneDay),
+      e ? reconStatement(side, e, dayWords, day) : null);
+  });
+  return h('div', { class: 'recon audit-page', data: { side: 'recon' } }, ...sides, reconSnacks(items.filter(x => x.side === 'snacks'), period, oneDay), reconMoves(recon.moves || []), reconBalances(s, recon.moves || []));
 }
-// Transfer: only the part of that bill paid into the wrong account, from where it went to the right account (or the other).
-function reconTransferSheet(item) {
-  const others = (UPI_ACCOUNTS || []).filter(a => a.id !== item.account);
-  const to = upiAccountChoice('upi:' + (others.some(a => a.id === item.should) ? item.should : others[0].id), null, 'recon-to', others);
+// The money received from each source, in cash and in each account (owner, 15 November: "the cash, i need how much is of
+// pickleball+badminton and how much of gaming floor and how much is of snacks and beverages"); under it, one line for the
+// payments into the side's own account and one for each other account money went into, with Transfer, each opening to its
+// payments.
+function reconReceived(s, side, own, into, mine, oneDay) {
+  const target = s[side] || {}, names = [...RECON_PLACES[side], ...Object.keys(target).filter(p => !RECON_PLACES[side].includes(p))].filter(p => target[p]);
+  const accounts = [own, ...(UPI_ACCOUNTS || []).map(a => a.id).filter(id => id !== own), ''].filter((id, i) => i === 0 || names.some(p => (target[p].upiBy || {})[id]));
+  // Nothing in a cell reads –, so the figures stand out.
+  const fig = paise => (paise ? paise : { text: '–', num: true, cls: 'zero' });
+  const row = (label, c, cls) => ({ cls, data: { reconSource: label }, cells: [label, fig(c.cashPaise), ...accounts.map(id => fig((c.upiBy || {})[id] || 0)), fig(c.receivedPaise)] });
+  const total = { cashPaise: 0, upiBy: {}, receivedPaise: 0 };
+  for (const p of names) { total.cashPaise += target[p].cashPaise; total.receivedPaise += target[p].receivedPaise; for (const id of Object.keys(target[p].upiBy || {})) total.upiBy[id] = (total.upiBy[id] || 0) + target[p].upiBy[id]; }
+  const when2 = x => (oneDay ? clock(x.at) : when(x.at));
+  const lines = [];
+  if (into.length) lines.push({ fold: side + '-into', data: { reconInto: own }, cells: ['Payments into ' + accountName(own) + ' · ' + into.length, into.reduce((n, x) => n + x.paise, 0)],
+    kids: into.map(x => ({ data: { rxPay: x.paymentId }, open: x.billId ? () => receiptSheet(x.billId) : null, cells: [[when2(x), x.customer || 'Walk-in', x.billNumber].filter(Boolean).join(' · '), x.paise] })) });
+  lines.push(...reconWrongLines(side, mine, oneDay));
+  return auditSection('Money received', '',
+    auditTable(['Source', 'Cash', ...accounts.map(id => accountName(id)), 'Total'], [...names.map(p => row(p, target[p])), row('Total', total, 'a-total')], 'received-' + side),
+    lines.length ? auditTable(null, lines, 'accounts-' + side) : null);
+}
+function reconWrongLines(side, mine, oneDay) {
+  const lines = [], byAccount = {}, when2 = x => (oneDay ? clock(x.at) : when(x.at));
+  for (const x of mine) (byAccount[x.account] = byAccount[x.account] || []).push(x);
+  const what = x => (x.lines || []).filter(l => (side === 'snacks' ? l.snack : l.side === side && !l.snack)).map(l => l.label.replace(/^(Court|Turf) · (?=(Court|Full court|6A|5A|1V1))/, '')).join(', ');
+  for (const account of Object.keys(byAccount)) {
+    const list = byAccount[account], open = list.filter(x => !x.moved), left = open.reduce((n, x) => n + x.wrongPaise, 0), gone = list.length - open.length;
+    const transfer = open.length ? h('button', { type: 'button', class: 'btn audit-transfer', data: { action: 'recon-transfer-all' }, onclick: ev => { ev.stopPropagation(); reconTransferAll(side, account, open); } }, icon('transfer'), h('span', { text: 'Transfer ' + money(left) })) : null;
+    lines.push({ fold: side + '-wrong-' + account, cls: open.length ? 'a-warn' : '', data: { reconMoveAll: account }, cells: [
+      { node: h('span', 'audit-line-words', h('span', { text: 'Paid into ' + accountName(account) + ' instead · ' + list.length + (gone ? (gone === list.length ? ' · all moved' : ' · ' + gone + ' moved') : '') }), transfer) },
+      list.reduce((n, x) => n + (x.moved ? x.moved.amountPaise : x.wrongPaise), 0)],
+      kids: list.map(x => ({ cls: x.moved ? 'a-done' : '', data: { reconItem: x.id }, open: x.billId ? () => receiptSheet(x.billId) : null, cells: [
+        { node: h('span', null, [when2(x), x.customer || 'Walk-in', what(x), x.billNumber || x.receiptNumber].filter(Boolean).join(' · ') + (x.paidPaise !== x.wrongPaise ? ' (of ' + money(x.paidPaise) + ')' : ''),
+          ...(x.moved ? [' · Moved to ' + accountName(x.moved.to) + ' ', h('button', { type: 'button', class: 'audit-link', data: { action: 'recon-undo' }, onclick: ev => { ev.stopPropagation(); runCommand({ type: 'UPI_MOVE_UNDO', paymentId: x.paymentId, side: x.side }, result => { reconMark(x, null); return { text: result.message }; }); } }, 'Undo')] : [])) },
+        x.moved ? x.moved.amountPaise : x.wrongPaise] })) });
+  }
+  return lines;
+}
+// Snacks and drinks paid by UPI belong in CA GPay, whichever counter sold them (owner, 15 November: "snacks, drinks payment that has
+// been made in upi (badminton gpay and francis) is wrong, so that put separately in reconciliation to move to other upi").
+function reconSnacks(items, period, oneDay) {
+  const own = ((UPI_ACCOUNTS || []).find(a => a.side === 'floor') || {}).id || '', lines = reconWrongLines('snacks', items, oneDay);
+  return h('div', { class: 'audit-side', data: { reconSide: 'snacks' } },
+    h('div', 'audit-side-head', h('h2', { text: 'Snacks & drinks' }), h('span', { class: 'audit-sub', text: period + ' · UPI belongs in ' + accountName(own) })),
+    h('section', 'audit-card', lines.length ? auditTable(null, lines, 'accounts-snacks') : h('p', { class: 'muted recon-none', text: 'Every snack and drink paid by UPI went into ' + accountName(own) + '.' })));
+}
+// The statement, one line a kind with its count and total, each opening to the names: the day's bills, less discounts, advance
+// paid before, pending and credit, is what was paid for them; with what came in for other days it is the money received.
+function reconStatement(side, e, dayWords, day) {
+  const names = [...RECON_PLACES[side], ...Object.keys(e.places).filter(p => !RECON_PLACES[side].includes(p))];
+  const use = place => { const p = e.places[place] || {}; return p.bookings ? inWords(Math.round(p.hours * 60)) + ' · ' + plural(p.bookings, 'booking', 'bookings') : place === 'Gaming floor' && p.bills ? plural(p.bills, 'bill', 'bills') : ''; };
+  const rows = [], charged = names.reduce((n, p) => n + ((e.places[p] || {}).netPaise || 0) + ((e.places[p] || {}).discountPaise || 0), 0);
+  const amount = (paise, sign) => ({ text: (sign === '−' ? '− ' : '') + money(paise), num: true });
+  const kind = (key, title, list, sign) => {
+    if (!list || !list.length) return;
+    const sum = list.reduce((n, x) => n + x.paise, 0);
+    rows.push({ fold: side + '-' + key, data: { reconKind: key }, cells: [title + ' · ' + list.length, amount(sum, sign)],
+      kids: list.map(x => ({ data: x.billId ? { reconBill: x.billId } : {}, open: x.billId ? () => receiptSheet(x.billId) : null, cells: [[x.customer || 'Walk-in', reconFor(x, day)].filter(Boolean).join(' · '), amount(x.paise, sign)] })) });
+  };
+  for (const p of names) {
+    const v = e.places[p];
+    if (v && v.netPaise + v.discountPaise) rows.push({ data: { reconPlace: p }, cells: [[p, use(p)].filter(Boolean).join(' · '), v.netPaise + v.discountPaise] });
+  }
+  rows.push({ cls: 'a-sum', cells: ['Total charged', charged] });
+  kind('discount', 'Discounts given', e.discounts, '−');
+  kind('earlier', 'Paid before, in advance', e.earlier, '−');
+  kind('pending', 'Left pending', e.pending, '−');
+  kind('credit', 'Put on credit', e.credit, '−');
+  kind('later', 'Paid after these dates', e.later, '−');
+  rows.push({ cls: 'a-sum', data: { reconPaid: '' }, cells: ['Paid for ' + (dayWords === 'these dates' ? 'these dates’' : dayWords + '’s') + ' bills', e.paidPaise] });
+  kind('advance', 'Advance for later days', e.advances, '');
+  kind('pendingIn', 'Pending of earlier days collected', e.pendingIn, '');
+  kind('creditIn', 'Credit collected', e.creditIn, '');
+  kind('back', 'Taken back', e.takenBack, '−');
+  if (e.otherRestPaise) rows.push({ cells: ['Other money for other days', amount(Math.abs(e.otherRestPaise), e.otherRestPaise < 0 ? '−' : '')] });
+  rows.push({ cls: 'a-grand', data: { reconTotal: '' }, cells: ['Total received', e.receivedPaise] });
+  return auditSection('What should have come in', '', auditTable(null, rows, 'statement-' + side));
+}
+// What was moved where: from each account to each, how many, how much.
+function reconMoves(moves) {
+  const ways = {};
+  for (const m of moves) { const k = m.from + '>' + m.to; ways[k] = ways[k] || { from: m.from, to: m.to, count: 0, paise: 0 }; ways[k].count++; ways[k].paise += m.amountPaise; }
+  const list = Object.values(ways);
+  if (!list.length) return auditSection('Transfers recorded', 'None yet');
+  return auditSection('Transfers recorded', '',
+    auditTable([{ text: 'From', num: false }, { text: 'To', num: false }, 'Payments', 'Amount'], [
+      ...list.map(w => ({ data: { reconMove: w.from + '-' + w.to }, cells: [w.from ? accountName(w.from) : 'UPI', { text: accountName(w.to), num: false }, { text: String(w.count), num: true }, w.paise] })),
+      { cls: 'a-total', cells: ['Total', '', '', list.reduce((n, w) => n + w.paise, 0)] }], 'moves'));
+}
+// Each account before and after the transfers recorded here; cash is the same in both.
+function reconBalances(s, moves) {
+  const before = { cash: s.cashPaise || 0, upi: { ...(s.upiByScanner || {}) } }, after = { cash: before.cash, upi: { ...before.upi } };
+  for (const m of moves) { after.upi[m.from] = (after.upi[m.from] || 0) - m.amountPaise; after.upi[m.to] = (after.upi[m.to] || 0) + m.amountPaise; }
+  const accounts = [['cash', 'Cash'], ...(UPI_ACCOUNTS || []).map(a => [a.id, a.name]), ['', 'UPI, no account']].filter(([id]) => id === 'cash' || before.upi[id] || after.upi[id]);
+  const amountOf = (side, id) => (id === 'cash' ? side.cash : side.upi[id] || 0);
+  return auditSection('Accounts', 'Before and after the transfers',
+    auditTable(['', ...accounts.map(([, name]) => name)], [
+      { data: { reconBalance: 'before' }, cells: ['Before', ...accounts.map(([id]) => amountOf(before, id))] },
+      { cls: 'a-total', data: { reconBalance: 'after' }, cells: ['After', ...accounts.map(([id]) => amountOf(after, id))] }], 'balances'));
+}
+// Transfer a whole total: from the account it went into to the one chosen (the side's own at first), every payment of it at once.
+function reconTransferAll(side, from, list) {
+  const total = list.reduce((n, x) => n + x.wrongPaise, 0), others = (UPI_ACCOUNTS || []).filter(a => a.id !== from);
+  // Snacks and drinks go to the gaming floor's account at first.
+  const mineAt = ((UPI_ACCOUNTS || []).find(a => a.side === (side === 'snacks' ? 'floor' : side)) || {}).id;
+  const to = upiAccountChoice('upi:' + (others.some(a => a.id === mineAt) ? mineAt : others[0].id), null, 'recon-to', others);
   to.node.style.setProperty('--accounts', String(others.length));
-  const amount = h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(item.wrongPaise / 100), max: String(item.paidPaise / 100), 'aria-label': 'Amount moved', data: { field: 'recon-amount' } });
   openSheet({
-    title: 'Transfer ' + money(item.wrongPaise), sub: (item.customer || 'Walk-in') + (item.billNumber ? ' · ' + item.billNumber : ''), icon: 'transfer', tone: 'jade',
+    title: 'Transfer ' + money(total), sub: plural(list.length, 'payment', 'payments') + ' paid into ' + accountName(from), icon: 'transfer', tone: 'jade',
     build(ui) {
-      ui.body.append(h('div', 'recon-from', h('span', { class: 'muted', text: 'From' }), h('b', { text: accountName(item.account) }), h('span', { class: 'small muted', text: money(item.paidPaise) + ' paid here · ' + when(item.at) })),
-        h('div', 'field', h('span', { text: 'To' }), to.node), field('Amount (₹)', amount));
-      ui.primary('Record transfer');
+      ui.body.append(auditTable([{ text: 'Customer', num: false }, { text: 'Bill', num: false }, 'Amount'], list.map(x => ({ cells: [x.customer || 'Walk-in', { text: x.billNumber || x.receiptNumber, num: false }, x.wrongPaise] })), 'transfer-list'),
+        h('div', { class: 'field', style: 'margin-top:16px' }, h('span', { text: 'To' }), to.node));
+      ui.primary('Record transfer · ' + money(total));
     },
-    command() {
-      const paise = toPaise(amount.value || 0);
-      if (!(paise > 0) || paise > item.paidPaise) throw new Error('Enter an amount up to ' + money(item.paidPaise) + '.');
-      return { type: 'UPI_MOVE', paymentId: item.paymentId, side: item.side, to: upiAccountOf(to.value()), amountPaise: paise };
-    },
+    command() { return { type: 'UPI_MOVE_ALL', side, to: upiAccountOf(to.value()), moves: list.map(x => ({ paymentId: x.paymentId, amountPaise: x.wrongPaise })) }; },
     then(result) {
       closeSheet();
-      reconMark(item, { to: upiAccountOf(to.value()), amountPaise: toPaise(amount.value || 0), at: nowMs() });
+      const dest = upiAccountOf(to.value()), at = nowMs();
+      for (const x of list) reconMark(x, { to: dest, amountPaise: x.wrongPaise, at });
       return { text: result.message };
     }
   });
@@ -16016,7 +16288,8 @@ function pendingMoveSheet(billIds, name, owed, back) {
   const running = playingBills({ id: '' }), free = CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && !inUse(u)));
   const today = dayKey(nowMs()), bookings = turfTakers({ kind: '' }).filter(x => x.dateKey >= today && x.split !== 'yes' && !turfAccountOf(x.id));
   const reservations = state.Reservations.filter(r => RES_PENDING.includes(r.status) && !isWalkIn(r)).sort((x, y) => x.arrivalMs - y.arrivalMs);
-  let to = null, controllers = 1, players = null, games = null, time, acked = false, sheet = null;
+  let to = null, controllers = 1, time, acked = false, sheet = null;
+  const lane = {};
   const pick = target => { to = target; acked = false; current.ack.reservation = false; sheet.redraw(); };
   const chosen = kind => key => to && to.kind === kind && to.key === key;
   openSheet({
@@ -16042,16 +16315,12 @@ function pendingMoveSheet(billIds, name, owed, back) {
       if (unit) {
         // A free system: a PS5's controllers, a lane's players and games, and when they start.
         if (unit.category === 'PS5') ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'move-controllers' } }, h('span', { text: 'Controllers starting' }), segmented([1, 2, 3, 4].map(n => [n, String(n)]), controllers, v => { controllers = Number(v); }).node));
-        if (unit.category === 'Bowling') {
-          const rules = ARENA_BRANCH.bowling, upTo = n => Array.from({ length: n }, (_, i) => [i + 1, String(i + 1)]);
-          players = players || segmented(upTo(rules.maxPlayers), 1, () => {});
-          games = games || segmented(upTo(rules.maxGames), 1, () => {});
-          ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'players' } }, h('span', { text: 'Players' }), players.node), h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'Games' }), games.node));
-        }
+        if (unit.category === 'Bowling') ui.body.append(laneQuestions(ui, lane));
         const clashes = bookingClash(unit);
         if (clashes.length) ui.body.append(h('div', { style: 'margin-top:16px' }, clashNotice(unit, clashes, acked, on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; })));
         time = time || timeChoice('Starts');
         ui.body.append(h('div', { style: 'margin-top:16px' }, time.node));
+        if (unit.category === 'Bowling' && !laneReady(lane)) { ui.primary('Choose players and games', true); return; }
         ui.primary('Start ' + unit.name + ' · Move ' + money(owed), clashes.length > 0 && !acked);
         return;
       }
@@ -16060,7 +16329,7 @@ function pendingMoveSheet(billIds, name, owed, back) {
     command() {
       if (!to) throw new Error('Choose where it goes.');
       const base = { type: 'PENDING_MOVE', billIds };
-      if (to.kind === 'unit') { const unit2 = unitOf(to.unitId); return { ...base, unitId: to.unitId, startMs: time.value(), ...(unit2.category === 'PS5' ? { controllers } : {}), ...(unit2.category === 'Bowling' ? { players: players.value(), games: games.value() } : {}) }; }
+      if (to.kind === 'unit') { const unit2 = unitOf(to.unitId); return { ...base, unitId: to.unitId, startMs: time.value(), ...(unit2.category === 'PS5' ? { controllers } : {}), ...(unit2.category === 'Bowling' ? laneChoice(lane) : {}) }; }
       if (to.kind === 'booking') return { ...base, bookingId: to.bookingId };
       if (to.kind === 'reservation') return { ...base, reservationId: to.reservationId };
       return { ...base, tabId: to.tabId };
@@ -16516,9 +16785,9 @@ const reportsPage = {
     to.onchange = pick;
     // Three tabs beside the dates (owner, 14 November: "2 tab should be there one for gamingfloor+turf and one more badminton and
     // pickleball … Now we need a separate reconciliation tab").
-    if (!['floor', 'courts', 'total', 'recon'].includes(reportView)) reportView = 'floor';
+    if (!['floor', 'courts', 'recon'].includes(reportView)) reportView = 'floor';
     const courtNames = VENUES.filter(v => v.key !== 'turf').map(v => v.name);
-    const sides = h('div', { class: 'rep-side-tabs', role: 'group', 'aria-label': 'Reports' }, [['floor', 'Gaming floor + Turf', 'PS5'], ...(courtNames.length ? [['courts', courtNames.join(' & '), 'badminton'], ['total', 'Total', 'wallet']] : []), ...(UPI_ACCOUNTS ? [['recon', 'Reconciliation', 'transfer']] : [])]
+    const sides = h('div', { class: 'rep-side-tabs', role: 'group', 'aria-label': 'Reports' }, [['floor', 'Gaming floor + Turf', 'PS5'], ...(courtNames.length ? [['courts', courtNames.join(' & '), 'badminton']] : []), ...(UPI_ACCOUNTS ? [['recon', 'Reconciliation', 'transfer']] : [])]
       .map(([key, text, glyphName]) => h('button', { type: 'button', class: 'rep-courts-tab', 'aria-pressed': String(reportView === key), data: { action: 'report-' + key }, onclick: () => { reportView = key; render(); } }, icon(glyphName), h('span', { text }))));
     // Never a null on the bar (owner, 14 November: Reconciliation has no Export, and "null" was written in its place).
     bar.append(...[h('div', 'rep-range', presets.node, h('div', 'rep-dates', from, h('span', { class: 'muted', text: 'to' }), to)), sides,
@@ -16533,7 +16802,6 @@ const reportsPage = {
     const s = reportCache.data.summary;
     if (reportView === 'courts') { page.append(sideReport(s, 'courts')); return; }
     if (reportView === 'recon') { page.append(reconReport(s)); return; }
-    if (reportView === 'total') { page.append(totalReport(s)); return; }
     // Stock Report, as the owner's picture (1 November): the boxes icon, Stock Report with Daily item movement summary under it,
     // the date button at the right (Today, Yesterday, Custom); the table in its own rounded box with each heading in words
     // under its icon tile, the numbers centred, zeros quiet, found green and missing red; the calculation in a box below.
@@ -18552,6 +18820,7 @@ function turfMoveSheet(b, p) {
   running.sort((x, y) => x.name.localeCompare(y.name, 'en', { numeric: true }));
   const free = CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && !inUse(u)));
   let chosen = '', unitTo = '', controllers = 1, acked = false, time;
+  const lane = {};
   const choose = (bill, unit) => { chosen = bill; unitTo = unit; acked = false; current.ack.reservation = false; };
   openSheet({
     title: 'Move to System',
@@ -18567,11 +18836,13 @@ function turfMoveSheet(b, p) {
       if (unit) {
         // A free system: how many controllers on a PS5, when they start, and a booking someone has made on it soon.
         if (unit.category === 'PS5') ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'move-controllers' } }, h('span', { text: 'Controllers starting' }), segmented([1, 2, 3, 4].map(n => [n, String(n)]), controllers, v => { controllers = Number(v); }).node));
+        if (unit.category === 'Bowling') ui.body.append(laneQuestions(ui, lane));
         const clashes = bookingClash(unit);
         if (clashes.length) ui.body.append(h('div', { style: 'margin-top:16px' }, clashNotice(unit, clashes, acked, on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; })));
         time = time || timeChoice('Starts');
         ui.body.append(h('div', { style: 'margin-top:16px' }, time.node));
         ui.body.append(h('div', { style: 'margin-top:14px' }, comment.node));
+        if (unit.category === 'Bowling' && !laneReady(lane)) { ui.primary('Choose players and games', true); return; }
         ui.primary('Start ' + unit.name + ' · Move ' + money(owed), clashes.length > 0 && !acked);
         return;
       }
@@ -18581,7 +18852,7 @@ function turfMoveSheet(b, p) {
     command() {
       if (!chosen && !unitTo) throw new Error('Choose a system.');
       const who = p ? { playerId: p.id } : { id: b.id };
-      if (unitTo) return { type: 'TURF_MOVE', ...who, unitId: unitTo, controllers: unitOf(unitTo).category === 'PS5' ? controllers : 1, startMs: time.value(), note: comment.value() };
+      if (unitTo) return { type: 'TURF_MOVE', ...who, unitId: unitTo, controllers: unitOf(unitTo).category === 'PS5' ? controllers : 1, ...(unitOf(unitTo).category === 'Bowling' ? laneChoice(lane) : {}), startMs: time.value(), note: comment.value() };
       return { type: 'TURF_MOVE', ...who, tabId: chosen, note: comment.value() };
     },
     then() { return turfAfter(b.id); }
@@ -18927,7 +19198,8 @@ function turfBlock(b, row, column, rows, exact = rows, lead = 0) {
 // another court of its kind to go to.
 const turfSwitchable = b => !courtInfo(b.court).takes.length && courtsHere().some(c => c !== b.court && !courtInfo(c).takes.length);
 function turfSwitchBox(anchor, b) {
-  const start = Number(b.startHour), end = start + Number(b.hours), live = state.TurfBookings.filter(x => x.status === 'booked' && x.dateKey === b.dateKey);
+  // A booking already over is in nobody's way (owner, 15 November), as on the server.
+  const start = Number(b.startHour), end = start + Number(b.hours), live = state.TurfBookings.filter(x => x.status === 'booked' && x.dateKey === b.dateKey && !turfEnded(x));
   const meets = (x, court, from, to) => courtsMeet(x.court, court) && Number(x.startHour) < to && from < Number(x.startHour) + Number(x.hours);
   const options = courtsHere().filter(c => c !== b.court && !courtInfo(c).takes.length).map(court => {
     const there = live.filter(x => x.id !== b.id && x.court === court && meets(x, court, start, end));
@@ -19907,7 +20179,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "d044d10f3e42";
+const APP_BUILD = "9caa0ea30985";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
