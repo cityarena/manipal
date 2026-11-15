@@ -3485,6 +3485,8 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .audit-transfer { min-height: 34px; padding: 0 12px; font-size: var(--text-xs); }
 @media (prefers-reduced-motion: reduce) { .audit .a-chev { transition: none; } }
 .audit-line-words { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.lane-step.late .lane-step-mark i { background: var(--warn); }
+.lane-step.late .lane-step-what small { color: var(--warn); }
 </style>
 </head>
 <body>
@@ -4512,6 +4514,9 @@ var ArenaLifecycle=(function(){
     check(c.settlement==='pay'&&typeof c.pending==='object','Invalid pending choice.');
     var owner=String(c.pending.name||'').trim(),mobile=String(c.pending.phone||'').trim();check(owner.length<=80&&mobile.length<=30,'Keep the name and mobile short.');
     if(owner)target.customer=owner;if(mobile)target.phone=mobile;
+    // No name typed (owner, 15 November: "if i do not type name, its okay, just create a random name CUSTOMER A,B,C"): the next
+    // name not on any bill still pending, so each can be found on its own, never all under Walk-in.
+    if(!owner&&(!String(target.customer||'').trim()||/^walk-?in$/i.test(String(target.customer).trim())))target.customer=nextPendingName_(s);
    }
    var accountId=c.accountId;if(c.settlement==='credit'&&c.newAccount){accountId=ArenaCredits.execute(s,{type:'CREATE_CREDIT_ACCOUNT',name:c.newAccount.name,phone:c.newAccount.phone||'',openingPaise:0},actor,now,id+'-account').accountId;}
    var result=ArenaApp.execute(s,{type:'FINALIZE_TAB',tabId:target.id,discountType:c.discountType,discountValue:c.discountValue},actor,now,id+'-bill');
@@ -4541,6 +4546,21 @@ var ArenaLifecycle=(function(){
    return result;
   }
   throw new Error('Unsupported operation.');
+ }
+ // The next name for a pending bill left without one: Customer A, B … Z, then AA, AB …, never a name on a bill still pending.
+ function nextPendingName_(s){
+  var used={},voided={},onCredit={},details={},tabs={};
+  (s.Corrections||[]).forEach(function(c){if(c.kind==='bill_void')voided[c.targetId]=true;});
+  (s.CreditTransfers||[]).forEach(function(t){onCredit[t.billId]=true;});
+  (s.BillDetails||[]).forEach(function(d){details[d.id]=d;});
+  (s.Tabs||[]).forEach(function(t){tabs[t.id]=t;});
+  (s.Bills||[]).forEach(function(bl){
+   if(!(bl.totalPaise>bl.paidPaise)||voided[bl.id]||onCredit[bl.id]||ArenaCore.carryOf(s,bl.id))return;
+   var d=details[bl.id],t=d?tabs[d.tabId]:null;
+   [d&&d.customer,t&&t.customer].forEach(function(n){if(n)used[String(n).trim().toLowerCase()]=true;});
+  });
+  for(var i=0;i<702;i++){var k=i<26?String.fromCharCode(65+i):String.fromCharCode(64+Math.floor(i/26))+String.fromCharCode(65+i%26);if(!used['customer '+k.toLowerCase()])return 'Customer '+k;}
+  return 'Customer';
  }
  return {handles:function(t){return types.indexOf(t)>=0;},execute:execute,party:party,isTable:table,gameOrders:gameOrders};
 })();
@@ -5665,13 +5685,15 @@ var ArenaReports = (function () {
     v.courts.forEach(function (c) { COURT_PLACE[c.id] = place; });
   });
   var EARNINGS = ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling', 'Manual', 'Turf'].concat(OTHER_PLACES, ['Snacks', 'Beverages', 'Ice cream', 'Rentals', 'Membership']);
+  // In whole rupees when the discount and the lines are whole rupees (owner, 15 November: no paise from a discount).
   function spread(amounts, off, into) {
     var keys = Object.keys(amounts).filter(function (k) { return amounts[k] > 0; }), total = 0, given = 0;
     keys.forEach(function (k) { total += amounts[k]; });
-    var parts = keys.map(function (k) { var exact = total > 0 ? off * amounts[k] / total : 0, whole = Math.floor(exact); given += whole; return { key: k, whole: whole, rest: exact - whole }; });
+    var unit = off % 100 === 0 && keys.every(function (k) { return amounts[k] % 100 === 0; }) ? 100 : 1, units = off / unit;
+    var parts = keys.map(function (k) { var exact = total > 0 ? units * amounts[k] / total : 0, whole = Math.floor(exact); given += whole; return { key: k, whole: whole, rest: exact - whole }; });
     parts.sort(function (a, b) { return b.rest - a.rest || a.key.localeCompare(b.key); });
-    for (var i = 0; given < off && i < parts.length; i++, given++) parts[i].whole++;
-    parts.forEach(function (p) { into[p.key] = (into[p.key] || 0) + amounts[p.key] - p.whole; });
+    for (var i = 0; given < units && i < parts.length; i++, given++) parts[i].whole++;
+    parts.forEach(function (p) { into[p.key] = (into[p.key] || 0) + amounts[p.key] - p.whole * unit; });
   }
 
   // The business day starts at midnight India time unless Settings moves it for late-night trading.
@@ -5803,10 +5825,13 @@ var ArenaReports = (function () {
         } else if (GAMING.indexOf(o.category) >= 0) { m.gaming += o.totalPaise; add(m.gamingBy, o.category, o.totalPaise); add(m.gamingOn, on(o.category, o.createdMs), o.totalPaise); }
         else { m.products += o.totalPaise; add(m.productBy, o.category, o.totalPaise); add(m.productOn, on(o.category, o.createdMs), o.totalPaise); }
       });
-      var subtotal = m.gaming + m.products + m.turf - m.turfOff, discount = detail.discountPaise || 0;
-      m.gamingShare = subtotal > 0 ? Math.round(discount * m.gaming / subtotal) : 0;
-      m.turfShare = subtotal > 0 ? (m.products > 0 ? Math.round(discount * (m.turf - m.turfOff) / subtotal) : discount - m.gamingShare) : 0;
-      m.productShare = discount - m.gamingShare - m.turfShare;
+      // A bill's discount comes off its games and its court, never its snacks and drinks, which are always at their full price (owner,
+      // 15 November: "that is snacks … obviously full right?"); only a discount larger than the games and the court reaches them.
+      var discount = detail.discountPaise || 0, turfNet = m.turf - m.turfOff, playOff = Math.min(discount, m.gaming + turfNet);
+      var byRatio = m.gaming + turfNet > 0 ? playOff * m.gaming / (m.gaming + turfNet) : 0, step = playOff % 100 === 0 ? 100 : 1;
+      m.gamingShare = Math.max(playOff - turfNet, Math.min(m.gaming, Math.round(byRatio / step) * step));
+      m.turfShare = playOff - m.gamingShare;
+      m.productShare = discount - playOff;
       // What the bill is made of, after its discount, each part with its day, for sharing out the money paid for it; a balance
       // brought from an earlier bill is pending collected.
       m.parts = {};
@@ -5935,7 +5960,8 @@ var ArenaReports = (function () {
           if (back) billPayments[billOfPayment[c.targetId]].push({ p: back, undoes: c.targetId });
         });
       }
-      return (billPayments[billId] || []).slice().sort(function (a, b) { return a.p.createdMs - b.p.createdMs || (a.p.id < b.p.id ? -1 : a.p.id > b.p.id ? 1 : 0); });
+      // Cash + UPI made together: the UPI fills first, so the snacks (filled last) fall on the cash (owner, 15 November: cash first).
+      return (billPayments[billId] || []).slice().sort(function (a, b) { return a.p.createdMs - b.p.createdMs || Number(a.p.method === 'cash') - Number(b.p.method === 'cash') || (a.p.id < b.p.id ? -1 : a.p.id > b.p.id ? 1 : 0); });
     };
     var fillOf = function (billId, parts) {
       if (fills[billId]) return fills[billId];
@@ -6089,9 +6115,9 @@ var ArenaReports = (function () {
         var keys = Object.keys(parts).filter(function (k) { return parts[k] > 0; }).sort(function (a, c) { return fillRank(a) - fillRank(c) || (a < c ? -1 : a > c ? 1 : 0); });
         var left = {}, each = {}, events = [];
         keys.forEach(function (k) { left[k] = parts[k]; });
-        (state.Payments || []).forEach(function (x) { if (x.billId === detail.id && !undoneSameDay[x.id]) events.push({ id: x.id, at: x.createdMs, paise: x.amountPaise, undo: x.amountPaise < 0 ? ((state.Corrections || []).find(function (c) { return c.kind === 'payment_reversal' && c.id === x.id; }) || {}).targetId : '' }); });
+        (state.Payments || []).forEach(function (x) { if (x.billId === detail.id && !undoneSameDay[x.id]) events.push({ id: x.id, at: x.createdMs, cash: x.method === 'cash', paise: x.amountPaise, undo: x.amountPaise < 0 ? ((state.Corrections || []).find(function (c) { return c.kind === 'payment_reversal' && c.id === x.id; }) || {}).targetId : '' }); });
         (state.CreditAllocations || []).forEach(function (a) { if (a.kind === 'bill' && a.targetId === detail.id) { var pay = (state.Payments || []).find(function (x) { return x.id === a.receiptId; }); events.push({ id: a.receiptId, at: pay ? pay.createdMs : 0, paise: a.amountPaise, undo: '' }); } });
-        events.sort(function (a, c) { return a.at - c.at || (a.id < c.id ? -1 : a.id > c.id ? 1 : 0); });
+        events.sort(function (a, c) { return a.at - c.at || Number(!!a.cash) - Number(!!c.cash) || (a.id < c.id ? -1 : a.id > c.id ? 1 : 0); });
         events.forEach(function (ev) {
           var got = {};
           if (ev.undo && each[ev.undo]) Object.keys(each[ev.undo]).forEach(function (k) { got[k] = -each[ev.undo][k]; });
@@ -6431,17 +6457,19 @@ var ArenaReports = (function () {
     out.recon = { items: [], moves: [], paid: [], accounts: (ARENA_BRANCH.upiAccounts || []).map(function (a) { return { id: a.id, name: a.name, side: a.side || '' }; }) };
     Object.keys(groupOf).forEach(function (key) {
       var group = groupOf[key], whole = sideTotal(group.map(function (x) { return { paise: x.amountPaise }; }));
-      var courtsAll = 0, floorAll = 0, snacksAll = 0, courtsFull = 0, floorFull = 0;
-      group.forEach(function (x) {
-        payPieces[x.id].courts.forEach(function (s) { courtsFull += s.paise; if (s.place === SNACKS) snacksAll += s.paise; else courtsAll += s.paise; });
-        payPieces[x.id].floor.forEach(function (s) { floorFull += s.paise; if (s.place === SNACKS) snacksAll += s.paise; else floorAll += s.paise; });
-      });
+      // Each payment's own lines (a payment of Cash + UPI fills the court with the UPI first, the snacks with the cash).
+      var linesOfPay = function (pay) {
+        var out = { courts: 0, floor: 0, snacks: 0, courtsFull: 0, floorFull: 0 };
+        payPieces[pay.id].courts.forEach(function (s) { out.courtsFull += s.paise; if (s.place === SNACKS) out.snacks += s.paise; else out.courts += s.paise; });
+        payPieces[pay.id].floor.forEach(function (s) { out.floorFull += s.paise; if (s.place === SNACKS) out.snacks += s.paise; else out.floor += s.paise; });
+        return out;
+      };
       group.forEach(function (pay) {
         var acct = String(pay.method).indexOf('upi:') === 0 ? String(pay.method).slice(4) : '';
         if (!accountsOf[acct]) return;
-        var mine = { courts: Math.round(courtsAll * pay.amountPaise / whole), floor: Math.round(floorAll * pay.amountPaise / whole), snacks: Math.round(snacksAll * pay.amountPaise / whole) };
+        var own = linesOfPay(pay), mine = { courts: own.courts, floor: own.floor, snacks: own.snacks };
         // All that landed in the account for each side, snacks and drinks included, for its payments in the account.
-        var landed = { courts: Math.round(courtsFull * pay.amountPaise / whole), floor: Math.round(floorFull * pay.amountPaise / whole) };
+        var landed = { courts: own.courtsFull, floor: own.floorFull };
         var detail = pay.billId ? details[pay.billId] : null, advance = !detail && (state.Advances || []).find(function (a) { return pay.id === a.id; });
         var tabId = detail ? detail.tabId : advance ? advance.tabId : '';
         ['floor', 'courts'].forEach(function (side) {
@@ -10825,6 +10853,7 @@ const ICONS = {
   users: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'c:9,7,4', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
   // Session controls
   clock: ['c:12,12,10', 'M12 6v6l4 2'],
+  pending: ['c:12,12,10', 'M12 6v6l4 2'],
   flag: ['M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z', 'M4 22v-7'],
   pause: ['r:14,4,4,16,1', 'r:6,4,4,16,1'],
   play: ['M6 3l14 9-14 9V3z'],
@@ -11911,15 +11940,6 @@ function cardInfo(tab, name, first, extras, more = {}) {
     // Paid in advance and a reminder get their own line, so a narrow card never hides them.
     extras.some(Boolean) ? h('div', 'card-extras', extras) : null);
 }
-// A lane held for a booking from the hold point (owner, 22 October): the gold "Reserved 7:30 · Neha" chip on its card.
-function laneReserved(unit) {
-  const now = nowMs(), hold = resMinutes('lock') * 60000, plan = lanePlan();
-  // On the lane the plan gives it, as Reservations, the lane box and the warnings say (owner, 14 November: an any-lane booking saved
-  // on Lane 2 but moved to Lane 1 while Lane 2 plays on read Lane 1 on Reservations and Reserved on Lane 2's card).
-  const next = state.Reservations.filter(r => !isWalkIn(r) && RES_PENDING.includes(r.status) && plan.bookings[r.id] && plan.bookings[r.id].unitId === unit.id && plan.bookings[r.id].expectedMs - now <= hold)
-    .sort((a, b) => a.arrivalMs - b.arrivalMs)[0];
-  return next ? h('span', { class: 'chip-reserved', data: { reserved: next.id } }, icon('reservations'), 'Reserved ' + clock(next.arrivalMs) + ' · ' + next.customer) : null;
-}
 // A lane in use (owner, 22 October): who, how many players, since when, when it should be free (the same plan as Reservations:
 // players × 10 + 5 a game, plus any pause and +5 / +10) and the time left, or how far over.
 // Another round when one is over (owner, 23 October): how many games (and players, the same unless changed); the round
@@ -12063,10 +12083,10 @@ function stationCardBody(unit) {
 
   if (!players.length && !legacy) {
     // A free station that someone has booked soon says so before it is opened.
-    const booked = unit.category === 'Bowling' ? null : bookingClash(unit)[0], reserved = unit.category === 'Bowling' ? laneReserved(unit) : null;
+    // A lane shows no Reserved chip (owner, 15 November); another free station says when it is booked.
+    const booked = unit.category === 'Bowling' ? null : bookingClash(unit)[0];
     card.append(stationHead(unit, '', null, statePill('free')), stationArt(),
       ...(booked ? [h('div', 'station-meta booked', icon('reservations'), h('span', { text: 'Booked ' + clock(booked.arrivalMs) }))] : []),
-      ...(reserved ? [h('div', 'station-meta booked', reserved)] : []),
       btn([icon('play'), 'Start Session'], () => startSheet(unit), 'go block', { data: { action: 'start' } }));
     return card;
   }
@@ -12159,7 +12179,7 @@ function stationCardBody(unit) {
     // Switch, always on the card (owner, 12 November: "switch button needs to be there regardless"): to a free lane, or the two
     // lanes in use change places.
     const otherFree = state.Equipment.some(u => u.category === 'Bowling' && u.id !== unit.id);
-    card.append(laneInfo(tab, who, g, [...stationExtras(unit), laneReserved(unit)]),
+    card.append(laneInfo(tab, who, g, [...stationExtras(unit)]),
       h('div', 'station-actions lane-actions' + (otherFree ? ' with-switch' : ''),
         btn([icon('plus'), 'Add Items'], () => addItemsFor(unit), '', { data: { action: 'items' } }),
         btn([icon('refresh'), 'Repeat'], () => laneRepeatSheet(unit, g), '', { data: { action: 'lane-repeat' } }),
@@ -13781,6 +13801,16 @@ function laneQuestions(ui, keep) {
   return box;
 }
 const laneReady = keep => !!keep.players && Number(keep.players.value()) > 0 && Number(keep.games.value()) > 0;
+// A PS5 started by a move: how many controllers, asked the same way (owner, 15 November: "when moving say from pool to PS5, … ask
+// how many controllers"): nothing chosen at first, the question brought into view, the button waiting for it.
+function ps5Question(ui, keep, max) {
+  const fresh = !keep.count, upTo = Array.from({ length: Math.max(1, Math.min(4, max || 4)) }, (_, i) => [i + 1, String(i + 1)]);
+  keep.count = segmented(upTo, keep.count ? keep.count.value() : '', () => ui.redraw());
+  const box = h('div', { class: 'lane-ask', data: { ps5Ask: '' } }, h('div', { class: 'field', data: { field: 'move-controllers' } }, h('span', { text: 'How many controllers?' }), keep.count.node));
+  if (fresh) requestAnimationFrame(() => box.scrollIntoView({ block: 'nearest' }));
+  return box;
+}
+const ps5Ready = keep => !!keep.count && Number(keep.count.value()) > 0;
 const laneChoice = keep => ({ players: Number(keep.players.value()), games: Number(keep.games.value()) });
 // One Move (owner, 21 October), three places: a system playing now (this bill goes onto theirs, nobody starts playing),
 // today's turf (paid with the booking; the calendar beside it shows another day's, owner, 2 November: "tomorrow or any
@@ -13796,12 +13826,10 @@ function moveSheet(tab) {
   const free = canPlayOn ? CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && offered(u))) : [];
   const chosen = new Set();
   // How many stopped on this bill; the usual number to start again, but fewer may play on.
-  const movers = Math.max(1, state.Endings.filter(e => e.reviewTabId === tab.id && e.status === 'review' && e.segmentId).length);
-  let joinTab = '', time, controllers = 0, acked = false, turfTo = '', billTo = '', turfDay = today, dayBox = null;
-  const lane = {};
+  let joinTab = '', time, acked = false, turfTo = '', billTo = '', turfDay = today, dayBox = null;
+  const lane = {}, pads = {};
   const comment = commentField();
   const onePs5 = () => { const only = chosen.size === 1 ? unitOf([...chosen][0]) : null; return only && only.category === 'PS5' ? only : null; };
-  const seatCount = () => { const unit = onePs5(); return unit ? Math.min(controllers || movers, freeSlots(unit)) : 0; };
   const clear = () => { chosen.clear(); turfTo = ''; billTo = ''; joinTab = ''; acked = false; current.ack.reservation = false; };
   openSheet({
     title: 'Move',
@@ -13846,11 +13874,8 @@ function moveSheet(tab) {
         const bill = segmented([['', 'Own bill'], ...hosts.map(t => [t.id, t.customer + '’s bill'])], joinTab, v => { joinTab = v; });
         ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'join-bill' } }, h('span', { text: 'Joining ' + hosts.map(t => t.customer).join(' and ') + ' · charge to' }), bill.node));
       }
-      if (onePs5()) {
-        const slots = freeSlots(onePs5()), options = [];
-        for (let n = 1; n <= slots; n++) options.push([n, String(n)]);
-        ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'move-controllers' } }, h('span', { text: 'Controllers starting' }), segmented(options, seatCount(), v => { controllers = Number(v); }).node));
-      }
+      const toPs5 = !!onePs5();
+      if (toPs5) ui.body.append(ps5Question(ui, pads, freeSlots(onePs5())));
       // A bowling lane chosen: how many play and how many games, as when a lane starts (owner, 22 October).
       const toLane = units.some(u => u.category === 'Bowling');
       if (toLane) ui.body.append(laneQuestions(ui, lane));
@@ -13860,6 +13885,7 @@ function moveSheet(tab) {
       time = time || timeChoice('Starts');
       ui.body.append(h('div', { style: 'margin-top:16px' }, time.node), h('div', { style: 'margin-top:16px' }, comment.node));
       if (toLane && !laneReady(lane)) { ui.primary('Choose players and games', true); return; }
+      if (toPs5 && !ps5Ready(pads)) { ui.primary('Choose how many controllers', true); return; }
       ui.primary((only && inUse(only) ? 'Join ' : 'Move to ') + units.map(u => u.name).join(' + '), clashes.length > 0 && !acked);
     },
     command() {
@@ -13873,7 +13899,7 @@ function moveSheet(tab) {
         return target.home ? { type: 'CONSOLIDATE_TABS', sourceTabId: tab.id, tabId: target.home.id, note } : { type: 'ATTACH_TO_GROUP', sourceTabId: tab.id, memberTabId: target.members[0].id, note };
       }
       if (!chosen.size) throw new Error('Choose where they are moving to.');
-      return { type: 'MOVE_REVIEW', tabId: tab.id, unitIds: [...chosen], startMs: time.value(), joinTabId: chosen.size === 1 && joinTab ? joinTab : undefined, controllers: onePs5() ? seatCount() : undefined, ...([...chosen].some(id => (unitOf(id) || {}).category === 'Bowling') ? laneChoice(lane) : {}), note };
+      return { type: 'MOVE_REVIEW', tabId: tab.id, unitIds: [...chosen], startMs: time.value(), joinTabId: chosen.size === 1 && joinTab ? joinTab : undefined, controllers: onePs5() ? Number(pads.count.value()) : undefined, ...([...chosen].some(id => (unitOf(id) || {}).category === 'Bowling') ? laneChoice(lane) : {}), note };
     },
     then(result, command) {
       if (command.type === 'ATTACH_TO_GROUP') {
@@ -14812,8 +14838,7 @@ function loadingRows(count = 5) { const bars = []; for (let n = 0; n < count; n+
 function numberOf(id) { const ref = (state.References || []).find(r => r.id === id); return ref ? ref.number : ''; }
 function settingValue(key, fallback) { const row = state.Settings.find(r => r.id === key); return row ? Number(row.value) : fallback; }
 
-// ---------- Open tabs ----------
-let tabSearch = '';
+// ---------- When a bill is of ----------
 // When an open bill is of: its first game, its first item, or its turf slot (owner, 4 November: "i opened all dates, and then
 // the bill how will i know which date it is??").
 function openedAt(t) {
@@ -14824,38 +14849,6 @@ function openedAt(t) {
 // Titans' bookings of 8 November read Ready to settle).
 // Its day always written, today's too ("4 Nov, 12:29 AM").
 const openedWords = t => day(openedAt(t)) + ', ' + clock(openedAt(t));
-// When a bill stopped playing: its last timer's end (owner, 15 November: "this order, should be the time they closed, not when
-// the time they started"); 0 while it plays on or has no timer.
-const closedAt = t => (stillPlaying(t.id) ? 0 : Math.max(0, ...segmentsOf(t.id).map(g => Number(g.endMs) || 0)));
-const closedWords = t => { const at = closedAt(t); return at ? 'Ended ' + (dayKey(at) === dayKey(openedAt(t)) ? '' : day(at) + ', ') + clock(at) : ''; };
-function openBills() {
-  return state.Tabs.filter(t => t.status === 'open' && (t.kind === 'quick_sale' || segmentsOf(t.id).length || ordersOf(t.id).length) && !(turfBookingForTab(t.id) && !turfEnded(turfBookingForTab(t.id))));
-}
-const tabsPage = {
-  title: 'Open tabs',
-  bar(bar) { bar.append(searchBox(tabSearch, 'Search open bills', v => { tabSearch = v; redrawKeepingFocus(); })); },
-  render(page) {
-    const text = tabSearch.trim().toLowerCase(), { fromMs, toMs } = billRange();
-    const open = openBills().filter(t => !text || (t.customer + ' ' + t.phone).toLowerCase().includes(text));
-    // The dates chosen, by the day each bill is of; newest first (owner, 4 November: "all dates everywhere i hope it starts
-    // from recent"), by when each closed, one still playing by when it started (owner, 15 November).
-    const order = t => closedAt(t) || openedAt(t);
-    const tabs = open.filter(t => !(fromMs && openedAt(t) < fromMs) && !(toMs && openedAt(t) >= toMs)).sort((a, b) => order(b) - order(a));
-    page.append(table(
-      [{ label: 'Customer' }, { label: 'Where', class: 'hide-s' }, { label: 'Status' }, { label: 'So far', class: 'r' }],
-      tabs.map(t => {
-        const units = [...new Set(segmentsOf(t.id).map(g => (unitOf(g.unitId) || {}).name || g.unitId))];
-        return h('tr', { class: 'click', data: { tab: t.id }, onclick: () => settleSheet(t.id) },
-          h('td', null, person(t.customer, [t.phone, openedWords(t), closedWords(t)].filter(Boolean).join(' · '))),
-          h('td', { class: 'hide-s muted', text: units.join(', ') || (t.kind === 'quick_sale' ? 'Quick Sale' : '') }),
-          h('td', null, stillPlaying(t.id) ? h('span', { class: 'badge good', text: 'Playing' }) : h('span', { class: 'badge warn', text: 'Ready to settle' })),
-          h('td', { class: 'r num', text: money(tabTotal(t.id)) }));
-      }), 'No open bills.', 'bills'));
-    // Open bills of other days are still to be settled: said under the list, one tap to see them all.
-    const elsewhere = open.length - tabs.length;
-    if (elsewhere) page.append(h('div', 'bills-elsewhere', h('span', { class: 'small muted', text: plural(elsewhere, 'open bill', 'open bills') + ' from other dates' }), btn('Show all dates', () => { billQuery.range = 'all'; render(); }, 'quiet', { data: { action: 'bills-all-dates' } })));
-  }
-};
 
 // ---------- Billing: searchable history, fetched from the server ----------
 // The Bills' dates, Open and Closed alike (owner, 3 November: "today is fine and then date wise either specific date or date
@@ -14900,21 +14893,22 @@ async function loadBills(key) {
     // a bill reversed and voided from this list still read Paid ₹180 in it).
     if (key === billKey()) billCache = { key, rows: out.rows, matched: out.matched };
   } catch (e) { billCache = { key, rows: [], matched: 0 }; notify('error', e.message); }
-  if (page === 'bills' && billsMode === 'closed') redrawKeepingFocus();
+  if (page === 'bills') redrawKeepingFocus();
 }
 const billKey = () => [version, billQuery.text, billQuery.status, billQuery.range, billQuery.from, billQuery.to].join('|');
 const billsPage = {
   title: 'Billing',
   bar(bar) {
     bar.append(searchBox(billQuery.text, 'Search bill, name, mobile or unit', v => { billQuery.text = v; clearTimeout(billTimer); billTimer = setTimeout(redrawKeepingFocus, 250); }));
-    bar.append(h('div', 'chips', [['all', 'All'], ['unpaid', 'Pending'], ['part', 'Part paid'], ['credit', 'On credit'], ['paid', 'Paid'], ['void', 'Voided']].map(([key, label]) =>
+    if (['unpaid', 'part'].includes(billQuery.status)) billQuery.status = 'all';
+    bar.append(h('div', 'chips', [['all', 'All'], ['paid', 'Paid'], ['credit', 'On credit'], ['void', 'Voided']].map(([key, label]) =>
       h('button', { type: 'button', class: 'chip', 'aria-pressed': String(billQuery.status === key), onclick: () => { billQuery.status = key; render(); } }, label))));
     bar.append(btn([icon('download'), 'Export CSV'], () => { const r = billRange(); exportCsv('bills', r.fromMs, r.toMs); }, 'quiet'));
   },
   render(page) {
     const key = billKey();
     if (billCache.key !== key) { loadBills(key); if (!billCache.rows) { page.append(loadingRows()); return; } }
-    const rows = billCache.rows || [];
+    const rows = (billCache.rows || []).filter(b => !['unpaid', 'part'].includes(b.status));
     page.append(table(
       [{ label: 'Bill' }, { label: 'When', class: 'hide-s' }, { label: 'Customer' }, { label: 'Total', class: 'r' }, { label: 'Outstanding', class: 'r hide-s' }, { label: 'Status' }, { label: '' }],
       rows.map(b => h('tr', { class: 'click', data: { bill: b.id }, onclick: () => receiptSheet(b.id) },
@@ -15275,7 +15269,11 @@ function laneHeader(plan) {
     // November).
     const overTime = playing && lane.game.overMs >= 60000;
     const gaps = overTime ? [] : lane.gaps.filter(g => g.toMs - Math.max(g.fromMs, now) >= 15 * 60000);
-    const openAt = gaps[0] ? Math.max(gaps[0].fromMs, now) : lane.freeMs, freeNow = !overTime && openAt <= now + 60000;
+    // Someone booked whose time has passed and who is not here yet is not playing (owner, 15 November: "it looks like shresh is
+    // playing but the lane, yet to play"): the lane reads Free now, and their line Not here yet.
+    const notHere = r => !!r && r.status !== 'waiting' && Number(r.arrivalMs) < now;
+    const first = lane.blocks[0], idle = !playing && !!first && first.startMs <= now + 60000 && notHere(state.Reservations.find(x => x.id === first.id));
+    const openAt = gaps[0] ? Math.max(gaps[0].fromMs, now) : lane.freeMs, freeNow = (!overTime && openAt <= now + 60000) || idle;
     const byGame = playing && !overTime && Math.abs(openAt - lane.game.endMs) < 60000;
     // As the owner's agreed picture (13 November: "this look too shabby"): the big time, a few words why under it, then the
     // evening as a short timeline, the times in one column, a dot for each (green free, purple booked), the detail small under.
@@ -15293,7 +15291,8 @@ function laneHeader(plan) {
         row(item.at <= now + 60000 ? 'Now' : clock(item.at), 'free', 'Free for ' + inWords(length), fits < ARENA_BRANCH.bowling.maxPlayers ? 'Up to ' + fits + (fits === 1 ? ' player' : ' players') : '');
       } else {
         const who = state.Reservations.find(x => x.id === item.block.id) || {}, party = Number(who.players) || 0;
-        row(clock(item.block.startMs), 'booked', who.customer || 'Booked', [party ? party + (party === 1 ? ' player' : ' players') : '', 'until ' + clock(item.block.endMs)].filter(Boolean).join(' · '));
+        if (notHere(who)) row(clock(who.arrivalMs), 'late', who.customer || 'Booked', ['Not here yet', party ? party + (party === 1 ? ' player' : ' players') : ''].filter(Boolean).join(' · '));
+        else row(clock(item.block.startMs), 'booked', who.customer || 'Booked', [party ? party + (party === 1 ? ' player' : ' players') : '', 'until ' + clock(item.block.endMs)].filter(Boolean).join(' · '));
       }
     }
     if (items.length > 4) rows.push(h('span', { class: 'lane-step-more', text: '+' + (items.length - 4) + ' more' }));
@@ -16248,7 +16247,9 @@ const pendingDay = r => (r.booking ? r.booking.dateKey : dayKey(r.detail.created
 function pendingGroups(rows) {
   const groups = new Map();
   for (const r of rows) {
-    const who = pendingWho(r), digits = String(who.phone).replace(/\D/g, ''), key = digits ? 'm:' + digits : 'n:' + who.name.trim().toLowerCase();
+    // A bill under no name (Walk-in, from before names were given) is a row of its own, never every walk-in in one (owner, 15 November).
+    const who = pendingWho(r), digits = String(who.phone).replace(/\D/g, ''), nameless = !who.name.trim() || /^walk-?in$/i.test(who.name.trim());
+    const key = digits ? 'm:' + digits : nameless ? 'b:' + (r.booking ? r.booking.id : r.bill.id) : 'n:' + who.name.trim().toLowerCase();
     if (!groups.has(key)) groups.set(key, { key, name: who.name, phone: who.phone, rows: [], owed: 0 });
     const g = groups.get(key);
     g.rows.push(r);
@@ -16294,8 +16295,8 @@ function pendingMoveSheet(billIds, name, owed, back) {
   const running = playingBills({ id: '' }), free = CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && !inUse(u)));
   const today = dayKey(nowMs()), bookings = turfTakers({ kind: '' }).filter(x => x.dateKey >= today && x.split !== 'yes' && !turfAccountOf(x.id));
   const reservations = state.Reservations.filter(r => RES_PENDING.includes(r.status) && !isWalkIn(r)).sort((x, y) => x.arrivalMs - y.arrivalMs);
-  let to = null, controllers = 1, time, acked = false, sheet = null;
-  const lane = {};
+  let to = null, time, acked = false, sheet = null;
+  const lane = {}, pads = {};
   const pick = target => { to = target; acked = false; current.ack.reservation = false; sheet.redraw(); };
   const chosen = kind => key => to && to.kind === kind && to.key === key;
   openSheet({
@@ -16320,13 +16321,14 @@ function pendingMoveSheet(billIds, name, owed, back) {
       const unit = to && to.kind === 'unit' ? unitOf(to.unitId) : null;
       if (unit) {
         // A free system: a PS5's controllers, a lane's players and games, and when they start.
-        if (unit.category === 'PS5') ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'move-controllers' } }, h('span', { text: 'Controllers starting' }), segmented([1, 2, 3, 4].map(n => [n, String(n)]), controllers, v => { controllers = Number(v); }).node));
+        if (unit.category === 'PS5') ui.body.append(ps5Question(ui, pads, 4));
         if (unit.category === 'Bowling') ui.body.append(laneQuestions(ui, lane));
         const clashes = bookingClash(unit);
         if (clashes.length) ui.body.append(h('div', { style: 'margin-top:16px' }, clashNotice(unit, clashes, acked, on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; })));
         time = time || timeChoice('Starts');
         ui.body.append(h('div', { style: 'margin-top:16px' }, time.node));
         if (unit.category === 'Bowling' && !laneReady(lane)) { ui.primary('Choose players and games', true); return; }
+        if (unit.category === 'PS5' && !ps5Ready(pads)) { ui.primary('Choose how many controllers', true); return; }
         ui.primary('Start ' + unit.name + ' · Move ' + money(owed), clashes.length > 0 && !acked);
         return;
       }
@@ -16335,7 +16337,7 @@ function pendingMoveSheet(billIds, name, owed, back) {
     command() {
       if (!to) throw new Error('Choose where it goes.');
       const base = { type: 'PENDING_MOVE', billIds };
-      if (to.kind === 'unit') { const unit2 = unitOf(to.unitId); return { ...base, unitId: to.unitId, startMs: time.value(), ...(unit2.category === 'PS5' ? { controllers } : {}), ...(unit2.category === 'Bowling' ? laneChoice(lane) : {}) }; }
+      if (to.kind === 'unit') { const unit2 = unitOf(to.unitId); return { ...base, unitId: to.unitId, startMs: time.value(), ...(unit2.category === 'PS5' ? { controllers: Number(pads.count.value()) } : {}), ...(unit2.category === 'Bowling' ? laneChoice(lane) : {}) }; }
       if (to.kind === 'booking') return { ...base, bookingId: to.bookingId };
       if (to.kind === 'reservation') return { ...base, reservationId: to.reservationId };
       return { ...base, tabId: to.tabId };
@@ -16427,13 +16429,46 @@ function pendingPersonSheet(group) {
       }
       ui.body.append(card);
       const detail = days.map(key => '• ' + ordinalDate(key) + ' ' + money(dayTotal(key)));
+      const billIds = group.rows.flatMap(r => (r.booking ? r.parts.map(x => x.billId) : [r.bill.id]));
+      ui.foot.append(h('div', 'foot-row pending-all-tools',
+        btn([icon('wallet'), 'Collect all · ' + money(group.owed)], () => pendingCollectAll(group, back), 'primary', { data: { action: 'pending-collect-all' } }),
+        btn([icon('transfer'), 'Move all'], () => pendingMoveSheet(billIds, group.name, group.owed, () => pendingPersonSheet(group)), '', { data: { action: 'pending-move-all' } }),
+        btn([icon('credits'), 'Move to Credit'], () => pendingCreditSheet(billIds, group.name, group.owed, () => pendingPersonSheet(group)), '', { data: { action: 'pending-credit-all' } })));
       if (group.phone) ui.foot.append(btn([icon('whatsapp'), 'Remind ' + group.name], () => whatsapp(group.phone, pendingReminderText(group.name, group.owed, 'your visits', detail)), 'block', { data: { action: 'pending-remind-sheet' } }));
     }
   });
 }
-// The Pending list's dates (owner, 4 November: "can we add dates here to filter???"): All dates at first, so nothing owed is
-// out of sight, then Today, one date or a date range, by the day each was played (a turf booking by its slot's day).
-const pendingQuery = { range: 'all', from: '', to: '' };
+// Collect all of one person's pending bills at once: how they paid (Cash, UPI, or both), each bill paid in full, oldest first.
+function pendingCollectAll(group, back) {
+  const bills = group.rows.flatMap(r => (r.booking ? r.parts.map(x => ({ billId: x.billId, owed: x.owed })) : [{ billId: r.bill.id, owed: r.owed }])).reverse();
+  const store = { method: 'cash' };
+  let how;
+  openSheet({
+    title: 'Collect all · ' + money(group.owed),
+    sub: group.name + ' · ' + plural(bills.length, 'bill', 'bills'),
+    icon: 'wallet',
+    onClose: () => pendingPersonSheet(group),
+    build(ui) {
+      how = payChoice(store, () => {}, { due: () => group.owed, splittable: false });
+      ui.body.append(h('div', 'field', h('span', { text: 'Paid by' }), how.node));
+      ui.primary('Collect ' + money(group.owed));
+    },
+    command() {
+      const method = how.value(group.owed).method;
+      return { type: 'PAY', billId: bills[0].billId, amountPaise: bills[0].owed, method };
+    },
+    then(result, command) {
+      const rest = bills.slice(1);
+      const done = () => { closeSheet(); back(); };
+      if (!rest.length) { done(); return { text: 'Collected ' + money(group.owed) + '.' }; }
+      saveAll(rest.map(x => ({ type: 'PAY', billId: x.billId, amountPaise: x.owed, method: command.method })), 'Collected ' + money(group.owed) + '.').then(done);
+      return null;
+    }
+  });
+}
+// The Pending list's dates (owner, 4 November: "can we add dates here to filter???"): Today at first (owner, 15 November), then All
+// dates, Yesterday, one date or a date range, by the day each was played (a turf booking by its slot's day).
+const pendingQuery = { range: 'today', from: '', to: '' };
 function pendingInDates(r) {
   const key = pendingDay(r);
   if (pendingQuery.range === 'today') return key === dayKey(nowMs());
@@ -16449,7 +16484,7 @@ function pendingDatesWords() {
 }
 function pendingDatesAsk(anchor) {
   datesAsk(anchor, {
-    presets: [['all', 'All dates'], ['today', 'Today'], ['yesterday', 'Yesterday']],
+    presets: [['today', 'Today'], ['yesterday', 'Yesterday'], ['all', 'All dates']],
     chosen: pendingQuery.range,
     from: pendingQuery.from,
     to: pendingQuery.to,
@@ -16462,7 +16497,7 @@ function pendingDatesAsk(anchor) {
   });
 }
 function pendingList(page) {
-  const text = creditSearch.trim().toLowerCase(), list = pendingRows().filter(pendingInDates).filter(r => !text || (r.booking ? r.booking.customer + ' ' + r.booking.phone : r.detail.customer + ' ' + ((r.tab || {}).phone || '')).toLowerCase().includes(text));
+  const text = pendingSearch.trim().toLowerCase(), list = pendingRows().filter(pendingInDates).filter(r => !text || (r.booking ? r.booking.customer + ' ' + r.booking.phone : r.detail.customer + ' ' + ((r.tab || {}).phone || '')).toLowerCase().includes(text));
   page.append(table(
     [{ label: 'Who' }, { label: 'For', class: 'hide-s' }, { label: 'Pending' }, { label: 'Actions', class: 'r' }],
     pendingGroups(list).map(group => {
@@ -16503,19 +16538,27 @@ function pendingList(page) {
     }),
     'Nothing is pending.', 'clock'));
 }
-let creditMode = 'accounts';
-const creditsPage = {
-  get title() { return creditMode === 'pending' ? 'Pending' : 'Credit accounts'; },
-  subtitle: () => (creditMode === 'pending' ? 'Money to be cleared in a day or two.' : 'Manage customer credit accounts, track outstanding balances and add items.'),
+// Pending bills, a section of its own below Bills (owner, 15 November: "remove pending from credit and put it below"), today's at
+// first each time it is opened ("by default pending should show todays date's").
+let pendingSearch = '';
+const pendingPage = {
+  title: 'Pending bills',
+  subtitle: 'Money to be cleared in a day or two.',
+  open() { pendingQuery.range = 'today'; },
   bar(bar) {
-    const waiting = pendingGroups(pendingRows()).length;
-    bar.append(segmented([['accounts', 'Credit', 'credits'], ['pending', 'Pending' + (waiting ? ' · ' + waiting : ''), 'clock']], creditMode, v => { creditMode = v; render(); }).node);
-    if (creditMode === 'pending') bar.append(h('button', { type: 'button', class: 'stock-when-button', data: { action: 'pending-dates' }, onclick: e => pendingDatesAsk(e.currentTarget) }, icon('reservations'), h('span', { text: pendingDatesWords() })));
-    bar.append(searchBox(creditSearch, creditMode === 'pending' ? 'Search pending' : 'Search accounts', v => { creditSearch = v; redrawKeepingFocus(); }));
-    if (creditMode === 'accounts') bar.append(btn([icon('download'), 'Export'], exportCredit, '', { data: { action: 'export-credit' } }), btn([icon('plus'), 'New account'], newAccountSheet, 'primary', { data: { action: 'new-account' } }));
+    bar.append(h('button', { type: 'button', class: 'stock-when-button', data: { action: 'pending-dates' }, onclick: e => pendingDatesAsk(e.currentTarget) }, icon('reservations'), h('span', { text: pendingDatesWords() })));
+    bar.append(searchBox(pendingSearch, 'Search pending', v => { pendingSearch = v; redrawKeepingFocus(); }));
+  },
+  render(page) { pendingList(page); }
+};
+const creditsPage = {
+  title: 'Credit accounts',
+  subtitle: 'Manage customer credit accounts, track outstanding balances and add items.',
+  bar(bar) {
+    bar.append(searchBox(creditSearch, 'Search accounts', v => { creditSearch = v; redrawKeepingFocus(); }));
+    bar.append(btn([icon('download'), 'Export'], exportCredit, '', { data: { action: 'export-credit' } }), btn([icon('plus'), 'New account'], newAccountSheet, 'primary', { data: { action: 'new-account' } }));
   },
   render(page) {
-    if (creditMode === 'pending') { pendingList(page); return; }
     const text = creditSearch.trim().toLowerCase();
     const accounts = state.CreditAccounts.filter(a => !text || (a.name + ' ' + creditPhone(a.id)).toLowerCase().includes(text))
       .sort((a, b) => creditSummary(b.id).outstandingPaise - creditSummary(a.id).outstandingPaise);
@@ -17248,16 +17291,16 @@ const ACADEMY_COURTS = ACADEMY_VENUES.flatMap(v => v.courts);
 const TURF_RATE_DEFAULTS = Object.fromEntries(ARENA_BRANCH.venues.flatMap(v => v.courts.map(c => [c.id, c.ratePaise])));
 const RATE_DEFAULTS = { PC: [5000, 10000, 18000, 20000], PS5: [2000, 3000, 5000, 6000], RC: [10000, 10000, 15000, 20000], Pool: [3000, 6000, 8000, 10000], Snooker: [5000, 10000, 15000, 18000] };
 
-// ---------- Bills: open and closed in one place ----------
-let billsMode = 'open';
+// ---------- Bills: the settled ones (owner, 15 November: "bills (only settled bills will appear here)") ----------
+// Paid, on credit or voided; a bill still owed (pending, or paid in part) is under Pending bills.
 const allBillsPage = {
   title: 'Bills',
-  subtitle: 'Manage customer bills and payments',
+  subtitle: 'Settled bills and payments',
   bar(bar) {
-    bar.append(segmented([['open', 'Open', 'clock'], ['closed', 'Closed', 'history']], billsMode, v => { billsMode = v; render(); }).node, billDatesButton());
-    (billsMode === 'open' ? tabsPage : billsPage).bar(bar);
+    bar.append(billDatesButton());
+    billsPage.bar(bar);
   },
-  render(target) { (billsMode === 'open' ? tabsPage : billsPage).render(target); }
+  render(target) { billsPage.render(target); }
 };
 
 // ---------- Settings: setup, reports, customers and the menu ----------
@@ -18825,8 +18868,8 @@ function turfMoveSheet(b, p) {
   }
   running.sort((x, y) => x.name.localeCompare(y.name, 'en', { numeric: true }));
   const free = CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && !inUse(u)));
-  let chosen = '', unitTo = '', controllers = 1, acked = false, time;
-  const lane = {};
+  let chosen = '', unitTo = '', acked = false, time;
+  const lane = {}, pads = {};
   const choose = (bill, unit) => { chosen = bill; unitTo = unit; acked = false; current.ack.reservation = false; };
   openSheet({
     title: 'Move to System',
@@ -18841,7 +18884,7 @@ function turfMoveSheet(b, p) {
       const target = running.find(x => x.t.id === chosen), unit = unitTo ? unitOf(unitTo) : null;
       if (unit) {
         // A free system: how many controllers on a PS5, when they start, and a booking someone has made on it soon.
-        if (unit.category === 'PS5') ui.body.append(h('div', { class: 'field', style: 'margin-top:16px', data: { field: 'move-controllers' } }, h('span', { text: 'Controllers starting' }), segmented([1, 2, 3, 4].map(n => [n, String(n)]), controllers, v => { controllers = Number(v); }).node));
+        if (unit.category === 'PS5') ui.body.append(ps5Question(ui, pads, 4));
         if (unit.category === 'Bowling') ui.body.append(laneQuestions(ui, lane));
         const clashes = bookingClash(unit);
         if (clashes.length) ui.body.append(h('div', { style: 'margin-top:16px' }, clashNotice(unit, clashes, acked, on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; })));
@@ -18849,6 +18892,7 @@ function turfMoveSheet(b, p) {
         ui.body.append(h('div', { style: 'margin-top:16px' }, time.node));
         ui.body.append(h('div', { style: 'margin-top:14px' }, comment.node));
         if (unit.category === 'Bowling' && !laneReady(lane)) { ui.primary('Choose players and games', true); return; }
+        if (unit.category === 'PS5' && !ps5Ready(pads)) { ui.primary('Choose how many controllers', true); return; }
         ui.primary('Start ' + unit.name + ' · Move ' + money(owed), clashes.length > 0 && !acked);
         return;
       }
@@ -18858,7 +18902,7 @@ function turfMoveSheet(b, p) {
     command() {
       if (!chosen && !unitTo) throw new Error('Choose a system.');
       const who = p ? { playerId: p.id } : { id: b.id };
-      if (unitTo) return { type: 'TURF_MOVE', ...who, unitId: unitTo, controllers: unitOf(unitTo).category === 'PS5' ? controllers : 1, ...(unitOf(unitTo).category === 'Bowling' ? laneChoice(lane) : {}), startMs: time.value(), note: comment.value() };
+      if (unitTo) return { type: 'TURF_MOVE', ...who, unitId: unitTo, controllers: unitOf(unitTo).category === 'PS5' ? Number(pads.count.value()) : 1, ...(unitOf(unitTo).category === 'Bowling' ? laneChoice(lane) : {}), startMs: time.value(), note: comment.value() };
       return { type: 'TURF_MOVE', ...who, tabId: chosen, note: comment.value() };
     },
     then() { return turfAfter(b.id); }
@@ -19996,13 +20040,15 @@ function viewHere(read) {
 // ---------- Sections ----------
 // Seven in the menu. Open and closed bills share one section; customers, reports and the menu live inside Settings. Turf,
 // Badminton and Pickleball are tabs inside Courts (owner, 22 October: "all this will come under courts").
-const PAGES = { floor: floorPage, turf: turfPage, reservations: reservationsPage, sales: salesPage, bills: allBillsPage, credits: creditsPage, settings: settingsPage };
-const NAV = [['floor', 'Gaming floor'], ['turf', ARENA_BRANCH.courtsName], ['reservations', 'Reservations'], ['sales', 'Snacks & beverages'], ['bills', 'Bills'], ['credits', 'Credit'], ['settings', 'Settings']];
+// Bills are two sections (owner, 15 November: "there will be only 2 sections … settled bills and pending bills"): Bills, the
+// settled ones, and Pending bills below it; no Open bills, and Pending is no longer inside Credit.
+const PAGES = { floor: floorPage, turf: turfPage, reservations: reservationsPage, sales: salesPage, bills: allBillsPage, pending: pendingPage, credits: creditsPage, settings: settingsPage };
+const NAV = [['floor', 'Gaming floor'], ['turf', ARENA_BRANCH.courtsName], ['reservations', 'Reservations'], ['sales', 'Snacks & beverages'], ['bills', 'Bills'], ['pending', 'Pending bills'], ['credits', 'Credit'], ['settings', 'Settings']];
 // Phones get the everyday sections and a More screen for the rest. Turf is booked by phone as often as at the desk.
 const PHONE_NAV = [['floor', 'Floor'], ['turf', ARENA_BRANCH.courtsName], ['sales', 'Snacks'], ['bills', 'Bills'], ['credits', 'Credit'], ['more', 'More']];
 // Names for places inside a section, so a link can say go('history') or go('menu').
 const SHORTCUTS = {
-  tabs: ['bills', () => { billsMode = 'open'; }], history: ['bills', () => { billsMode = 'closed'; }],
+  tabs: ['bills', () => {}], history: ['bills', () => {}],
   setup: ['settings', () => { settingsMode = 'setup'; }], reports: ['settings', () => { settingsMode = 'reports'; }],
   customers: ['settings', () => { settingsMode = 'customers'; }], menu: ['settings', () => { settingsMode = 'menu'; }]
 };
@@ -20029,7 +20075,7 @@ async function askLoginPass(username, password) {
 }
 function navBadge(id) {
   if (!state) return null;
-  if (id === 'bills') { const ready = openBills().filter(t => !stillPlaying(t.id)).length; return ready ? String(ready) : null; }
+  if (id === 'pending') { const people = pendingGroups(pendingRows()).length; return people ? String(people) : null; }
   if (id === 'reservations') { const waiting = state.Reservations.filter(r => (r.status === 'waiting' || (RES_PENDING.includes(r.status) && r.arrivalMs < nowMs()))).filter(resCurrent).length; return waiting ? String(waiting) : null; }
   return null;
 }
@@ -20190,7 +20236,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "287c5fb3bef4";
+const APP_BUILD = "4a2ed0742ffd";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
