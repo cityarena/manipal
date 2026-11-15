@@ -7478,26 +7478,32 @@ var ArenaTurf = (function () {
       var aStart = Number(booking.startHour), aHours = Number(booking.hours), fromCourt = booking.court;
       // A booking already over is in nobody's way (owner, 15 November: Yashvi on Court 3 from 5 to 7 could not swap with Mohan on
       // Court 1 because Abhinandan had Court 1 from 5 to 6, long finished): only bookings not yet over count.
-      var live = booked(state).filter(function (b) { return endOf(b) > now; });
-      var there = live.filter(function (b) { return b.id !== booking.id && b.dateKey === booking.dateKey && b.court === cmd.court && Number(b.startHour) < aStart + aHours && aStart < Number(b.startHour) + Number(b.hours); });
-      check(there.length <= 1, (COURT_NAMES[cmd.court] || cmd.court) + ' has ' + there.length + ' bookings in these hours: ' + there.map(function (b) { return b.customer || b.phone; }).join(', ') + '. Switch one at a time.');
-      var other = there[0] || null;
-      var spaceFor = function (b, court, skip) {
-        return live.find(function (x) { return skip.indexOf(x.id) < 0 && x.dateKey === b.dateKey && meet(x.court, court) && Number(x.startHour) < Number(b.startHour) + Number(b.hours) && Number(b.startHour) < Number(x.startHour) + Number(x.hours); }) || null;
-      };
-      var skip = [booking.id].concat(other ? [other.id] : []);
-      var inWay = spaceFor(booking, cmd.court, skip);
-      check(!inWay, (COURT_NAMES[cmd.court] || cmd.court) + ' is taken from ' + hourText(Number(inWay && inWay.startHour)) + ' by ' + (inWay ? inWay.customer || inWay.phone : '') + '.');
-      if (other) {
-        check(cmd.swap === true, (other.customer || other.phone) + ' is on ' + (COURT_NAMES[cmd.court] || cmd.court) + '. Confirm to swap them.');
-        var back = spaceFor(other, fromCourt, skip);
-        check(!back, (other.customer || other.phone) + ' cannot go to ' + (COURT_NAMES[fromCourt] || fromCourt) + ': ' + (back ? back.customer || back.phone : '') + ' has it from ' + hourText(Number(back && back.startHour)) + '.');
-        other.court = fromCourt; other.updatedMs = now; other.revision = other.revision + 1;
-        sync(state, other, now, id + '-swap');
-      }
-      booking.court = cmd.court; booking.updatedMs = now; booking.revision = booking.revision + 1;
-      sync(state, booking, now, id);
-      return { bookingId: booking.id, swappedId: other ? other.id : '', message: (booking.customer || booking.phone) + ' to ' + (COURT_NAMES[cmd.court] || cmd.court) + (other ? ', ' + (other.customer || other.phone) + ' to ' + (COURT_NAMES[fromCourt] || fromCourt) : '') + '.' };
+      var notOver = booked(state).filter(function (b) { return endOf(b) > now; });
+      var there = notOver.filter(function (b) { return b.id !== booking.id && b.dateKey === booking.dateKey && b.court === cmd.court && Number(b.startHour) < aStart + aHours && aStart < Number(b.startHour) + Number(b.hours); });
+      // The one to swap places with: playing there now, else there when this one starts; any other there later is alsoMoving below.
+      var other = there.find(function (b) { return startOf(b) <= now && endOf(b) > now; }) || there.find(function (b) { return Number(b.startHour) <= aStart && aStart < Number(b.startHour) + Number(b.hours); }) || (there.length === 1 ? there[0] : null);
+      // Swapping places (owner, 15 November: "just because we give 1,2,3 courts respectively to abc, that does not mean A will go
+      // and play in court 1 only … thats when we swap places"): the two change courts whatever comes after; anyone booked later on a
+      // court one of them now takes goes to the court that one left (Antony at 7 on Court 1 goes to Court 2 when anush, there till
+      // 8, takes Court 1). Refused only when that court is taken too.
+      var pos = {};
+      pos[booking.id] = cmd.court;
+      if (other) pos[other.id] = fromCourt;
+      var courtNow = function (x) { return pos[x.id] || x.court; };
+      var overlap = function (x, y) { return x.dateKey === y.dateKey && Number(x.startHour) < Number(y.startHour) + Number(y.hours) && Number(y.startHour) < Number(x.startHour) + Number(x.hours); };
+      var clashes = function (x) { return notOver.filter(function (y) { return y.id !== x.id && overlap(x, y) && meet(courtNow(y), courtNow(x)); }); };
+      var moving = [booking].concat(other ? [other] : []), alsoMoving = [];
+      moving.forEach(function (m) {
+        var left = m.id === booking.id ? fromCourt : cmd.court;
+        clashes(m).forEach(function (y) { if (pos[y.id]) return; pos[y.id] = left; alsoMoving.push(y); });
+      });
+      moving.concat(alsoMoving).forEach(function (x) {
+        var still = clashes(x)[0];
+        check(!still, (x.customer || x.phone) + ' cannot go to ' + (COURT_NAMES[courtNow(x)] || courtNow(x)) + ': ' + (still ? still.customer || still.phone : '') + ' has it from ' + hourText(Number(still && still.startHour)) + '.');
+      });
+      check(!(other || alsoMoving.length) || cmd.swap === true, (other ? (other.customer || other.phone) + ' is on ' + (COURT_NAMES[cmd.court] || cmd.court) + '. ' : '') + 'Confirm to swap them.');
+      moving.concat(alsoMoving).forEach(function (x, i) { x.court = pos[x.id]; x.updatedMs = now; x.revision = x.revision + 1; sync(state, x, now, id + (i ? '-swap-' + i : '')); });
+      return { bookingId: booking.id, swappedId: other ? other.id : '', carriedIds: alsoMoving.map(function (x) { return x.id; }), message: moving.concat(alsoMoving).map(function (x) { return (x.customer || x.phone) + ' to ' + (COURT_NAMES[x.court] || x.court); }).join(', ') + '.' };
     }
     if (cmd.type === 'TURF_CHANGE') {
       var changed = slot(state, cmd, now, booking.id), details = who(cmd);
@@ -19201,29 +19207,34 @@ function turfSwitchBox(anchor, b) {
   // A booking already over is in nobody's way (owner, 15 November), as on the server.
   const start = Number(b.startHour), end = start + Number(b.hours), live = state.TurfBookings.filter(x => x.status === 'booked' && x.dateKey === b.dateKey && !turfEnded(x));
   const meets = (x, court, from, to) => courtsMeet(x.court, court) && Number(x.startHour) < to && from < Number(x.startHour) + Number(x.hours);
+  // Swapping places, as on the server: the two change courts; anyone booked later on a court one of them takes goes to the court that
+  // one left; blocked only when that court is taken too (owner, 15 November).
+  const overlap = (x, y) => Number(x.startHour) < Number(y.startHour) + Number(y.hours) && Number(y.startHour) < Number(x.startHour) + Number(x.hours);
   const options = courtsHere().filter(c => c !== b.court && !courtInfo(c).takes.length).map(court => {
     const there = live.filter(x => x.id !== b.id && x.court === court && meets(x, court, start, end));
-    const other = there.length === 1 ? there[0] : null, skip = [b.id, ...(other ? [other.id] : [])];
-    const inWay = live.find(x => !skip.includes(x.id) && meets(x, court, start, end));
-    const back = other ? live.find(x => !skip.includes(x.id) && meets(x, b.court, Number(other.startHour), Number(other.startHour) + Number(other.hours))) : null;
-    const blocked = there.length > 1 ? there.map(x => x.customer || x.phone).join(', ') + ' are on it' : inWay ? (inWay.customer || inWay.phone) + ' has it from ' + hourLabel(Number(inWay.startHour)) : back ? (other.customer || other.phone) + ' cannot go to ' + courtLabel(b.court) + ': ' + (back.customer || back.phone) + ' has it' : '';
-    return { court, other, blocked };
+    // The one to swap places with: playing there now, else there when this one starts; any other there later is carried.
+    const other = there.find(x => hourStart(x.dateKey, Number(x.startHour)) <= nowMs()) || there.find(x => Number(x.startHour) <= start && start < Number(x.startHour) + Number(x.hours)) || (there.length === 1 ? there[0] : null);
+    const pos = { [b.id]: court, ...(other ? { [other.id]: b.court } : {}) };
+    const at = x => pos[x.id] || x.court, clashes = x => live.filter(y => y.id !== x.id && overlap(x, y) && courtsMeet(at(y), at(x)));
+    const moving = [b, ...(other ? [other] : [])], carried = [];
+    for (const m of moving) for (const y of clashes(m)) if (!pos[y.id]) { pos[y.id] = m.id === b.id ? b.court : court; carried.push(y); }
+    const stuck = [...moving, ...carried].map(x => [x, clashes(x)[0]]).find(([, y]) => y);
+    const blocked = stuck ? (stuck[0].customer || stuck[0].phone) + ' cannot go to ' + courtLabel(at(stuck[0])) + ': ' + (stuck[1].customer || stuck[1].phone) + ' has it' : '';
+    return { court, other, carried, pos, blocked };
   });
   const who = x => x.customer || x.phone || 'Walk-in';
   const go = (o, swap) => {
     closePopover();
     runCommand({ type: 'TURF_SWITCH', id: b.id, revision: b.revision, court: o.court, ...(swap ? { swap: true } : {}) }, result => ({ text: result.message }));
   };
-  // A swap is asked again before it is made, naming both.
+  // A swap is asked once before it is made, naming everyone who changes court.
   const ask = o => popover(anchor, h('b', { class: 'popover-title', text: 'Swap courts?' }),
-    h('div', 'turf-swap-pair',
-      h('span', null, h('b', { text: who(b) }), ' · ' + courtLabel(b.court) + ' → ' + courtLabel(o.court)),
-      h('span', null, h('b', { text: who(o.other) }), ' · ' + courtLabel(o.court) + ' → ' + courtLabel(b.court))),
+    h('div', 'turf-swap-pair', [b, ...(o.other ? [o.other] : []), ...o.carried].map(x => h('span', null, h('b', { text: who(x) }), ' · ' + (x === b ? '' : turfRange(x) + ' · ') + courtLabel(x.court) + ' → ' + courtLabel(o.pos[x.id])))),
     h('div', 'popover-foot', btn([icon('transfer'), 'Swap'], () => go(o, true), 'primary', { data: { action: 'turf-swap-yes' } }), btn('No', closePopover, 'quiet', { data: { action: 'turf-swap-no' } })));
   popover(anchor, h('b', { class: 'popover-title', text: 'Switch ' + who(b) + '’s court' }), h('span', { class: 'muted', text: courtLabel(b.court) + ' · ' + turfRange(b) }),
-    h('div', 'lane-switch-list court-switch-list', options.map(o => h('button', { type: 'button', class: 'lane-switch-opt', disabled: !!o.blocked, data: { switchCourt: o.court }, onclick: () => (o.other ? ask(o) : go(o, false)) },
+    h('div', 'lane-switch-list court-switch-list', options.map(o => h('button', { type: 'button', class: 'lane-switch-opt', disabled: !!o.blocked, data: { switchCourt: o.court }, onclick: () => (o.other || o.carried.length ? ask(o) : go(o, false)) },
       h('span', 'lane-switch-name', icon(venueHere().icon), h('b', { text: courtLabel(o.court) })),
-      o.blocked ? h('span', { class: 'lane-switch-warn', text: o.blocked }) : o.other ? h('span', { class: 'lane-switch-when', text: 'Swap with ' + who(o.other) + ' · ' + turfRange(o.other) }) : h('span', { class: 'lane-switch-when now', text: 'Free · move here' })))),
+      o.blocked ? h('span', { class: 'lane-switch-warn', text: o.blocked }) : h('span', { class: 'lane-switch-when' + (o.other ? '' : ' now'), text: [o.other ? 'Swap with ' + who(o.other) + ' · ' + turfRange(o.other) : 'Free · move here', ...o.carried.map(x => who(x) + ' ' + turfRange(x) + ' to ' + courtLabel(o.pos[x.id]))].join(' · ') })))),
     h('div', 'popover-foot', btn('Keep ' + courtLabel(b.court), closePopover, 'quiet', { data: { action: 'keep-court' } })));
 }
 // Spot booking (owner, 14 November: "say now its 6:10 … people might come now ask to play from 6:15-7:00"): the court, the name
@@ -20179,7 +20190,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "9caa0ea30985";
+const APP_BUILD = "287c5fb3bef4";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
