@@ -12184,7 +12184,7 @@ function itemChooser(orders, counts, onchange) {
       const n = counts.get(o.id) || 0, most = Number(o.quantity);
       const set = value => { counts.set(o.id, Math.max(0, Math.min(most, value))); draw(); onchange(); };
       return h('div', { class: 'line', data: { pick: o.id } },
-        h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: money(o.unitPricePaise) + ' each' })),
+        h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: priceEach(o) })),
         h('span', 'step',
           h('button', { type: 'button', 'aria-label': 'One fewer ' + o.label, disabled: !n, onclick: () => set(n - 1) }, icon('minus')),
           h('b', { text: String(n), data: { picked: o.id } }),
@@ -12307,7 +12307,7 @@ function endSheet(segments, memory = null) {
   // the system. Something ticked: Collect. Their own time not ticked is asked for (Others will pay, Credit or Pending); with
   // Credit or Pending it goes on the bill too, the amount received set to what is ticked and the rest asked there.
   // own: their controllers paying now. rows: the rest; picks: how many of each. rest: their unticked time.
-  let time, rows = [], rest = memory ? memory.rest : 'others', paidNow = 0, whole = null;
+  let time, rows = [], rest = memory ? memory.rest : 'others', paidNow = 0, whole = null, othersAsked = false;
   const own = new Set(memory ? memory.own : []), picks = new Map(memory ? memory.picks : []);
   const ids = new Set(segments.map(g => g.id)), tabs = new Set(segments.map(g => g.tabId));
   const others = () => state.Segments.filter(g => g.status === 'active' && tabs.has(g.tabId) && !ids.has(g.id));
@@ -12316,6 +12316,15 @@ function endSheet(segments, memory = null) {
   // Each one's cost so far beside its time (owner, 27 October: "let it show their cost as well").
   const cost = g => { const quote = quoteNow([g.unitId], pausedAt)[g.id]; return h('span', { class: 'line-amount', data: { cost: g.id }, text: quote ? money(quote.totalPaise) : '' }); };
   const held = g => { const node = timer(g, true); if (!node.dataset.since) node.dataset.since = String(pausedAt); return node; };
+  const othersAsk = () => {
+    const anchor = current && current.primaryButton;
+    if (!anchor) return;
+    const who = ps5 ? (segments.length === 1 ? 'Controller ' + segments[0].controller : segments.length + ' controllers') : segments.map(g => (tabOf(g.tabId) || {}).customer || g.player).join(', ');
+    popover(anchor, h('b', { class: 'popover-title', text: 'End ' + who + '?' }), h('span', { class: 'muted', text: 'Their time stays on ' + units.map(id => (unitOf(id) || {}).name).join(', ') + ' for the others to pay.' }),
+      h('div', 'popover-foot',
+        btn([icon('users'), 'Yes, others will pay'], () => { closePopover(); othersAsked = true; $('sheetForm').requestSubmit(); }, 'primary', { data: { action: 'others-pay-yes' } }),
+        btn('No', closePopover, 'quiet', { data: { action: 'others-pay-no' } })));
+  };
   openSheet({
     title,
     sub: ps5 ? groupNames(segments) : '',
@@ -12368,12 +12377,17 @@ function endSheet(segments, memory = null) {
       if (!others().length) return { type: 'END_SELECTION', segmentIds, endMs: time.value() };
       const picksNow = shared(), paying = own.size > 0 || !!picksNow;
       paidNow = rows.reduce((total, row) => total + row.worth(picks.get(row.key) || 0), 0);
+      // Others will pay is asked first, there and then (owner, 15 November: "even others will pay option, when i click it ask for
+      // confirmation"); Yes ends them with their time left on the system.
+      if (!paying && !othersAsked) { othersAsk(); return null; }
       if (!paying) return { type: 'END_SELECTION', segmentIds, endMs: time.value(), keep: true };
       // Credit or Pending for their own time: all of it on the bill, the rest asked there.
       const leave = rest === 'others' ? segmentIds.filter(id => !own.has(id)) : [];
       if (leave.length === segmentIds.length) return { type: 'END_SELECTION', segmentIds, endMs: time.value(), keep: true, shared: picksNow };
       return { type: 'END_SELECTION', segmentIds, endMs: time.value(), leave: leave.length ? leave : undefined, shared: picksNow };
     },
+    // Drawn again (a tick changed): Others will pay is asked again.
+    drawn() { othersAsked = false; },
     // The controllers ended are forgotten; the ones still playing stay unchosen. What they pay opens to be settled, with the
     // amount set to what was ticked when the rest of their time goes to credit or pending.
     then(result) {
@@ -12480,7 +12494,7 @@ function pickRows(lines, byItem = false) {
     // timings then how will it work out"): one row each, ticked on its own, under the system's name.
     if (timers.length > 1) return timers.map(g => ({ key: 'unit:' + unitId + ':' + g.id, group: name, name: g.controller ? 'Controller ' + g.controller : name, seat: g.controller || 0, timers: [g], most: 1, price: '', worth: n => (n ? g.totalPaise : 0) }));
     return [{ key: 'unit:' + unitId, name, timers, most: 1, price: '', worth: n => (n ? timers[0].totalPaise : 0) }];
-  }).flat().concat(byItem ? itemRows(lines.filter(x => !x.unitId)) : lines.filter(x => !x.unitId).map(o => ({ key: o.id, name: o.label, order: o, most: Number(o.quantity), price: money(o.unitPricePaise) + ' each', worth: n => n * o.unitPricePaise })));
+  }).flat().concat(byItem ? itemRows(lines.filter(x => !x.unitId)) : lines.filter(x => !x.unitId).map(o => ({ key: o.id, name: o.label, order: o, most: Number(o.quantity), price: priceEach(o), worth: n => n * o.unitPricePaise })));
 }
 function itemRows(orders) {
   const groups = new Map();
@@ -12489,7 +12503,7 @@ function itemRows(orders) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(o);
   }
-  return [...groups].map(([key, list]) => ({ key, name: list[0].label, order: list[0], orders: list, binOrder: list[list.length - 1], most: list.reduce((n, o) => n + Number(o.quantity), 0), price: money(list[0].unitPricePaise) + ' each', worth: n => n * list[0].unitPricePaise }));
+  return [...groups].map(([key, list]) => ({ key, name: list[0].label, order: list[0], orders: list, binOrder: list[list.length - 1], most: list.reduce((n, o) => n + Number(o.quantity), 0), price: priceEach(list[0]), worth: n => n * list[0].unitPricePaise }));
 }
 // The bin (owner, 21 October): an item added by mistake comes off the bill one at a time (2 becomes 1; the last one takes the
 // line), recorded with its reason; then runs `after`.
@@ -12885,7 +12899,7 @@ function drawLines(body, lines) {
         const n = list.reduce((sum, x) => sum + lines.ticks.count(x), 0);
         const setTo = want => { let left = want; for (const x of list) { const k = Math.min(Number(x.quantity), Math.max(0, left)); lines.ticks.setCount(x, k); left -= k; } };
         card.append(h('div', { class: 'line with-tools', data: { order: o.id } },
-          h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: (product ? money(o.unitPricePaise) + ' each' : o.reason || 'Charge') + forWhom })),
+          h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: (product || turfMeta(o).hourPaise ? priceEach(o) : o.reason || 'Charge') + forWhom })),
           h('span', { class: 'item-tools', data: { itemTools: o.label } }, h('span', 'step',
             h('button', { type: 'button', 'aria-label': 'Pay for one fewer ' + o.label, disabled: n === 0, data: { action: 'pay-less' }, onclick: () => setTo(n - 1) }, icon('minus')),
             h('b', { class: 'qty-n', text: n < qty ? n + ' of ' + qty : String(qty) }),
@@ -12895,7 +12909,7 @@ function drawLines(body, lines) {
         continue;
       }
       card.append(h('div', { class: 'line' + (open ? ' with-tools' : ''), data: { order: o.id } },
-        h('div', 'line-main', h('b', { text: o.label + (qty > 1 && !open ? ' × ' + qty : '') }), h('span', { class: 'small muted', text: (product ? money(o.unitPricePaise) + ' each' : o.reason || 'Charge') + forWhom })),
+        h('div', 'line-main', h('b', { text: o.label + (qty > 1 && !open ? ' × ' + qty : '') }), h('span', { class: 'small muted', text: (product || turfMeta(o).hourPaise ? priceEach(o) : o.reason || 'Charge') + forWhom })),
         open ? itemTools(o.label, qty, change, product) : null,
         h('span', { class: 'line-amount', text: money(total) })));
     }
@@ -17657,6 +17671,12 @@ function turfOpenBooking(id) {
 // An amount brought here from the same customer's earlier booking.
 const turfCarried = o => String(o.reason || '').startsWith('Carried from ');
 const turfMeta = o => { try { return JSON.parse(o.ratesJson || '{}') || {}; } catch (e) { return {}; } };
+// What one of a line costs, said plainly: a racket rented by the hour "For 2 hours · ₹50 an hour" (owner, 15 November: "mention
+// clearly that 100 means racket for 2 hours"); anything else its price each.
+function priceEach(o) {
+  const hour = o.category === 'Rentals' ? Number(turfMeta(o).hourPaise) : 0;
+  return hour > 0 ? 'For ' + inWords(Math.round((Number(o.unitPricePaise) / hour) * 60)) + ' · ' + money(hour) + ' an hour' : money(o.unitPricePaise) + ' each';
+}
 // Items bought for Team A, Team B or everyone, as bought.
 const turfPooledOf = b => state.Orders.filter(o => o.status === 'shared' && turfMeta(o).bookingId === b.id);
 // What is collected at the counter: never an academy team's share, which goes to its account (owner, 21 October).
@@ -17848,7 +17868,7 @@ function turfDetailSheet(id) {
           const editable = split ? !fixed : true;
           card.append(h('div', { class: 'line' + (editable ? ' with-tools' : ''), data: { order: o.id } },
             h('span', 'item-tile', icon(rentalIdOf(o) === 'racket' ? 'racket' : rentalIdOf(o) ? 'badminton' : productIcon(o.category))),
-            h('div', 'line-main', h('b', { text: o.label + (o.quantity > 1 && !editable ? ' × ' + o.quantity : '') }), h('span', { class: 'small muted', text: (split ? TURF_GROUP[group] + ' · ' : '') + money(o.unitPricePaise) + ' each' })),
+            h('div', 'line-main', h('b', { text: o.label + (o.quantity > 1 && !editable ? ' × ' + o.quantity : '') }), h('span', { class: 'small muted', text: (split ? TURF_GROUP[group] + ' · ' : '') + priceEach(o) })),
             editable ? itemTools(o.label, Number(o.quantity), change) : null,
             h('span', { class: 'line-amount', text: money(o.totalPaise) }), fix));
         }
@@ -17871,16 +17891,21 @@ function turfDetailSheet(id) {
         const bought = new Map();
         for (const o of goodsOf(ordersOf(main.id)).filter(x => !turfCarried(x))) {
           const key = (o.productId || o.label) + ':' + o.unitPricePaise;
-          const row = bought.get(key) || { label: o.label, unit: o.unitPricePaise, quantity: 0, total: 0 };
+          const row = bought.get(key) || { label: o.label, unit: o.unitPricePaise, quantity: 0, total: 0, order: o, rental: !!rentalIdOf(o) };
           row.quantity += Number(o.quantity);
           row.total += Number(o.totalPaise);
           bought.set(key, row);
         }
-        if (bought.size) {
-          const paidCard = h('div', { class: 'lines', data: { paidItems: '1' } }, [...bought.values()].map(row => h('div', 'line',
-            h('div', 'line-main', h('b', { text: row.label + (row.quantity > 1 ? ' × ' + row.quantity : '') }), h('span', { class: 'small muted', text: money(row.unit) + ' each' })),
-            h('span', { class: 'line-amount', text: money(row.total) }))));
-          ui.body.append(turfSnacksHead(b.id, ui, paidCard, [...bought.values()].reduce((sum, row) => sum + row.total, 0)), paidCard);
+        const paidLine = row => h('div', 'line',
+          h('span', 'item-tile', icon(rentalIdOf(row.order) === 'racket' ? 'racket' : row.rental ? 'badminton' : productIcon(row.order.category))),
+          h('div', 'line-main', h('b', { text: row.label + (row.quantity > 1 ? ' × ' + row.quantity : '') }), h('span', { class: 'small muted', text: priceEach(row.order) })),
+          h('span', { class: 'line-amount', text: money(row.total) }));
+        const rented = [...bought.values()].filter(row => row.rental), eaten = [...bought.values()].filter(row => !row.rental);
+        // Rackets and shuttlecocks are rentals, never snacks (owner, 15 November).
+        if (rented.length) ui.body.append(h('div', { class: 'group-title', data: { rentals: '' } }, icon('badminton'), 'Rentals'), h('div', { class: 'lines', data: { paidRentals: '1' } }, rented.map(paidLine)));
+        if (eaten.length) {
+          const paidCard = h('div', { class: 'lines', data: { paidItems: '1' } }, eaten.map(paidLine));
+          ui.body.append(turfSnacksHead(b.id, ui, paidCard, eaten.reduce((sum, row) => sum + row.total, 0)), paidCard);
         }
         if (status.state === 'settled') {
           const detail = (state.BillDetails || []).find(d => d.id === closedBill.id), pays = (state.Payments || []).filter(x => x.billId === closedBill.id);
@@ -19882,7 +19907,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "c4b1589d6130";
+const APP_BUILD = "d044d10f3e42";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
