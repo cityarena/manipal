@@ -15291,7 +15291,8 @@ function laneHeader(plan) {
         row(item.at <= now + 60000 ? 'Now' : clock(item.at), 'free', 'Free for ' + inWords(length), fits < ARENA_BRANCH.bowling.maxPlayers ? 'Up to ' + fits + (fits === 1 ? ' player' : ' players') : '');
       } else {
         const who = state.Reservations.find(x => x.id === item.block.id) || {}, party = Number(who.players) || 0;
-        if (notHere(who)) row(clock(who.arrivalMs), 'late', who.customer || 'Booked', ['Not here yet', party ? party + (party === 1 ? ' player' : ' players') : ''].filter(Boolean).join(' · '));
+        // At the time the lane is theirs, as their card says (owner, 15 November: the card said 9:41, the top 9:20).
+        if (notHere(who)) row(clock(item.block.startMs), 'late', who.customer || 'Booked', ['Not here yet', party ? party + (party === 1 ? ' player' : ' players') : '', 'until ' + clock(item.block.endMs)].filter(Boolean).join(' · '));
         else row(clock(item.block.startMs), 'booked', who.customer || 'Booked', [party ? party + (party === 1 ? ' player' : ' players') : '', 'until ' + clock(item.block.endMs)].filter(Boolean).join(' · '));
       }
     }
@@ -20236,7 +20237,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "4a2ed0742ffd";
+const APP_BUILD = "7e66a584e4cb";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
