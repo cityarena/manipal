@@ -3534,6 +3534,11 @@ td.num:has(.owed-open) { white-space: nowrap; }
 .carried-piece.moving { color: var(--muted); }
 .carried-piece.moving span:nth-of-type(1) { font-style: italic; }
 .carried-line.fixed input[type=checkbox] { cursor: not-allowed; opacity: 0.55; }
+.court-rent-row:has(.court-rent-cost) { grid-template-columns: minmax(0, 1fr) auto 28px auto auto; }
+.court-rent-row.paid:has(.court-rent-cost) { grid-template-columns: minmax(0, 1fr) auto auto 18px; }
+.court-rent-cost { min-width: 48px; text-align: right; font-weight: 600; }
+.send-row { gap: 8px; }
+.send-row .btn { flex: 1 1 0; min-width: 0; }
 </style>
 </head>
 <body>
@@ -4563,6 +4568,16 @@ var ArenaLifecycle=(function(){
    if(onward.type==='PENDING_MOVE'){var move2=Object.assign({},onward,{billIds:leftBills});delete move2.uncarry;delete move2.split;delete move2.carrySplit;ArenaTurf.execute(s,move2,actor,now,id+'-rest');}
    else{var acct=onward.accountId;leftBills.forEach(function(bid,i){var moved=execute(s,{type:'TRANSFER_CREDIT_INLINE',billId:bid,accountId:acct,newAccount:acct?undefined:onward.newAccount},actor,now,id+'-rest-'+i);acct=acct||moved.accountId;});}
    return settled2;
+  }
+  // Groups of carried lines sent each to its own place with the bill, in one save (owner, 16 November); what is left of each stays
+  // carried and is settled with the bill; a carried line sent away whole leaves the lines settled.
+  if(c.type==='SETTLE_REVIEW'&&Array.isArray(c.carrySends)&&c.carrySends.length&&typeof ArenaTurf!=='undefined'){
+   check(c.carrySends.length<=20,'Too many lines.');
+   var renamed={};
+   c.carrySends.forEach(function(p,i){renamed[p.orderId]=ArenaTurf.execute(s,{type:'CARRY_SEND',orderId:p.orderId,sends:p.sends},actor,now,id+'-csend-'+i).orderId;});
+   var rest3=Object.assign({},c);delete rest3.carrySends;
+   if(rest3.only&&Array.isArray(rest3.only.items))rest3.only=Object.assign({},rest3.only,{items:rest3.only.items.filter(function(x){return renamed[x.orderId]!=='';}).map(function(x){return renamed[x.orderId]?{orderId:renamed[x.orderId],quantity:x.quantity}:x;})});
+   return execute(s,rest3,actor,now,id);
   }
   if(c.type==='SETTLE_REVIEW'&&Array.isArray(c.carryParts)&&c.carryParts.length&&typeof ArenaTurf!=='undefined'){
    check(c.carryParts.length<=20,'Too many lines.');
@@ -6764,7 +6779,7 @@ var ArenaReports = (function () {
    their own items, settled through the usual checkout. Every amount is an ordinary order on an ordinary tab. */
 var ArenaTurf = (function () {
   'use strict';
-  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY', 'PENDING_PART_PAY', 'PENDING_PART_CREDIT', 'TURF_EARLIER', 'TURF_COACHING', 'CARRY_SPLIT'];
+  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY', 'PENDING_PART_PAY', 'PENDING_PART_CREDIT', 'TURF_EARLIER', 'TURF_COACHING', 'CARRY_SPLIT', 'PENDING_SEND', 'CARRY_SEND'];
   // Items bought for Team A, Team B or everyone are kept once, as bought, and each player's part is one line on their bill.
   var SHARED = 'Shared items', GROUPS = ['A', 'B', 'all'];
   // Every court of every venue comes from the branch's settings (Branch.gs), switched-off ones included, so old bookings and
@@ -7070,9 +7085,9 @@ var ArenaTurf = (function () {
     check(!(Number(bl.paidPaise) > 0) && !(Number(d.discountPaise) > 0), 'A bill with a discount or money paid on it is collected or moved whole.');
     var from = row(state.Tabs, d.tabId), segIds = Array.isArray(segmentIds) ? segmentIds : [], ordIds = Array.isArray(orderIds) ? orderIds : [];
     var segs = (state.Segments || []).filter(function (g) { return g.tabId === from.id && g.status !== 'void' && segIds.indexOf(g.id) >= 0; });
-    var ords = (state.Orders || []).filter(function (o) { return o.tabId === from.id && o.status === 'active' && ordIds.indexOf(o.id) >= 0; });
     var some = counts && typeof counts === 'object' ? counts : {};
-    var partly = (state.Orders || []).filter(function (o) { return o.tabId === from.id && o.status === 'active' && ordIds.indexOf(o.id) < 0 && some[o.id] != null; });
+    var ords = (state.Orders || []).filter(function (o) { return o.tabId === from.id && o.status === 'active' && (ordIds.indexOf(o.id) >= 0 || (some[o.id] != null && Number(some[o.id]) === Number(o.quantity))); });
+    var partly = (state.Orders || []).filter(function (o) { return o.tabId === from.id && o.status === 'active' && ordIds.indexOf(o.id) < 0 && some[o.id] != null && Number(some[o.id]) !== Number(o.quantity); });
     partly.forEach(function (o) { var n = Number(some[o.id]); check(Number.isInteger(n) && n > 0 && n < Number(o.quantity), 'Choose how many of ' + o.label + '.'); });
     check(segs.length + ords.length + partly.length > 0, 'Choose the part.');
     var part = segs.concat(ords).reduce(function (n, x) { return n + Number(x.totalPaise || 0); }, 0) + partly.reduce(function (n, o) { return n + Number(o.unitPricePaise) * Number(some[o.id]); }, 0);
@@ -7094,6 +7109,40 @@ var ArenaTurf = (function () {
     bl.billableMinutes = Math.max(0, Number(bl.billableMinutes || 0) - minutes);
     d.subtotalPaise = Number(d.subtotalPaise || 0) - part;
     return billId2;
+  }
+  // What some lines of a bill come to: whole timers, whole items and some of an item (counts).
+  function piecesTotal(state, billId, p) {
+    var d = (state.BillDetails || []).find(function (x) { return x.id === billId; }) || {}, segIds = p.segmentIds || [], ordIds = p.orderIds || [], some = p.counts || {};
+    var n = 0;
+    (state.Segments || []).forEach(function (g) { if (g.tabId === d.tabId && g.status !== 'void' && segIds.indexOf(g.id) >= 0) n += Number(g.totalPaise || 0); });
+    (state.Orders || []).forEach(function (o) { if (o.tabId !== d.tabId || o.status !== 'active') return; if (ordIds.indexOf(o.id) >= 0) n += Number(o.totalPaise || 0); else if (some[o.id] != null) n += Number(o.unitPricePaise) * Math.min(Number(some[o.id]), Number(o.quantity)); });
+    return n;
+  }
+  // Groups of lines of one pending bill sent each to its own place (owner, 16 November: "imagine some had to be moved to one system and
+  // some other few to credit, or other system or pending"): each group becomes a bill of its own (or the bill itself when it is all
+  // that is left) and is moved onto a bill playing now, a free system, a booking or a reservation, put on credit, or kept pending.
+  function sendParts(state, billId, sends, actor, now, id) {
+    check(Array.isArray(sends) && sends.length <= 20, 'Too many places.');
+    var accounts = {}, whole = false;
+    sends.forEach(function (s, i) {
+      check(!whole, 'Nothing is left to send.');
+      // A carried line that goes only whole (a bill with money paid or a discount) is sent as it is.
+      var place = s.place || {}, bl = pendingBill(state, billId), total = s.whole ? 0 : piecesTotal(state, billId, s);
+      if (!s.whole) check(total > 0, 'Choose what goes.');
+      var part = s.whole || total === Number(bl.totalPaise) - Number(bl.paidPaise) ? billId : splitPending(state, billId, s.segmentIds, s.orderIds, now, id + '-s' + i, s.counts);
+      if (part === billId) whole = true;
+      if (place.type === 'PENDING_MOVE') {
+        var mv = Object.assign({}, place, { billIds: [part] });
+        delete mv.uncarry; delete mv.split; delete mv.carrySplit;
+        execute(state, mv, actor, now, id + '-m' + i);
+      } else if (place.type === 'TRANSFER_CREDIT_INLINE') {
+        var key = place.accountId || JSON.stringify(place.newAccount || {}), acct = place.accountId || accounts[key];
+        var moved = ArenaLifecycle.execute(state, { type: 'TRANSFER_CREDIT_INLINE', billId: part, accountId: acct, newAccount: acct ? undefined : place.newAccount }, actor, now, id + '-c' + i);
+        accounts[key] = acct || moved.accountId;
+      } else check(place.type === 'PENDING', 'Choose where it goes.');
+    });
+    var left = row(state.Bills, billId);
+    return { whole: whole, leftPaise: whole ? 0 : Number(left.totalPaise) - Number(left.paidPaise) };
   }
   // A pending bill's balance onto another bill, named by where it was played ("Snooker 1 · Balance of bill MP-0012").
   function carryPending(state, bl, into, now, lineId, carryId) {
@@ -7639,6 +7688,32 @@ var ArenaTurf = (function () {
       var partPaid = ArenaCore.engineFor('PAY').execute(state, { type: 'PAY', billId: partBill, amountPaise: partRow.totalPaise, method: cmd.method || 'cash' }, actor, now, id + '-pay');
       var restRow = (state.Bills || []).find(function (bl) { return bl.id === cmd.billId; });
       return { billId: partBill, receiptNumber: partPaid.receiptNumber, method: cmd.method || 'cash', message: 'Paid ₹' + (partRow.totalPaise / 100) + '. ₹' + ((restRow.totalPaise - restRow.paidPaise) / 100) + ' still pending.' };
+    }
+    if (cmd.type === 'PENDING_SEND') {
+      // A pending bill: its groups sent each to its place, then what is left paid now, all in one save.
+      var sent8 = sendParts(state, cmd.billId, cmd.sends, actor, now, id);
+      var paid8 = null;
+      if (cmd.pay && typeof cmd.pay === 'object') {
+        check(sent8.leftPaise > 0 && Number(cmd.pay.amountPaise) === sent8.leftPaise, 'Collect ' + rupees(sent8.leftPaise) + '.');
+        paid8 = ArenaCore.engineFor('PAY').execute(state, { type: 'PAY', billId: cmd.billId, amountPaise: sent8.leftPaise, method: cmd.pay.method || 'cash', payments: cmd.pay.payments }, actor, now, id + '-pay');
+      }
+      return { billId: cmd.billId, receiptNumber: paid8 ? paid8.receiptNumber : '', method: paid8 ? (cmd.pay.method || 'cash') : '', paidPaise: paid8 ? sent8.leftPaise : 0, message: (paid8 ? 'Paid ' + rupees(sent8.leftPaise) + '. ' : '') + cmd.sends.length + (cmd.sends.length === 1 ? ' part sent.' : ' parts sent.') };
+    }
+    if (cmd.type === 'CARRY_SEND') {
+      // A balance carried onto a bill still open: its groups sent each to its place; what is left stays carried (to be settled with the
+      // bill, or kept on the system), or is paid now (pay: its lines, from Pay Items).
+      var line9 = row(state.Orders, cmd.orderId), host9 = tabOf(state, line9.tabId);
+      var undone9 = execute(state, { type: 'CARRY_UNDO', orderId: cmd.orderId }, actor, now, id + '-undo');
+      var sent9 = sendParts(state, undone9.billId, cmd.sends || [], actor, now, id), receipt9 = '';
+      if (cmd.pay && typeof cmd.pay === 'object' && !sent9.whole) {
+        var payTotal = piecesTotal(state, undone9.billId, cmd.pay);
+        check(payTotal > 0, 'Choose what they pay for.');
+        var payBill = payTotal === sent9.leftPaise ? undone9.billId : splitPending(state, undone9.billId, cmd.pay.segmentIds, cmd.pay.orderIds, now, id + '-p', cmd.pay.counts);
+        receipt9 = ArenaCore.engineFor('PAY').execute(state, { type: 'PAY', billId: payBill, amountPaise: payTotal, method: cmd.pay.method || 'cash', payments: cmd.pay.payments }, actor, now, id + '-pay').receiptNumber;
+      }
+      var rest9 = row(state.Bills, undone9.billId), left9 = sent9.whole ? 0 : Number(rest9.totalPaise) - Number(rest9.paidPaise), carried9 = '';
+      if (left9 > 0) { carryPending(state, rest9, host9, now, id + '-line', id + '-carry'); carried9 = id + '-line'; }
+      return { orderId: carried9, billId: undone9.billId, leftPaise: left9, receiptNumber: receipt9, message: 'Sent.' };
     }
     if (cmd.type === 'CARRY_SPLIT') {
       // Part of a carried balance (owner, 16 November: "if he is paying for some of it then when i click + show all with check box
@@ -12775,47 +12850,90 @@ function carriedOf(o) {
   const named = String(o.label || '').indexOf(' · Balance of bill') > 0 ? String(o.label).split(' · Balance of bill')[0] : '';
   return { billId, segs, items, what: units.join(', ') || itemWords || named || 'Earlier bill', number: billId ? numberOf(billId) : '', day: String(o.reason || '').replace('Carried from ', '') };
 }
-// The pieces of a carried bill, to tick one by one (owner, 16 November: "full checkbox next to snooker if he is paying everthing. if he is
-// paying for some of it then when i click + show all with check box already ticked and i will untick which he is not paying"): each
-// timer and each item of the bill it came from. A bill with money paid on it or a discount goes whole.
-function carryPieces(o) {
-  const c = carriedOf(o), d = (state.BillDetails || []).find(x => x.id === c.billId), bl = (state.Bills || []).find(x => x.id === c.billId);
-  if (!d || !bl || Number(bl.paidPaise) > 0 || Number(d.discountPaise) > 0) return [];
-  const segs = c.segs.map(g => ({ key: 's:' + g.id, segmentId: g.id, name: ((unitOf(g.unitId) || {}).name || '') + ' · ' + timerShort(g, timerWords(g, state.Pauses || [])), paise: Number(g.totalPaise || 0) }));
-  const ords = ordersOf(d.tabId).map(x => ({ key: 'o:' + x.id, orderId: x.id, name: x.category === 'Carried' ? carriedOf(x).what : x.label, most: x.category === 'Carried' ? 1 : Number(x.quantity), unit: Number(x.unitPricePaise || 0), paise: Number(x.totalPaise || 0) }));
-  const all = segs.concat(ords);
-  return all.length > 1 ? all : [];
-}
 // Ticks for the carried lines on a bill: off, the lines not taken at all; pieceOff, each line's pieces left out; open, the lines opened
 // out with +. Ticking a line's own box takes all of it, or none when all was ticked.
+// ---------- Groups of lines sent each to its own place (owner, 16 November: "imagine some had to be moved to one system and some other
+// few to credit, or other system or pending") ----------
+// A piece: { key, name, segmentIds, orderIds, most, unit, paise, line: the carried line it is on (or ''), whole: a carried line that goes
+// only whole }. A group: { id, where: 'pending' | 'move' | 'credit', words, command, take: Map key -> { n, piece } }. Nothing is saved
+// until the sheet's own save; each group has Undo.
+function sendGroups(redraw) {
+  const g = { list: [], seq: 0 };
+  g.worth = (piece, n) => (n <= 0 ? 0 : n >= (piece.most || 1) ? piece.paise : (piece.unit || 0) * n);
+  g.sum = list => list.reduce((s, x) => s + g.worth(x.piece, x.n), 0);
+  g.sent = key => g.list.reduce((n, grp) => n + ((grp.take.get(key) || {}).n || 0), 0);
+  g.where = key => g.list.filter(grp => grp.take.has(key)).map(grp => grp.words).join(', ');
+  g.total = grp => g.sum([...grp.take.values()]);
+  g.names = grp => [...grp.take.values()].map(x => x.piece.name.split(' · ')[0] + ((x.piece.most || 1) > 1 ? ' × ' + x.n : '')).join(', ');
+  g.add = (where, words, command, list) => {
+    const take = new Map(list.filter(x => x.n > 0).map(x => [x.piece.key, { n: x.n, piece: x.piece }]));
+    if (take.size) g.list.push({ id: ++g.seq, where, words, command, take });
+    redraw();
+  };
+  g.undo = id => { const grp = g.list.find(x => x.id === id); g.list = g.list.filter(x => x.id !== id); return grp; };
+  // Pieces for the server: whole timers and items, and some of an item (counts); a carried line that goes only whole says so.
+  g.wireList = list => {
+    if (list.some(x => x.piece.whole)) return { whole: true };
+    const out = { segmentIds: [], orderIds: [], counts: {} };
+    for (const x of list) {
+      if (x.n >= (x.piece.most || 1)) { out.segmentIds.push(...x.piece.segmentIds); out.orderIds.push(...x.piece.orderIds); }
+      else out.counts[x.piece.orderIds[0]] = x.n;
+    }
+    return out;
+  };
+  // One group as a send: its pieces of one carried line (or of the whole bill) and where they go; null when it has none there.
+  g.wire = (grp, line) => {
+    const list = [...grp.take.values()].filter(x => line === undefined || x.piece.line === line);
+    if (!list.length) return null;
+    return { ...g.wireList(list), place: grp.where === 'pending' ? { type: 'PENDING' } : grp.command };
+  };
+  return g;
+}
+// The groups sent, each with Undo, and what is not yet paid or sent with where it goes (none on Pay Items, where it stays on the system).
+function sendBox(groups, loose, choose, undo) {
+  const leftPaise = groups.sum(loose);
+  return h('div', { class: 'carry-rest', data: { field: 'carry-rest' } },
+    ...groups.list.map(grp => h('div', { class: 'carry-chosen', data: { field: 'carry-place', sendGroup: String(grp.id) } },
+      glyph(grp.where === 'pending' ? 'clock' : grp.where === 'credit' ? 'credits' : 'transfer', 'gold', 'sm'),
+      h('div', 'line-main', h('b', { text: (grp.where === 'pending' ? 'Goes to Pending' : 'Moves to ' + grp.words) + ' · ' + money(groups.total(grp)) }),
+        h('span', { class: 'small muted', text: groups.names(grp) + ' · saved when you collect' })),
+      btn([icon('undo'), 'Undo'], () => undo(grp.id), 'quiet', { data: { action: 'carry-undo' } }))),
+    ...(leftPaise > 0 ? [h('div', 'rest-title', h('span', { text: 'Not paid now · ' + money(leftPaise) }), h('span', { class: 'small muted', text: groups.list.length ? 'Where does the rest go?' : 'Where does it go?' })),
+      segmented([['pending', 'Pending', 'clock'], ['move', 'Move', 'transfer'], ['credit', 'Move to Credit', 'credits']], '', where => choose(where)).node] : []));
+}
+// Where a group goes: Pending at once; Move or Move to Credit open their list only to choose, and the sheet comes back as it was, its
+// own Back unchanged (owner, 16 November: "when i press back, the tab disappears and it goes back to pending").
+function sendPlace(where, done, tab, paise) {
+  if (where === 'pending') { done('Pending', null); return; }
+  const was = current.config, here = { ...was, onClose: was.onClose === undefined ? null : was.onClose }, back = () => openSheet(here);
+  const pick = (command, words) => { openSheet(here); done(words, command); };
+  if (where === 'move') pendingMoveSheet([], tab ? tab.customer : '', paise, back, { pick, except: tab ? tab.id : '' });
+  else pendingCreditSheet([], tab ? tab.customer : '', paise, back, { pick });
+}
+// Ticks for the carried lines on a bill: off, lines not paid now at all; pieceOff and counts, each line's pieces left out or paid for in
+// part; open, lines opened out with +; groups, what is sent where. ask: the bill being settled, where what is not paid now must be sent
+// somewhere before Collect.
+const g0 = t => t.groups;
 function carryTickState(redraw, offAtFirst = [], ask = false) {
-  // ask: on the bill being settled, what is left unticked asks where it goes (owner, 16 November: "unticked items ask if it should move
-  // to pending or somewhere else"): Pending, Move or Move to Credit, in where.
-  // place: for Move or Move to Credit, the place chosen ({ command, words }); nothing is saved until the bill is.
-  // counts: per line, an item of more than one paid for only some ({ key: how many }).
-  const t = { off: new Set(offAtFirst), pieceOff: new Map(), counts: new Map(), open: new Set(), ask, where: '', place: null, choose: null };
-  t.set = value => { t.where = value; t.place = null; if ((value === 'move' || value === 'credit') && t.choose) t.choose(value); else redraw(); };
-  // A tick changed: what is left changed, so where it goes is asked again.
-  const changed = () => { t.where = ''; t.place = null; };
-  t.toggle = oid => { changed(); if (t.off.has(oid) || t.pieceOff.has(oid) || t.counts.has(oid)) { t.off.delete(oid); t.pieceOff.delete(oid); t.counts.delete(oid); } else t.off.add(oid); redraw(); };
+  const t = { off: new Set(offAtFirst), pieceOff: new Map(), counts: new Map(), open: new Set(), ask, choose: null };
+  t.groups = sendGroups(redraw);
+  t.toggle = oid => { if (t.off.has(oid) || t.pieceOff.has(oid) || t.counts.has(oid)) { t.off.delete(oid); t.pieceOff.delete(oid); t.counts.delete(oid); } else t.off.add(oid); redraw(); };
   // How many of an item: none unticks it, all of them ticks it whole.
-  t.setCount = (oid, piece, n, keys) => {
-    changed();
+  t.setCount = (oid, piece, n, keys, quiet) => {
     const left = new Set(t.off.has(oid) ? keys : (t.pieceOff.get(oid) || [])), some = new Map(t.counts.get(oid) || []);
     t.off.delete(oid);
     some.delete(piece.key);
     left.delete(piece.key);
     if (n <= 0) left.add(piece.key);
-    else if (n < piece.most) some.set(piece.key, n);
+    else if (n < (piece.most || 1)) some.set(piece.key, n);
     t.pieceOff.delete(oid);
     t.counts.delete(oid);
     if (left.size === keys.length) t.off.add(oid);
     else { if (left.size) t.pieceOff.set(oid, left); if (some.size) t.counts.set(oid, some); }
-    redraw();
+    if (!quiet) redraw();
   };
   t.countOf = (oid, piece) => { if (t.off.has(oid) || (t.pieceOff.get(oid) || new Set()).has(piece.key)) return 0; const n = (t.counts.get(oid) || new Map()).get(piece.key); return n != null ? n : piece.most || 1; };
   t.togglePiece = (oid, key, keys) => {
-    changed();
     const left = new Set(t.off.has(oid) ? keys : (t.pieceOff.get(oid) || []));
     t.off.delete(oid);
     if (left.has(key)) left.delete(key); else left.add(key);
@@ -12825,44 +12943,76 @@ function carryTickState(redraw, offAtFirst = [], ask = false) {
     else if (left.size) t.pieceOff.set(oid, left);
     redraw();
   };
-  // A place chosen (or Pending): the ticks are fixed until Undo (owner, 16 November: "why am i still able to click the moved ones").
-  t.decided = () => t.ask && (t.where === 'pending' || ((t.where === 'move' || t.where === 'credit') && !!t.place));
-  t.goes = () => (t.where === 'pending' ? 'Pending' : t.place ? t.place.words : '');
   t.toggleOpen = oid => { if (t.open.has(oid)) t.open.delete(oid); else t.open.add(oid); redraw(); };
-  // What is taken of a line now: all of it, none, or its ticked pieces.
+  // A carried line's pieces: each timer and item of the bill it came from, or the line itself when it goes only whole.
+  t.piecesOf = o => {
+    const ps = carryPieces(o);
+    return ps.length ? ps.map(x => ({ ...x, segmentIds: x.segmentId ? [x.segmentId] : [], orderIds: x.orderId ? [x.orderId] : [], line: o.id }))
+      : [{ key: 'L:' + o.id, name: carriedOf(o).what, whole: true, most: 1, unit: 0, paise: Number(o.totalPaise), segmentIds: [], orderIds: [], line: o.id }];
+  };
+  const lineOf = piece => state.Orders.find(x => x.id === piece.line);
+  t.paying = (o, piece) => (piece.whole ? (t.off.has(o.id) ? 0 : 1) : t.countOf(o.id, piece));
+  // A line with something sent from it is fixed until that group's Undo (owner, 16 November: "why am i still able to click the moved ones").
+  t.locked = o => t.piecesOf(o).some(x => t.groups.sent(x.key) > 0);
+  // Not paid now and not sent anywhere yet.
+  t.loose = o => t.piecesOf(o).map(x => ({ piece: x, n: Math.max(0, (x.most || 1) - t.paying(o, x) - t.groups.sent(x.key)) })).filter(x => x.n > 0);
+  // Paid now (ticked) and not sent: what Pay Items sends from.
+  t.payingPieces = o => t.piecesOf(o).map(x => ({ piece: x, n: t.paying(o, x) })).filter(x => x.n > 0);
+  t.setPaying = (piece, n) => {
+    const o = lineOf(piece);
+    if (!o) return;
+    if (piece.whole) { if (n > 0) t.off.delete(o.id); else t.off.add(o.id); return; }
+    t.setCount(o.id, piece, n, t.piecesOf(o).map(x => x.key), true);
+  };
+  // Send a group; from Pay Items the ticked pieces stop being paid now (unpay). Undo puts its pieces back to paid now.
+  t.send = (where, words, command, list, unpay) => { if (unpay) for (const x of list) t.setPaying(x.piece, t.paying(lineOf(x.piece), x.piece) - x.n); t.groups.add(where, words, command, list); };
+  t.undo = id => { const grp = t.groups.undo(id); if (grp) for (const x of grp.take.values()) { const o = lineOf(x.piece); if (o) t.setPaying(x.piece, t.paying(o, x.piece) + x.n); } redraw(); };
+  // The ticked pieces of a line paid in part, for the server; null when it is paid whole or not at all.
+  t.part = o => {
+    if ((!t.pieceOff.has(o.id) && !t.counts.has(o.id)) || t.off.has(o.id)) return null;
+    const list = t.payingPieces(o);
+    return list.length ? { orderId: o.id, ...g0(t).wireList(list) } : null;
+  };
+  // What is paid now of a line: all of it, none, or its ticked pieces.
   t.taken = o => {
     if (t.off.has(o.id)) return 0;
     if (!t.pieceOff.has(o.id) && !t.counts.has(o.id)) return Number(o.totalPaise);
-    return carryPieces(o).reduce((n, p) => { const c = t.countOf(o.id, p); return n + (c <= 0 ? 0 : c === (p.most || 1) ? p.paise : (p.unit || 0) * c); }, 0);
-  };
-  // The ticked pieces of a line taken in part, for the server; null when it is taken whole or not at all.
-  t.part = o => {
-    if ((!t.pieceOff.has(o.id) && !t.counts.has(o.id)) || t.off.has(o.id)) return null;
-    const pieces = carryPieces(o), whole = pieces.filter(p => t.countOf(o.id, p) === (p.most || 1)), some = pieces.filter(p => p.orderId && t.countOf(o.id, p) > 0 && t.countOf(o.id, p) < (p.most || 1));
-    return { orderId: o.id, segmentIds: whole.filter(p => p.segmentId).map(p => p.segmentId), orderIds: whole.filter(p => p.orderId).map(p => p.orderId), ...(some.length ? { counts: Object.fromEntries(some.map(p => [p.orderId, t.countOf(o.id, p)])) } : {}) };
+    return carryPieces(o).reduce((n, x) => { const c = t.countOf(o.id, x); return n + (c <= 0 ? 0 : c === (x.most || 1) ? x.paise : (x.unit || 0) * c); }, 0);
   };
   return t;
 }
+// The pieces of a carried bill, to tick one by one (owner, 16 November: "full checkbox next to snooker if he is paying everthing. if he is
+// paying for some of it then when i click + show all with check box already ticked and i will untick which he is not paying"): each
+// timer and each item of the bill it came from. A bill with money paid on it or a discount goes whole.
+function carryPieces(o) {
+  const c = carriedOf(o), d = (state.BillDetails || []).find(x => x.id === c.billId), bl = (state.Bills || []).find(x => x.id === c.billId);
+  if (!d || !bl || Number(bl.paidPaise) > 0 || Number(d.discountPaise) > 0) return [];
+  const segs = c.segs.map(g => ({ key: 's:' + g.id, segmentId: g.id, name: ((unitOf(g.unitId) || {}).name || '') + ' · ' + timerShort(g, timerWords(g, state.Pauses || [])), most: 1, unit: 0, paise: Number(g.totalPaise || 0) }));
+  const ords = ordersOf(d.tabId).map(x => ({ key: 'o:' + x.id, orderId: x.id, name: x.category === 'Carried' ? carriedOf(x).what : x.label, most: x.category === 'Carried' ? 1 : Number(x.quantity), unit: Number(x.unitPricePaise || 0), paise: Number(x.totalPaise || 0) }));
+  const all = segs.concat(ords);
+  return all.length > 1 ? all : [];
+}
 function carriedLine(o, carryTicks) {
   const c = carriedOf(o), more = [], pieces = carryTicks ? carryPieces(o) : [];
+  const sentN = key => (carryTicks ? carryTicks.groups.sent(key) : 0), sentTo = key => (carryTicks ? carryTicks.groups.where(key) : '');
   if (pieces.length) {
-    const none = carryTicks.off.has(o.id), left = carryTicks.pieceOff.get(o.id) || (carryTicks.counts.has(o.id) ? new Set() : null), all = !none && !left, open = carryTicks.open.has(o.id), keys = pieces.map(p => p.key);
-    const fixed = !!(carryTicks.decided && carryTicks.decided()), goes = fixed ? carryTicks.goes() : '';
+    const none = carryTicks.off.has(o.id), left = carryTicks.pieceOff.get(o.id) || (carryTicks.counts.has(o.id) ? new Set() : null), all = !none && !left, open = carryTicks.open.has(o.id), keys = pieces.map(x => x.key);
+    const fixed = carryTicks.locked(o);
     const box = h('input', { type: 'checkbox', class: 'line-tick', checked: all, disabled: fixed, 'aria-label': 'All of ' + c.what, data: { action: 'carried-tick' }, onclick: e => { e.stopPropagation(); carryTicks.toggle(o.id); } });
-    box.indeterminate = !!left;
-    const moving = key => none || !!(left && left.has(key));
+    box.indeterminate = !!left && !none;
     // An item of more than one: − how many of N + (owner, 16 November: "what if that lays only 1 he wants to pay").
-    const stepper = p => {
-      const n = carryTicks.countOf(o.id, p);
+    const stepper = x => {
+      const n = carryTicks.countOf(o.id, x);
       return h('span', { class: 'step carried-step', data: { field: 'carried-count' } },
-        h('button', { type: 'button', disabled: fixed || n <= 0, 'aria-label': 'One fewer', onclick: e => { e.preventDefault(); e.stopPropagation(); carryTicks.setCount(o.id, p, n - 1, keys); } }, icon('minus')),
-        h('b', { text: n + ' of ' + p.most }),
-        h('button', { type: 'button', disabled: fixed || n >= p.most, 'aria-label': 'One more', onclick: e => { e.preventDefault(); e.stopPropagation(); carryTicks.setCount(o.id, p, n + 1, keys); } }, icon('plus')));
+        h('button', { type: 'button', disabled: sentN(x.key) > 0 || n <= 0, 'aria-label': 'One fewer', onclick: e => { e.preventDefault(); e.stopPropagation(); carryTicks.setCount(o.id, x, n - 1, keys); } }, icon('minus')),
+        h('b', { text: n + ' of ' + x.most }),
+        h('button', { type: 'button', disabled: sentN(x.key) > 0 || n >= x.most - sentN(x.key), 'aria-label': 'One more', onclick: e => { e.preventDefault(); e.stopPropagation(); carryTicks.setCount(o.id, x, n + 1, keys); } }, icon('plus')));
     };
-    const rows = open ? pieces.map(p => h('label', { class: 'carried-piece' + (fixed && moving(p.key) ? ' moving' : ''), data: { piece: p.key } },
-      h('input', { type: 'checkbox', checked: carryTicks.countOf(o.id, p) > 0, disabled: fixed, data: { action: 'carried-piece' }, onclick: e => { e.stopPropagation(); carryTicks.togglePiece(o.id, p.key, keys); } }),
-      h('span', { text: p.name + (fixed && moving(p.key) ? ' · to ' + goes : '') }), ...[p.most > 1 ? stepper(p) : null].filter(Boolean),
-      h('span', { class: 'num', text: money(p.most > 1 && carryTicks.countOf(o.id, p) > 0 ? (p.unit || 0) * carryTicks.countOf(o.id, p) : p.paise) }))) : [];
+    const goes = x => (sentN(x.key) > 0 ? ' · ' + (x.most > 1 ? sentN(x.key) + ' to ' : 'to ') + sentTo(x.key) : '');
+    const rows = open ? pieces.map(x => h('label', { class: 'carried-piece' + (sentN(x.key) > 0 ? ' moving' : ''), data: { piece: x.key } },
+      h('input', { type: 'checkbox', checked: carryTicks.countOf(o.id, x) > 0, disabled: sentN(x.key) > 0, data: { action: 'carried-piece' }, onclick: e => { e.stopPropagation(); carryTicks.togglePiece(o.id, x.key, keys); } }),
+      h('span', { text: x.name + goes(x) }), ...[x.most > 1 ? stepper(x) : null].filter(Boolean),
+      h('span', { class: 'num', text: money(x.most > 1 && carryTicks.countOf(o.id, x) > 0 ? (x.unit || 0) * carryTicks.countOf(o.id, x) : x.paise) }))) : [];
     return h('div', { class: 'line carried-line' + (none ? ' off' : '') + (fixed ? ' fixed' : ''), data: { order: o.id } }, box,
       h('div', 'line-main', h('b', { text: c.what }), h('span', { class: 'small muted', text: open ? ['Bill ' + c.number, c.day].filter(s => s && s !== 'Bill ').join(' · ') : plural(pieces.length, 'part', 'parts') + ' · tick all or open to choose' }), ...rows),
       h('span', { class: 'line-amount', text: money(left ? carryTicks.taken(o) : Number(o.totalPaise)) }),
@@ -12872,12 +13022,13 @@ function carriedLine(o, carryTicks) {
   if (c.segs.length) for (const x of c.items) more.push(h('div', 'carried-row', h('span', { text: x.label + (Number(x.quantity) > 1 ? ' × ' + x.quantity : '') }), h('span', { class: 'num', text: money(x.totalPaise) })));
   more.push(h('div', 'carried-row muted', h('span', { text: ['Bill ' + c.number, c.day].filter(s => s && s !== 'Bill ').join(' · ') })));
   const detail = h('div', { class: 'carried-detail', hidden: true }, more);
-  // On the bill being settled it has a tick like every line (owner, 15 November: "give checkbox what to select"): unticked, it goes
-  // back to its own bill, pending again; paid now or moved while the game plays on, from Pay Items.
-  const tick = carryTicks ? h('input', { type: 'checkbox', class: 'line-tick', checked: !carryTicks.off.has(o.id), 'aria-label': 'Paying now', data: { action: 'carried-tick' }, onclick: e => { e.stopPropagation(); carryTicks.toggle(o.id); } }) : null;
+  // On the bill being settled it has a tick like every line (owner, 15 November: "give checkbox what to select"); sent somewhere, the tick
+  // is fixed until Undo.
+  const sentWhole = sentN('L:' + o.id) > 0;
+  const tick = carryTicks ? h('input', { type: 'checkbox', class: 'line-tick', checked: !carryTicks.off.has(o.id), disabled: sentWhole, 'aria-label': 'Paying now', data: { action: 'carried-tick' }, onclick: e => { e.stopPropagation(); carryTicks.toggle(o.id); } }) : null;
   const toggle = h('button', { type: 'button', class: 'carried-show', data: { action: 'carried-show' }, onclick: e => { e.stopPropagation(); detail.hidden = !detail.hidden; toggle.textContent = detail.hidden ? 'Show' : 'Hide'; } }, 'Show');
-  return h('div', { class: 'line carried-line' + (carryTicks && carryTicks.off.has(o.id) ? ' off' : ''), data: { order: o.id } }, tick,
-    h('div', 'line-main', h('b', { text: c.what }), toggle, detail),
+  return h('div', { class: 'line carried-line' + (carryTicks && carryTicks.off.has(o.id) ? ' off' : '') + (sentWhole ? ' fixed' : ''), data: { order: o.id } }, tick,
+    h('div', 'line-main', h('b', { text: c.what + (sentWhole ? ' · to ' + sentTo('L:' + o.id) : '') }), toggle, detail),
     h('span', { class: 'line-amount', text: money(o.totalPaise) }));
 }
 // Items already on a bill, each with a stepper from none up to how many are on it. counts survives a redraw.
@@ -13557,21 +13708,9 @@ function drawLines(body, lines) {
   // Rackets and shuttlecocks have their own group on a court bill (owner, 22 October).
   const isRental = o => typeof rentalIdOf === 'function' && !!rentalIdOf(o);
   const turf = orders.filter(o => o.category === 'Turf'), brought = orders.filter(o => o.category === 'Carried'), goods = orders.filter(o => o.category !== 'Turf' && o.category !== 'Carried').sort((a, b) => (isGameLine(a) ? 0 : isRental(a) ? 2 : 1) - (isGameLine(b) ? 0 : isRental(b) ? 2 : 1));
-  const ct = lines.carryTicks, leftOut = ct && ct.ask ? brought.filter(o => ct.taken(o) < Number(o.totalPaise)) : [];
-  // Once a place is chosen it is said plainly, with Undo, never the choices again (owner, 16 November: "its moved to other system. why
-  // is it showing move again like that?? mention clearly its moved so and so, and keep undo button").
-  const leftWhat = leftOut.map(o => (ct.off.has(o.id) ? carriedOf(o).what : carryPieces(o).map(x => { const n = (x.most || 1) - ct.countOf(o.id, x); return n <= 0 ? '' : x.name.split(' · ')[0] + (n > 1 || (x.most || 1) > 1 ? ' × ' + n : ''); }).filter(Boolean).join(', '))).join(', ');
-  const leftPaise = leftOut.reduce((n, o) => n + Number(o.totalPaise) - ct.taken(o), 0);
-  const chosen = ct && (ct.where === 'pending' || ((ct.where === 'move' || ct.where === 'credit') && ct.place));
-  const leftBox = !leftOut.length ? null : chosen
-    ? h('div', { class: 'carry-rest chosen', data: { field: 'carry-rest' } },
-      h('div', { class: 'carry-chosen', data: { field: 'carry-place' } }, glyph(ct.where === 'pending' ? 'clock' : ct.where === 'credit' ? 'credits' : 'transfer', 'gold', 'sm'),
-        h('div', 'line-main', h('b', { text: (ct.where === 'pending' ? 'Goes to Pending' : ct.where === 'credit' ? 'Moves to ' + ct.place.words : 'Moves to ' + ct.place.words) + ' · ' + money(leftPaise) }),
-          h('span', { class: 'small muted', text: leftWhat + ' · not paid now · saved when you collect' })),
-        btn([icon('undo'), 'Undo'], () => ct.set(''), 'quiet', { data: { action: 'carry-undo' } })))
-    : h('div', { class: 'carry-rest', data: { field: 'carry-rest' } },
-      h('div', 'rest-title', h('span', { text: 'Not paid now · ' + money(leftPaise) }), h('span', { class: 'small muted', text: 'Where does it go?' })),
-      segmented([['pending', 'Pending', 'clock'], ['move', 'Move', 'transfer'], ['credit', 'Move to Credit', 'credits']], ct.where, value => ct.set(value)).node);
+  // What is not paid now is sent somewhere: each group said plainly with Undo, and what is left asks where it goes.
+  const ct = lines.carryTicks, loose = ct && ct.ask ? brought.flatMap(o => ct.loose(o)) : [];
+  const leftBox = ct && ct.ask && (loose.length || ct.groups.list.length) ? sendBox(ct.groups, loose, where => ct.choose(where, loose), id => ct.undo(id)) : null;
   if (brought.length) own.append(h('section', 'bill-group', h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', 'lines', brought.map(o => carriedLine(o, lines.carryTicks))), ...[leftBox].filter(Boolean)));
   if (turf.length) {
     const card = h('div', 'lines');
@@ -13688,17 +13827,12 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
   const comment = commentField();
   // Lines not paid now (unticked): they stay on this bill, to be moved, put on credit or kept pending after.
   // skip: time unticked; payCount: how many of an item are paid now (all of it unless lowered).
-  const skip = new Set(), payCount = new Map(), carry = carryTickState(() => { draft.edited = false; current.ui.redraw(); }, [], true);
-  // What of the balances carried in is not paid now, and the bills it stays on.
-  const carryLeft = () => ordersOf(tab.id).filter(o => o.category === 'Carried').reduce((total, o) => total + Number(o.totalPaise) - carry.taken(o), 0);
-  const carryLeftBills = () => ordersOf(tab.id).filter(o => o.category === 'Carried' && carry.taken(o) < Number(o.totalPaise)).map(o => carriedOf(o).billId);
-  // Move or Move to Credit for what is left: the place is chosen there and this bill comes back, as it was, to be collected with it.
-  carry.choose = where => {
-    // The bill comes back as it was; its own Back stays where it went before (never to the Move list).
-    const was = current.config, here = { ...was, onClose: was.onClose === undefined ? null : was.onClose }, back = () => openSheet(here), pick = (command, words) => { carry.where = where; carry.place = { command, words }; openSheet(here); };
-    if (where === 'move') pendingMoveSheet(carryLeftBills(), tab.customer, carryLeft(), back, { pick, except: tab.id });
-    else pendingCreditSheet(carryLeftBills(), tab.customer, carryLeft(), back, { pick });
-  };
+  const skip = new Set(), payCount = new Map(), carry = carryTickState(() => { draft.edited = false; current.ui.redraw(); });
+  // The balances carried in: what is not ticked is not paid now; once the bill is collected it is shown next, to collect, move, put on
+  // credit or keep pending, step by step (owner, 16 November: "first ill collect what he is willing to pay. then show me what he has not
+  // paid. then i will click the items, it will show same collect move pending etc").
+  const carriedLines = () => ordersOf(tab.id).filter(o => o.category === 'Carried');
+  let notPaid = [];
   const paying = o => Math.min(Number(o.quantity), payCount.has(o.id) ? payCount.get(o.id) : Number(o.quantity));
   const partly = () => skip.size > 0 || ordersOf(tab.id).some(o => paying(o) < Number(o.quantity));
   const subtotal = () => tabTotal(tab.id) - segmentsOf(tab.id).filter(g => skip.has(g.id)).reduce((total, g) => total + g.totalPaise, 0) - ordersOf(tab.id).reduce((total, o) => total + (Number(o.quantity) - paying(o)) * o.unitPricePaise, 0) - ordersOf(tab.id).filter(o => o.category === 'Carried').reduce((total, o) => total + Number(o.totalPaise) - carry.taken(o), 0);
@@ -13867,12 +14001,6 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
         // Collecting money shows the wallet; every way of closing ends in an arrow, as in the owner's picture.
         primary.replaceChildren(...(mode === 'pay' && paid > 0 && back <= 0 ? [icon('wallet')] : []), h('span', { text: label }), h('span', 'go-arrow', icon('right')));
         primary.disabled = !sound || (mode === 'credit' && left <= 0) || (asking && !draft.rest);
-        if (carryLeft() > 0 && (!carry.where || (carry.where !== 'pending' && !carry.place))) {
-          const wait = 'Choose where the unticked ' + money(carryLeft()) + ' goes';
-          primary.dataset.label = wait;
-          primary.replaceChildren(h('span', { text: wait }));
-          primary.disabled = true;
-        }
       }
       paint();
       // Straight to where the account is chosen: no scrolling to look for it.
@@ -13886,8 +14014,9 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
       if (!Number.isSafeInteger(paid) || paid < 0 || (paid > due && !over)) throw new Error('Received is more than this bill.');
       const back = handBackPaise(), asking = mode === 'pay' && back <= 0 && paid < due;
       if (asking && !draft.rest) throw new Error('Choose what happens to the other ' + money(due - paid) + '.');
-      if (carryLeft() > 0 && (!carry.where || (carry.where !== 'pending' && !carry.place))) throw new Error('Choose where the unticked ' + money(carryLeft()) + ' goes.');
-      const carryRest = carryLeft() > 0 && carry.where !== 'pending' && carry.place ? { ...carry.place.command, billIds: carryLeftBills() } : null;
+      // What of each carried line is not ticked goes back to its own bill, pending, and is shown once the bill is collected.
+      notPaid = carriedLines().filter(o => carry.taken(o) < Number(o.totalPaise)).map(o => carriedOf(o).billId);
+      const uncarry = carriedLines().filter(o => carry.taken(o) === 0).map(o => o.id), carryParts = carriedLines().map(o => carry.part(o)).filter(Boolean);
       if (asking && draft.rest === 'keep') {
         if (partly()) throw new Error('Pay for everything to keep the rest on the system.');
         if (discount > 0) throw new Error('Give the discount on the group’s bill, when it is paid.');
@@ -13900,14 +14029,21 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
         ...(mode === 'credit' ? { ...picker.value(), note: comment.value(), unpaidItems: itemsOnCredit(ordersOf(tab.id), due - paid) } : {}),
         // Some lines unticked: only the ticked ones are settled now; the rest stays on this bill.
         ...(partly() ? { only: { ids: segmentsOf(tab.id).filter(g => !skip.has(g.id)).map(g => g.id), items: ordersOf(tab.id).filter(o => o.category !== 'Carried' || !carry.off.has(o.id)).filter(o => paying(o) > 0).map(o => ({ orderId: o.id, quantity: paying(o) })) } } : {}),
-        ...(carry.off.size ? { uncarry: [...carry.off] } : {}),
-        ...(ordersOf(tab.id).some(o => carry.part(o)) ? { carryParts: ordersOf(tab.id).map(o => carry.part(o)).filter(Boolean) } : {}),
-        ...(carryRest ? { carryRest } : {}) };
+        ...(uncarry.length ? { uncarry } : {}),
+        ...(carryParts.length ? { carryParts } : {}) };
     },
     // Paid in full: nothing more to look at. The sheet closes to where the receptionist was (the floor, the list of players
     // still to settle, or the turf booking), with a short note and the receipt one tap away. Anything still owing shows the bill.
     then: (result, command) => {
       const took = command.amountPaise ? 'Paid ' + money(command.amountPaise) + ' · ' + methodText(result.method || command.method) + (result.receiptNumber ? ' · ' + result.receiptNumber : '') + '. ' : '';
+      // What he has not paid, shown next, one bill after another.
+      const rest = notPaid.slice();
+      notPaid = [];
+      if (rest.length && command.type === 'SETTLE_REVIEW') {
+        const next = i => (i < rest.length ? receiptSheet(rest[i], () => next(i + 1)) : closeSheet());
+        next(0);
+        return { text: took + 'Not paid yet: choose what to do with it.' };
+      }
       // Part settled: back to this bill with what was not ticked, to move it, put it on credit or keep it pending.
       if (result.restTabId) { settleSheet(result.restTabId); return { text: took + 'The rest is still on this bill.' }; }
       // Kept on the group's system, or left pending: back to where the receptionist was, with a note.
@@ -14119,6 +14255,8 @@ const payableTimers = tab => { const playing = new Set(unitsOfTab(tab.id)); retu
 // Pay Items (owner, 27 October: "i should be allowed to pay for the items without closing any controllers ... for pool and
 // all"): from "so far" on any system, the items they pay for now, ticked or counted, paid in full; they become a bill of their
 // own (TABLE_ITEMS_PAY) and the time and every other item stay on the system.
+// The way paid said after a Pay Items save: from the saves that follow, or cash.
+const method0 = saves => ((saves || []).find(x => x.method) || { method: 'cash' }).method;
 function payItemsSheet(tab, back) {
   const picks = new Map(), pay = { method: 'cash' };
   let rows = [], timeRows = [], how = null, ticked = false, whole = null;
@@ -14152,46 +14290,60 @@ function payItemsSheet(tab, back) {
       // Its own items first, then what is closed or moved onto it (owner, 4 November).
       if (rows.length) ui.body.append(h('div', 'group-title', icon('snack'), ownItemsTitle(tab)), h('div', { class: 'lines end-pick', data: { field: 'pay-items' } }, pickLines(rows, picks, () => ui.redraw(), o => removeOne(o, () => { ui.redraw(); return null; }))));
       if (timeRows.length) ui.body.append(h('div', 'group-title', icon('history'), 'Closed'), ...pickBoxes(timeRows, picks, () => ui.redraw(), null, whole, 'pay-closed'));
-      if (carriedOn(tab).length) ui.body.append(h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', { class: 'lines end-pick', data: { field: 'pay-carried' } }, carriedOn(tab).map(o => carriedLine(o, carry))));
-      const due = owed();
+      if (carriedOn(tab).length) ui.body.append(h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', { class: 'lines end-pick', data: { field: 'pay-carried' } }, carriedOn(tab).map(o => carriedLine(o, carry))),
+        ...[carry.groups.list.length ? sendBox(carry.groups, [], () => {}, id => carry.undo(id)) : null].filter(Boolean));
+      const due = owed(), sending = carry.groups.list.length > 0;
       const paint = () => {
         const button = current.primaryButton, split = how.paid(), blank = how.blank();
-        const label = !due ? 'Choose what they pay for' : blank ? 'Enter cash and UPI' : split !== null && split !== due ? 'Collect the full ' + money(due) : 'Collect ' + money(due);
+        const label = !due ? (sending ? 'Save' : 'Choose what they pay for') : blank ? 'Enter cash and UPI' : split !== null && split !== due ? 'Collect the full ' + money(due) : 'Collect ' + money(due) + (sending ? ' · send the rest' : '');
         button.dataset.label = label;
         button.textContent = label;
-        button.disabled = !due || blank || (split !== null && split !== due);
+        button.disabled = (!due && !sending) || (due > 0 && (blank || (split !== null && split !== due)));
       };
       how = payChoice(pay, () => paint(), { due: () => due, splittable: !carryPicked().length });
       ui.foot.append(h('div', 'foot-row', h('div', { class: 'foot-label', text: 'To collect' }), h('div', { class: 'foot-total', text: money(due) })), h('div', 'foot-row pay-foot', how.node));
-      // The ticked balances from earlier can go somewhere else instead: back to pending, then the Move list.
-      const moving = carryPicked();
-      // One Move for whatever is ticked, to anywhere (owner, 15 November: "that move is not just the same system … keep it general").
-      if (moving.length) ui.foot.append(h('div', 'foot-row', btn([icon('transfer'), 'Move'], () => {
-        const whole = moving.filter(o => !carry.part(o)), parts = moving.map(o => carry.part(o)).filter(Boolean), sum = moving.reduce((n, o) => n + carry.taken(o), 0);
-        // Nothing is saved until a place is chosen; Back returns here with everything as it was. Some pieces only: split off and moved.
-        pendingMoveSheet(whole.map(o => carriedOf(o).billId), tab.customer, sum, () => payItemsSheet(tab, back), { uncarry: whole.map(o => o.id), ...(parts.length ? { carrySplit: parts } : {}) });
-      }, 'block', { data: { action: 'pay-carried-move' } })));
+      // What is ticked of the balances from earlier can go elsewhere instead, step by step (owner, 16 November): Move, Move to Credit or
+      // Pending act on it at once (a place is chosen first; Back from there changes nothing); Pay Items then shows what is left.
+      const sendable = carriedOn(tab).flatMap(o => carry.payingPieces(o));
+      const sendNow = (where, words, command) => {
+        const saves = carriedOn(tab).map(o => { const list = carry.payingPieces(o); return list.length ? { type: 'CARRY_SEND', orderId: o.id, sends: [{ ...carry.groups.wireList(list), place: where === 'pending' ? { type: 'PENDING' } : command }] } : null; }).filter(Boolean);
+        saveAll(saves, (where === 'pending' ? 'Pending' : 'Moved to ' + words) + '.').then(() => { render(); payItemsSheet(tab, back); });
+      };
+      if (sendable.length) ui.foot.append(h('div', 'foot-row send-row', [['move', 'transfer', 'Move'], ['credit', 'credits', 'Move to Credit'], ['pending', 'clock', 'Pending']].map(([where, glyphName, label]) =>
+        btn([icon(glyphName), label], () => sendPlace(where, (words, command) => sendNow(where, words, command), tab, carry.groups.sum(sendable)), 'block', { data: { action: 'pay-carried-' + where } }))));
       ui.primary('');
       paint();
     },
     command() {
-      const closed = pickedLines(timeRows, picks) || { ids: [], items: [] }, items = (pickedLines(rows, picks) || { items: [] }).items.concat(closed.items), segments = closed.ids, carried = carryPicked();
-      if (!items.length && !segments.length && !carried.length) throw new Error('Choose what they pay for.');
+      const closed = pickedLines(timeRows, picks) || { ids: [], items: [] }, items = (pickedLines(rows, picks) || { items: [] }).items.concat(closed.items), segments = closed.ids;
       const method = how.value(owed()).method;
-      // A balance from earlier is paid on its own bill (CARRY_PAY); with items too, they follow.
-      if (carried.length) {
-        const payOne = o => ({ type: 'CARRY_PAY', orderId: o.id, method, ...(carry.part(o) ? { pieces: { segmentIds: carry.part(o).segmentIds, orderIds: carry.part(o).orderIds } } : {}) });
-        const rest = carried.slice(1).map(payOne), itemsPart = owed() - carryTaken();
+      // Each carried line: its groups sent and its ticked pieces paid, in one save (CARRY_SEND); a line that goes only whole and is ticked is
+      // paid on its own bill (CARRY_PAY). Items and time follow.
+      const lineSaves = carriedOn(tab).map(o => {
+        const sends = carry.groups.list.map(grp => carry.groups.wire(grp, o.id)).filter(Boolean), paying = carry.payingPieces(o), whole = carry.piecesOf(o)[0].whole;
+        if (!sends.length && !paying.length) return null;
+        if (whole && !sends.length) return { type: 'CARRY_PAY', orderId: o.id, method };
+        return { type: 'CARRY_SEND', orderId: o.id, sends, ...(paying.length && !whole ? { pay: { ...carry.groups.wireList(paying), method } } : {}) };
+      }).filter(Boolean);
+      if (!items.length && !segments.length && !lineSaves.length) throw new Error('Choose what they pay for.');
+      if (lineSaves.length) {
+        const rest = lineSaves.slice(1), itemsPart = owed() - carryTaken();
         if (items.length || segments.length) rest.push({ type: 'TABLE_ITEMS_PAY', tabId: tab.id, items, ...(segments.length ? { segments } : {}), amountPaise: itemsPart, method });
         pay.after = rest;
-        return payOne(carried[0]);
+        pay.total = owed();
+        return lineSaves[0];
       }
       return { type: 'TABLE_ITEMS_PAY', tabId: tab.id, items, ...(segments.length ? { segments } : {}), amountPaise: owed(), ...how.value() };
     },
     then(result, command) {
-      if (command.type === 'CARRY_PAY') {
-        const more = pay.after || [];
+      if (command.type === 'CARRY_PAY' || command.type === 'CARRY_SEND') {
+        const more = pay.after || [], total = pay.total || 0;
         pay.after = null;
+        if (command.type === 'CARRY_SEND') {
+          const finish = () => { render(); back(); sheetStatus('success', (total ? 'Paid · ' + money(total) + ' · ' + methodText(command.pay ? command.pay.method : method0(more)) + '. ' : '') + 'The rest is sent where you chose.'); };
+          if (more.length) saveAll(more, 'Saved.').then(finish); else finish();
+          return null;
+        }
         const done = () => { render(); back(); sheetStatus('success', 'Paid · ' + money(owed()) + ' · ' + methodText(command.method) + '.'); };
         if (more.length) saveAll(more, 'Paid.').then(done); else done();
         return null;
@@ -14669,6 +14821,9 @@ async function receiptSheet(billId, back) {
   const countOf = x => (off.has(x.key) ? 0 : counts.has(x.key) ? counts.get(x.key) : most(x)), worth = x => (countOf(x) <= 0 ? x.paise : countOf(x) === most(x) ? x.paise : (x.unit || 0) * countOf(x));
   const setCount = (x, n) => { counts.delete(x.key); off.delete(x.key); if (n <= 0) off.add(x.key); else if (n < most(x)) counts.set(x.key, n); };
   const ticked = () => parts.filter(x => countOf(x) > 0), tickedSum = () => ticked().reduce((n, x) => n + worth(x), 0), partly = () => ticking && (off.size > 0 || counts.size > 0);
+  // Tick what is dealt with now (owner, 16 November: "i will click the items, it will show same collect move pending etc"); what is left
+  // is shown again after each step.
+  const sentHere = () => false, goesTo = () => '';
   const splitOf = () => {
     const whole = ticked().filter(x => countOf(x) === most(x)), some = ticked().filter(x => countOf(x) < most(x));
     return { billId, segmentIds: whole.flatMap(x => x.segmentIds), orderIds: whole.flatMap(x => x.orderIds), ...(some.length ? { counts: Object.fromEntries(some.map(x => [x.orderIds[0], countOf(x)])) } : {}) };
@@ -14710,20 +14865,21 @@ async function receiptSheet(billId, back) {
           const keys = r.pieces.map(x => x.key), on = r.pieces.filter(x => countOf(x) === most(x)).length, any = r.pieces.some(x => countOf(x) > 0);
           const box = h('input', { type: 'checkbox', checked: on === keys.length, tabindex: '-1', 'aria-hidden': 'true' });
           box.indeterminate = any && on < keys.length;
-          const opens = r.pieces.length > 1;
-          lines.push(h('div', { class: 'line pick bill-group-row', role: 'button', tabindex: '0', 'aria-pressed': String(on === keys.length), data: { part: r.key }, onclick: () => { keys.forEach(k => counts.delete(k)); if (on === keys.length) keys.forEach(k => off.add(k)); else keys.forEach(k => off.delete(k)); ui.redraw(); } },
+          const opens = r.pieces.length > 1, fixed = r.pieces.some(sentHere);
+          box.disabled = fixed;
+          lines.push(h('div', { class: 'line pick bill-group-row' + (fixed ? ' fixed' : ''), role: 'button', tabindex: '0', 'aria-pressed': String(on === keys.length), data: { part: r.key }, onclick: () => { if (fixed) return; keys.forEach(k => counts.delete(k)); if (on === keys.length) keys.forEach(k => off.add(k)); else keys.forEach(k => off.delete(k)); ui.redraw(); } },
             box,
-            h('div', 'line-main', h('b', { text: r.name }), h('span', { class: 'small muted', text: r.detail })),
+            h('div', 'line-main', h('b', { text: r.name + (!opens && sentHere(r.pieces[0]) ? goesTo(r.pieces[0]) : '') }), h('span', { class: 'small muted', text: r.detail })),
             h('span', { class: 'line-amount', text: money(r.paise) }),
             opens ? h('button', { type: 'button', class: 'icon-btn bill-open', 'aria-label': opened.has(r.key) ? 'Hide' : 'Show what it was', data: { action: 'bill-group-open' }, onclick: e => { e.stopPropagation(); if (opened.has(r.key)) opened.delete(r.key); else opened.add(r.key); ui.redraw(); } }, icon(opened.has(r.key) ? 'minus' : 'plus')) : null));
           // Each piece its tick; an item of more than one also − how many of N +.
-          if (opens && opened.has(r.key)) for (const x of r.pieces) lines.push(h('div', { class: 'line pick bill-part', role: 'button', tabindex: '0', 'aria-pressed': String(countOf(x) > 0), data: { part: x.key }, onclick: () => { setCount(x, countOf(x) > 0 ? 0 : most(x)); ui.redraw(); } },
-            h('input', { type: 'checkbox', checked: countOf(x) > 0, tabindex: '-1', 'aria-hidden': 'true' }),
-            h('div', 'line-main', h('b', { text: x.name }), h('span', { class: 'small muted', text: x.detail.join(' · ') })),
+          if (opens && opened.has(r.key)) for (const x of r.pieces) lines.push(h('div', { class: 'line pick bill-part' + (sentHere(x) ? ' fixed moving' : ''), role: 'button', tabindex: '0', 'aria-pressed': String(countOf(x) > 0), data: { part: x.key }, onclick: () => { if (sentHere(x)) return; setCount(x, countOf(x) > 0 ? 0 : most(x)); ui.redraw(); } },
+            h('input', { type: 'checkbox', checked: countOf(x) > 0, disabled: sentHere(x), tabindex: '-1', 'aria-hidden': 'true' }),
+            h('div', 'line-main', h('b', { text: x.name + goesTo(x) }), h('span', { class: 'small muted', text: x.detail.join(' · ') })),
             ...[most(x) > 1 ? h('span', { class: 'step', data: { field: 'bill-count' } },
-              h('button', { type: 'button', disabled: countOf(x) <= 0, 'aria-label': 'One fewer', onclick: e => { e.stopPropagation(); setCount(x, countOf(x) - 1); ui.redraw(); } }, icon('minus')),
+              h('button', { type: 'button', disabled: sentHere(x) || countOf(x) <= 0, 'aria-label': 'One fewer', onclick: e => { e.stopPropagation(); setCount(x, countOf(x) - 1); ui.redraw(); } }, icon('minus')),
               h('b', { text: countOf(x) + ' of ' + most(x) }),
-              h('button', { type: 'button', disabled: countOf(x) >= most(x), 'aria-label': 'One more', onclick: e => { e.stopPropagation(); setCount(x, countOf(x) + 1); ui.redraw(); } }, icon('plus'))) : null].filter(Boolean),
+              h('button', { type: 'button', disabled: sentHere(x) || countOf(x) >= most(x), 'aria-label': 'One more', onclick: e => { e.stopPropagation(); setCount(x, countOf(x) + 1); ui.redraw(); } }, icon('plus'))) : null].filter(Boolean),
             h('span', { class: 'line-amount', text: money(worth(x)) })));
         }
         ui.body.append(h('div', { class: 'lines end-pick bill-parts', data: { field: 'bill-parts' } }, lines));
@@ -14784,7 +14940,13 @@ async function receiptSheet(billId, back) {
         const owing = ticking ? tickedSum() : due;
         amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: String(owing / 100), 'aria-label': 'Amount received', data: { field: 'received' } });
         const receivedBox = field('Received (₹)', amount);
-        const primary = () => { const b = current.primaryButton, split = how ? how.paid() : null, paise = split != null ? split : toPaise(amount.value || 0), label = 'Collect Payment · ' + money(paise); b.dataset.label = label; b.textContent = label; b.disabled = !(paise > 0 && paise <= due); };
+        const primary = () => {
+          const b = current.primaryButton, split = how ? how.paid() : null, paise = split != null ? split : toPaise(amount.value || 0);
+          const label = !owing ? 'Tick what he pays for' : 'Collect Payment · ' + money(paise);
+          b.dataset.label = label;
+          b.textContent = label;
+          b.disabled = !(paise > 0 && paise <= due) || (partly() && paise !== owing);
+        };
         amount.oninput = primary;
         ui.foot.append(
           h('div', 'foot-row', h('div', { class: 'foot-label', text: partly() ? 'Ticked' : 'Outstanding' }), h('div', { class: 'foot-total', text: money(owing) })),
@@ -14796,8 +14958,12 @@ async function receiptSheet(billId, back) {
         // A turf bill's balance can also go onto a bill running on a system (owner, 2 November: "where is it??").
         const toSystem = turfOwner && !turfAccountOf(turfPlayer ? turfPlayer.id : turfOwner.id) && !(turfOwner.split === 'yes' && !turfPlayer) ? btn([icon('transfer'), 'Move to System'], () => turfMoveSheet(turfOwner, turfPlayer), 'quiet', { data: { action: 'bill-move-system' } }) : null;
         // Any other bill left pending can go onto a system, a booking or a reservation (owner, 15 November).
-        const toPlace = !turfOwner && !ArenaCore.carryOf(state, billId) && owing > 0 ? btn([icon('transfer'), 'Move'], () => pendingMoveSheet([billId], (data.tab || {}).customer, owing, () => receiptSheet(billId, back), partly() ? { split: splitOf() } : {}), 'quiet', { data: { action: 'bill-move-pending' } }) : null;
-        ui.foot.append(h('div', 'foot-links', owing > 0 ? btn([icon('credits'), 'Move to Credit'], () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, owing, goodsOf(data.orders), partly() ? splitOf() : null)), 'quiet', { data: { action: 'bill-credit' } }) : null, toSystem, toPlace, btn('Close', dismissSheet, 'quiet')));
+        // Move what is ticked; what is left of the bill is shown again after.
+        const again = () => { const left = state.Bills.find(x => x.id === billId); if (left && left.totalPaise > left.paidPaise && !ArenaCore.carryOf(state, billId) && !state.CreditTransfers.some(t => t.billId === billId)) receiptSheet(billId, back); else closeSheet(); };
+        const toPlace = !turfOwner && !ArenaCore.carryOf(state, billId) && owing > 0 ? btn([icon('transfer'), 'Move'], () => pendingMoveSheet([billId], (data.tab || {}).customer, owing, () => receiptSheet(billId, back), partly() ? { split: splitOf(), after: again } : {}), 'quiet', { data: { action: 'bill-move-pending' } }) : null;
+        // Keep pending: nothing changes; what is not dealt with stays in Pending bills.
+        const keep = data.status !== 'paid' && !turfOwner ? btn([icon('clock'), 'Keep pending'], dismissSheet, 'quiet', { data: { action: 'bill-keep-pending' } }) : null;
+        ui.foot.append(h('div', 'foot-links', owing > 0 ? btn([icon('credits'), 'Move to Credit'], () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, owing, goodsOf(data.orders), partly() ? splitOf() : null)), 'quiet', { data: { action: 'bill-credit' } }) : null, toSystem, toPlace, keep || btn('Close', dismissSheet, 'quiet')));
       } else {
         // Nothing left to collect: say so plainly, then offer the receipt.
         const done = data.status === 'paid' ? ['', 'checkCircle', 'Paid in full', money(bill.totalPaise) + ' settled' + (extras.length ? ' · ' + money(receivedAll) + ' received in all' : '')]
@@ -14811,7 +14977,8 @@ async function receiptSheet(billId, back) {
     },
     command: () => {
       if (!payable) return null;
-      if (partly()) { if (!ticked().length) throw new Error('Tick what they pay for.'); return { type: 'PENDING_PART_PAY', ...splitOf(), method: how.value(tickedSum()).method }; }
+      // What is ticked paid now; the rest stays on the bill and is shown again.
+      if (partly()) { if (!ticked().length) throw new Error('Tick what he pays for.'); return { type: 'PENDING_PART_PAY', ...splitOf(), method: how.value(tickedSum()).method }; }
       const split = how.paid(), paise = split != null ? split : toPaise(amount.value);
       return { type: 'PAY', billId, amountPaise: paise, ...how.value() };
     },
@@ -14821,7 +14988,9 @@ async function receiptSheet(billId, back) {
       if (!after || after.totalPaise > after.paidPaise) return receiptSheet(billId, back);
       closeSheet();
       if (back) back(); else returnToSplit(data.tab ? data.tab.id : '');
-      return { text: 'Paid ' + [money(result.amountPaise), methodText(result.method), result.receiptNumber].filter(Boolean).join(' · ') + '.', action: { label: 'Print receipt', run: async () => { try { printReceipt(await rpc('rpcBill', token, billId)); } catch (e) { notify('error', e.message); } } } };
+      const paidNow = result.amountPaise != null ? result.amountPaise : result.paidPaise || 0;
+      if (!paidNow) return { text: result.message };
+      return { text: 'Paid ' + [money(paidNow), methodText(result.method), result.receiptNumber].filter(Boolean).join(' · ') + '.', action: { label: 'Print receipt', run: async () => { try { printReceipt(await rpc('rpcBill', token, billId)); } catch (e) { notify('error', e.message); } } } };
     }
   });
 }
@@ -14842,7 +15011,9 @@ function billParts(data) {
   const moves = data.tab ? movedOnto(data.tab.id, segs, orders) : [], inMove = new Set(moves.flatMap(m => m.segments.map(g => g.id).concat(m.orders.map(o => o.id))));
   const ownSegs = segs.filter(g => !inMove.has(g.id)), ownOrders = orders.filter(o => !inMove.has(o.id) && o.category !== 'Carried'), carried = orders.filter(o => !inMove.has(o.id) && o.category === 'Carried');
   const rows = [];
-  if (ownSegs.length || ownOrders.length) { const pieces = piecesOf(ownSegs, ownOrders); rows.push(row('own', [...new Set(ownSegs.map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))].join(', ') || pieces.map(x => x.name).join(', '), pieces.length > 1 ? pieces.map(x => x.name).join(', ') : pieces[0].detail.join(' · '), pieces)); }
+  // Only items (what was left unpaid of a bill): each item a row of its own, to tick at once.
+  if (!ownSegs.length && ownOrders.length) piecesOf([], ownOrders).forEach(x => rows.push(row(x.key, x.name, x.detail.join(' · '), [x])));
+  else if (ownSegs.length || ownOrders.length) { const pieces = piecesOf(ownSegs, ownOrders); rows.push(row('own', [...new Set(ownSegs.map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))].join(', ') || pieces.map(x => x.name).join(', '), pieces.length > 1 ? pieces.map(x => x.name).join(', ') : pieces[0].detail.join(' · '), pieces)); }
   moves.forEach((m, i) => { const pieces = piecesOf(m.segments, m.orders); rows.push(row('move' + i, [...new Set(m.segments.map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))].join(', '), 'Moved here', pieces)); });
   carried.forEach(o => { const pieces = piecesOf([], [o]); rows.push(row('carry:' + o.id, carriedOf(o).what, 'From earlier', pieces)); });
   return rows;
@@ -16964,7 +17135,7 @@ function pendingMoveSheet(billIds, name, owed, back, opts = {}) {
       opts.pick(made, to.kind === 'reservation' ? to.name + '’s reservation' : to.name);
       return null;
     },
-    then(result) { closeSheet(); return { text: result.message }; }
+    then(result) { if (opts.after) opts.after(); else closeSheet(); return { text: result.message }; }
   });
 }
 // A reservation cancelled while pending bills were held for it (owner, 15 November: "remind me that they have so and so pending and
@@ -20554,11 +20725,16 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
     const lines = tab ? ordersOf(tab.id).filter(o => rentalIdOf(o) === g.id && onThisCourt(o)) : [], n = lines.reduce((sum, o) => sum + Number(o.quantity), 0);
     const own = lines.find(o => o.category === 'Rentals') || null, menuLine = lines.find(o => o.category !== 'Rentals') || null;
     const less = () => (own ? runCommand({ type: 'TURF_RENT', id: b.id, item: g.id, delta: -1 }, () => ({ quiet: true })) : runCommand({ type: 'UPDATE_ORDER', id: menuLine.id, revision: menuLine.revision, quantity: Number(menuLine.quantity) - 1, reason: Number(menuLine.quantity) > 1 ? 'Quantity changed before billing' : 'Removed before billing' }, () => ({ quiet: true })));
-    if (paidUp) return h('div', { class: 'court-rent-row paid', data: { rental: g.id } }, h('span', { text: g.name + 's' }), h('b', { class: 'num', text: String(n) }), icon('check', 'paid-tick'));
+    // A tick only on rentals taken and paid (owner, 16 November: "rentals wont be settled, do not tick over there"): none taken on a slot
+    // paid or settled (a membership) still takes them with − and + while it is open, and what they cost is then shown to pay.
+    // What the rentals taken cost, beside their count (owner, 16 November: "if add anything, like items or rentals, show that amount").
+    const cost = lines.reduce((sum, o) => sum + Number(o.totalPaise || 0), 0), costTag = n > 0 ? h('span', { class: 'num court-rent-cost', text: money(cost) }) : null;
+    if (paidUp && n > 0) return h('div', { class: 'court-rent-row paid', data: { rental: g.id } }, h('span', { text: g.name + 's' }), h('b', { class: 'num', text: String(n) }), costTag, icon('check', 'paid-tick'));
+    if (paidUp && !open) return h('div', { class: 'court-rent-row', data: { rental: g.id } }, h('span', { text: g.name + 's' }), h('b', { class: 'num', text: '0' }));
     return h('div', { class: 'court-rent-row', data: { rental: g.id } }, h('span', { text: g.name + 's' }),
       iconButton('minus', 'One ' + g.name.toLowerCase() + ' back', less, { disabled: !n || !open, data: { action: 'rent-less' } }),
       h('b', { class: 'num', text: String(n) }),
-      iconButton('plus', 'One more ' + g.name.toLowerCase(), () => runCommand({ type: 'TURF_RENT', id: b.id, item: g.id, delta: 1 }, () => ({ quiet: true })), { disabled: !open, data: { action: 'rent-more' } }));
+      iconButton('plus', 'One more ' + g.name.toLowerCase(), () => runCommand({ type: 'TURF_RENT', id: b.id, item: g.id, delta: 1 }, () => ({ quiet: true })), { disabled: !open, data: { action: 'rent-more' } }), ...[costTag].filter(Boolean));
   })));
   // The booking's tools: Add Items, Pay (the booking's own sheet, with Cash, UPI and the rest), Credit, Pending, Extend; more in ⋮.
   const later = !open;
@@ -21060,7 +21236,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "2b1085915cd7";
+const APP_BUILD = "21bcba3c9bb6";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
