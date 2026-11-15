@@ -3819,11 +3819,15 @@ var ArenaCore = (function () {
   // academy statements. Every rate stays; an academy keeps its account, with nothing owed, so its rates still work; the
   // stock counts stay with the menu and go without it.
   var RECORD_SETTINGS = ['counter-', 'turfSeries-', 'lateCancel-', 'member-', 'laneExtra-', 'reservationMoved-', 'reservationControllers-', 'academyStatement-'];
-  function freshStart(state, keepMenu) {
+  // keepBookings (owner, 15 November: "add an option there not to erase turf and court bookings"): the turf and court bookings of today
+  // and later stay, with their weekly series, each without its old bill (the money starts fresh with everything else).
+  function freshStart(state, keepMenu, keepBookings, now) {
     var out = {};
     Object.keys(state).forEach(function (name) { out[name] = []; });
     out.Equipment = (state.Equipment || []).slice();
-    var record = function (id) { return RECORD_SETTINGS.some(function (p) { return id.indexOf(p) === 0; }) || (!keepMenu && id.indexOf('stock-') === 0); };
+    var today = new Date((now || Date.now()) + 19800000).toISOString().slice(0, 10);
+    var record = function (id) { return (RECORD_SETTINGS.some(function (p) { return id.indexOf(p) === 0; }) && !(keepBookings && id.indexOf('turfSeries-') === 0)) || (!keepMenu && id.indexOf('stock-') === 0); };
+    if (keepBookings) out.TurfBookings = (state.TurfBookings || []).filter(function (b) { return b.status === 'booked' && String(b.dateKey) >= today; }).map(function (b) { var kept = JSON.parse(JSON.stringify(b)); kept.tabId = ''; kept.split = ''; return kept; });
     out.Settings = (state.Settings || []).filter(function (r) { return !record(String(r.id)); });
     var academies = out.Settings.filter(function (r) { return String(r.id).indexOf('academy-') === 0; }).map(function (r) { return String(r.id).slice(8); });
     out.CreditAccounts = (state.CreditAccounts || []).filter(function (a) { return academies.indexOf(a.id) >= 0; });
@@ -6702,7 +6706,7 @@ var ArenaReports = (function () {
    their own items, settled through the usual checkout. Every amount is an ordinary order on an ordinary tab. */
 var ArenaTurf = (function () {
   'use strict';
-  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY'];
+  var types = ['TURF_MEMBER', 'TURF_HALF', 'TURF_LINK', 'TURF_RENT', 'TURF_EXTEND', 'TURF_ITEMS_PAY', 'TURF_BOOK', 'TURF_CHANGE', 'TURF_CANCEL', 'TURF_SENT', 'TURF_ITEMS', 'TURF_CHECKOUT', 'TURF_SPLIT', 'TURF_DISCOUNT', 'TURF_PLAYER', 'TURF_MOVE', 'TURF_RATES', 'RATE_EXTRAS', 'TURF_POOL', 'TURF_PAY_ALL', 'TURF_CARRY', 'TURF_CREDIT_ALL', 'TURF_TAKE', 'TURF_FESTIVAL', 'TURF_PENDING', 'TURF_ACADEMY', 'TURF_UNLINK', 'TURF_ACCOUNT_DUE', 'TURF_ADVANCE', 'TURF_HOLD', 'TURF_CONFIRM', 'TURF_SEPARATE', 'TURF_SERIES_EXTEND', 'TURF_ACADEMY_SENT', 'TURF_PENDING_DUE', 'TURF_SWITCH', 'TURF_SPOT', 'PENDING_MOVE', 'PENDING_ADD_ITEMS', 'CARRY_UNDO', 'CARRY_PAY', 'PENDING_PART_PAY'];
   // Items bought for Team A, Team B or everyone are kept once, as bought, and each player's part is one line on their bill.
   var SHARED = 'Shared items', GROUPS = ['A', 'B', 'all'];
   // Every court of every venue comes from the branch's settings (Branch.gs), switched-off ones included, so old bookings and
@@ -6980,6 +6984,32 @@ var ArenaTurf = (function () {
     check(!ArenaCore.carryOf(state, billId), 'This bill was already moved.');
     check(!(state.CreditTransfers || []).some(function (t) { return t.billId === billId; }), 'This bill is on a credit account.');
     return bl;
+  }
+  // Part of a pending bill split off as a bill of its own (owner, 15 November: "pending bills how can i pay move or do anything for
+  // just one like just snooker"): the ticked systems, items and balances go to a new bill under the same name and day; the rest
+  // stays on the bill, its total lowered by the part. Not for a bill with a discount or money already paid on it.
+  function splitPending(state, billId, segmentIds, orderIds, now, id) {
+    var bl = pendingBill(state, billId), d = (state.BillDetails || []).find(function (x) { return x.id === bl.id; });
+    check(!!d, 'This bill was not found.');
+    check(!(Number(bl.paidPaise) > 0) && !(Number(d.discountPaise) > 0), 'A bill with a discount or money paid on it is collected or moved whole.');
+    var from = row(state.Tabs, d.tabId), segIds = Array.isArray(segmentIds) ? segmentIds : [], ordIds = Array.isArray(orderIds) ? orderIds : [];
+    var segs = (state.Segments || []).filter(function (g) { return g.tabId === from.id && g.status !== 'void' && segIds.indexOf(g.id) >= 0; });
+    var ords = (state.Orders || []).filter(function (o) { return o.tabId === from.id && o.status === 'active' && ordIds.indexOf(o.id) >= 0; });
+    check(segs.length + ords.length > 0, 'Choose the part.');
+    var part = segs.concat(ords).reduce(function (n, x) { return n + Number(x.totalPaise || 0); }, 0);
+    check(part > 0 && part < Number(bl.totalPaise), 'Choose part of the bill, not all of it.');
+    var tabId2 = id + '-part', billId2 = id + '-part-bill', minutes = segs.reduce(function (n, g) { return n + Number(g.billableMinutes || 0); }, 0);
+    state.Tabs.push({ id: tabId2, customer: from.customer, phone: from.phone, status: from.status, createdMs: from.createdMs, kind: from.kind });
+    segs.forEach(function (g) { g.tabId = tabId2; });
+    ords.forEach(function (o) { o.tabId = tabId2; o.revision = Number(o.revision || 1) + 1; });
+    (state.Carries || []).forEach(function (c) { if (ords.some(function (o) { return o.id === c.orderId; })) c.tabId = tabId2; });
+    state.Bills.push({ id: billId2, sessionId: tabId2, totalPaise: part, paidPaise: 0, billableMinutes: minutes });
+    state.BillDetails.push({ id: billId2, tabId: tabId2, customer: d.customer, subtotalPaise: part, discountPaise: 0, createdMs: d.createdMs });
+    ArenaCore.nextNumber(state, 'bill', billId2, now);
+    bl.totalPaise = Number(bl.totalPaise) - part;
+    bl.billableMinutes = Math.max(0, Number(bl.billableMinutes || 0) - minutes);
+    d.subtotalPaise = Number(d.subtotalPaise || 0) - part;
+    return billId2;
   }
   // A pending bill's balance onto another bill, named by where it was played ("Snooker 1 · Balance of bill MP-0012").
   function carryPending(state, bl, into, now, lineId, carryId) {
@@ -7451,6 +7481,14 @@ var ArenaTurf = (function () {
       turfLines(state, owner.id).filter(function (o) { return meta(o).playerId === player.id; }).forEach(function (o) { o.purchaser = player.name; });
       return { bookingId: owner.id, playerId: player.id, message: 'Player updated.' };
     }
+    if (cmd.type === 'PENDING_PART_PAY') {
+      // Part of a pending bill paid now; the rest stays pending.
+      var partBill = splitPending(state, cmd.billId, cmd.segmentIds, cmd.orderIds, now, id + '-split');
+      var partRow = (state.Bills || []).find(function (bl) { return bl.id === partBill; });
+      var partPaid = ArenaCore.engineFor('PAY').execute(state, { type: 'PAY', billId: partBill, amountPaise: partRow.totalPaise, method: cmd.method || 'cash' }, actor, now, id + '-pay');
+      var restRow = (state.Bills || []).find(function (bl) { return bl.id === cmd.billId; });
+      return { billId: partBill, receiptNumber: partPaid.receiptNumber, method: cmd.method || 'cash', message: 'Paid ₹' + (partRow.totalPaise / 100) + '. ₹' + ((restRow.totalPaise - restRow.paidPaise) / 100) + ' still pending.' };
+    }
     if (cmd.type === 'CARRY_PAY') {
       // A carried balance paid now while the game plays on (owner, 15 November: Pay Items with a tick): back on its own bill, which
       // is then paid in full.
@@ -7495,6 +7533,8 @@ var ArenaTurf = (function () {
       // will play there, so i need an option to move the pending bill … to systems or turf … also to the reservation list"): onto a
       // bill running on a system, a free system they start on now, a turf or court booking's bill, or a reservation, whose check-in
       // brings it onto the new bill. Each bill's balance goes as one line, at its own amount; the bill is then no longer pending.
+      // Part of a pending bill moved: split off first, in the same save.
+      if (cmd.split && typeof cmd.split === 'object') cmd.billIds = [splitPending(state, cmd.split.billId, cmd.split.segmentIds, cmd.split.orderIds, now, id + '-split')];
       check(Array.isArray(cmd.billIds) && cmd.billIds.length >= 1 && cmd.billIds.length <= 20, 'Choose the pending bills.');
       // Balances carried onto a bill still open, moved on from its Pay Items: taken off it in the same save as the move, so nothing
       // changes until the move is made (owner, 15 November: going back from Move had left the bill pending).
@@ -14421,7 +14461,10 @@ async function receiptSheet(billId, back) {
         const toSystem = turfOwner && !turfAccountOf(turfPlayer ? turfPlayer.id : turfOwner.id) && !(turfOwner.split === 'yes' && !turfPlayer) ? btn([icon('transfer'), 'Move to System'], () => turfMoveSheet(turfOwner, turfPlayer), 'quiet', { data: { action: 'bill-move-system' } }) : null;
         // Any other bill left pending can go onto a system, a booking or a reservation (owner, 15 November).
         const toPlace = !turfOwner && !ArenaCore.carryOf(state, billId) ? btn([icon('transfer'), 'Move'], () => pendingMoveSheet([billId], (data.tab || {}).customer, due, () => receiptSheet(billId)), 'quiet', { data: { action: 'bill-move-pending' } }) : null;
-        ui.foot.append(h('div', 'foot-links', btn([icon('credits'), 'Move to Credit'], () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, due, goodsOf(data.orders))), 'quiet', { data: { action: 'bill-credit' } }), toSystem, toPlace, btn('Close', dismissSheet, 'quiet')));
+        // Part of it paid or moved (owner, 15 November): a bill of more than one part, nothing paid on it and no discount.
+        const parts = new Set((data.segments || []).filter(g => g.status !== 'void').map(g => g.unitId)).size + (data.orders || []).filter(o => o.status === 'active').length;
+        const toPart = !turfOwner && parts > 1 && !(data.bill.paidPaise > 0) && !((data.detail || {}).discountPaise > 0) ? btn([icon('wallet'), 'Pay or move part'], () => pendingPartSheet(billId, data, () => receiptSheet(billId, back)), 'quiet', { data: { action: 'bill-part' } }) : null;
+        ui.foot.append(h('div', 'foot-links', toPart, btn([icon('credits'), 'Move to Credit'], () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, due, goodsOf(data.orders))), 'quiet', { data: { action: 'bill-credit' } }), toSystem, toPlace, btn('Close', dismissSheet, 'quiet')));
       } else {
         // Nothing left to collect: say so plainly, then offer the receipt.
         const done = data.status === 'paid' ? ['', 'checkCircle', 'Paid in full', money(bill.totalPaise) + ' settled' + (extras.length ? ' · ' + money(receivedAll) + ' received in all' : '')]
@@ -16465,6 +16508,44 @@ function pendingLine(r, back) {
       btn([icon('transfer'), 'Move'], () => pendingMoveSheet([r.bill.id], (r.tab || {}).customer || r.detail.customer, r.owed, back), 'quiet', { data: { action: 'pending-move' } }),
       btn([icon('wallet'), 'Collect'], () => receiptSheet(r.bill.id, back), 'go', { data: { action: 'pending-collect-one' } })));
 }
+// Pay or move part of a pending bill (owner, 15 November: "how can i pay move or do anything for just one like just snooker"): each
+// system, item and balance from earlier with a tick, nothing ticked at first; Collect pays what is ticked, Move sends it anywhere,
+// each in one save (the part becomes a bill of its own; the rest stays pending). Back changes nothing.
+function pendingPartSheet(billId, data, back) {
+  const segs = (data.segments || []).filter(g => g.status !== 'void'), orders = (data.orders || []).filter(o => o.status === 'active');
+  const groups = new Map();
+  for (const g of segs) { const name = (unitOf(g.unitId) || {}).name || 'Game'; if (!groups.has(name)) groups.set(name, { key: 'u:' + name, name, segmentIds: [], orderIds: [], paise: 0 }); const x = groups.get(name); x.segmentIds.push(g.id); x.paise += Number(g.totalPaise || 0); }
+  const rows = [...groups.values(), ...orders.map(o => ({ key: 'o:' + o.id, name: o.category === 'Carried' ? carriedOf(o).what : o.label + (Number(o.quantity) > 1 ? ' × ' + o.quantity : ''), segmentIds: [], orderIds: [o.id], paise: Number(o.totalPaise || 0) }))];
+  const picked = new Set(), pay = { method: 'cash' }, who = (data.tab || {}).customer || (data.detail || {}).customer || '';
+  let how = null;
+  const chosen = () => rows.filter(r => picked.has(r.key)), sum = () => chosen().reduce((n, r) => n + r.paise, 0), whole = () => chosen().length === rows.length;
+  const split = () => ({ billId, segmentIds: chosen().flatMap(r => r.segmentIds), orderIds: chosen().flatMap(r => r.orderIds) });
+  openSheet({
+    title: 'Pay or move part',
+    sub: (who || 'Walk-in') + ' · owes ' + money(data.bill.totalPaise - data.bill.paidPaise),
+    icon: 'wallet',
+    focus: false,
+    onClose: back,
+    build(ui) {
+      ui.body.append(h('div', { class: 'lines end-pick', data: { field: 'pending-part' } }, rows.map(r => h('div', { class: 'line pick', role: 'button', tabindex: '0', 'aria-pressed': String(picked.has(r.key)), data: { part: r.key }, onclick: () => { if (picked.has(r.key)) picked.delete(r.key); else picked.add(r.key); ui.redraw(); } },
+        h('input', { type: 'checkbox', checked: picked.has(r.key), tabindex: '-1', 'aria-hidden': 'true' }),
+        h('div', 'line-main', h('b', { text: r.name })),
+        h('span', { class: 'line-amount', text: money(r.paise) })))));
+      const due = sum();
+      how = payChoice(pay, () => {}, { due: () => due, splittable: false });
+      ui.foot.append(h('div', 'foot-row', h('div', { class: 'foot-label', text: 'Ticked' }), h('div', { class: 'foot-total', text: money(due) })), h('div', 'foot-row pay-foot', how.node));
+      if (due) ui.foot.append(h('div', 'foot-row', btn([icon('transfer'), 'Move'], () => (whole() ? pendingMoveSheet([billId], who, due, () => pendingPartSheet(billId, data, back)) : pendingMoveSheet([billId], who, due, () => pendingPartSheet(billId, data, back), { split: split() })), 'block', { data: { action: 'pending-part-move' } })));
+      ui.primary(due ? 'Collect ' + money(due) : 'Tick what they pay or move', !due);
+    },
+    command() {
+      if (!sum()) throw new Error('Tick what they pay or move.');
+      const method = how.value(sum()).method;
+      if (whole()) return { type: 'PAY', billId, amountPaise: sum(), method };
+      return { type: 'PENDING_PART_PAY', ...split(), method };
+    },
+    then(result) { closeSheet(); render(); return { text: result.message || 'Paid.' }; }
+  });
+}
 // Add Items to a pending bill (owner, 15 November): onto the same bill, what it then owes on the button.
 function pendingItemsSheet(billId, name, owed, back) {
   let picker;
@@ -16547,7 +16628,7 @@ function pendingMoveSheet(billIds, name, owed, back, opts = {}) {
     },
     command() {
       if (!to) throw new Error('Choose where it goes.');
-      const base = { type: 'PENDING_MOVE', billIds, ...(opts.uncarry ? { uncarry: opts.uncarry } : {}) };
+      const base = { type: 'PENDING_MOVE', billIds, ...(opts.uncarry ? { uncarry: opts.uncarry } : {}), ...(opts.split ? { split: opts.split } : {}) };
       if (to.kind === 'unit') { const unit2 = unitOf(to.unitId); return { ...base, unitId: to.unitId, startMs: time.value(), ...(unit2.category === 'PS5' ? { controllers: Number(pads.count.value()) } : {}), ...(unit2.category === 'Bowling' ? laneChoice(lane) : {}) }; }
       if (to.kind === 'booking') return { ...base, bookingId: to.bookingId };
       if (to.kind === 'reservation') return { ...base, reservationId: to.reservationId };
@@ -17446,7 +17527,7 @@ function festivalSheet(f) {
 }
 // Erase all data: the password and the word ERASE; the menu kept unless unticked. Waits for saves still on their way.
 function eraseAllSheet() {
-  let password, word, keepMenu;
+  let password, word, keepMenu, keepBookings;
   openSheet({
     title: 'Erase all data',
     sub: 'This cannot be undone from the app',
@@ -17456,11 +17537,13 @@ function eraseAllSheet() {
       password = password || h('input', { type: 'password', autocomplete: 'current-password', 'aria-label': 'Manager password', data: { field: 'erase-password' } });
       word = word || textInput({ 'aria-label': 'Type ERASE', autocapitalize: 'characters', data: { field: 'erase-word' } });
       keepMenu = keepMenu || h('input', { type: 'checkbox', checked: true, data: { field: 'erase-keep-menu' } });
+      keepBookings = keepBookings || h('input', { type: 'checkbox', checked: false, data: { field: 'erase-keep-bookings' } });
       const list = (title, items) => h('div', 'field', h('span', { text: title }), h('p', { class: 'small', text: items }));
       ui.body.append(
         list('Erased', 'Every bill, payment and receipt, gaming session, turf and court booking, reservation, credit account, customer, report day and comment. Bill numbers start again at ' + ARENA_BRANCH.billPrefix + '0001.'),
         list('Kept', 'Stations, every rate (gaming, courts, bowling, rentals, memberships and academies, each academy keeping its account with nothing owed), settings, festival dates and the sign-in. A private backup copy of everything is made first.'),
         h('label', 'check', keepMenu, h('span', { text: 'Keep the snacks and beverages menu, with its prices and stock' })),
+        h('label', 'check', keepBookings, h('span', { text: 'Keep turf and court bookings from today on, with their weekly series (money paid on them is erased)' })),
         field(ARENA_BRANCH.web.login ? 'Sign-in password' : 'Manager password', password),
         field('Type ERASE to confirm', word));
       const go = h('button', { type: 'button', class: 'btn danger block', data: { action: 'erase-confirm' } }, icon('trash'), 'Erase everything');
@@ -17476,7 +17559,7 @@ function eraseAllSheet() {
           await outboxDrained();
           // A sign-in kept on Vercel: Vercel checks the password and gives the short pass the server asks for.
           const proof = ARENA_BRANCH.web.login && typeof previewMode === 'undefined' ? await askLoginPass(session.user.username, password.value).catch(e => { throw new Error(/^Invalid username/.test(e.message) ? 'Invalid password.' : e.message); }) : password.value;
-          await rpc('rpcEraseAll', token, proof, keepMenu.checked, word.value.trim());
+          await rpc('rpcEraseAll', token, proof, keepMenu.checked, word.value.trim(), keepBookings.checked);
           password.value = '';
           closeSheet();
           await refresh(true);
@@ -20447,7 +20530,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "e253550ce4e4";
+const APP_BUILD = "5e1798ec3956";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
