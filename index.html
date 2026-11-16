@@ -15485,7 +15485,7 @@ function reconStatement(side, e, dayWords, day) {
   const names = [...RECON_PLACES[side], ...Object.keys(e.places).filter(p => !RECON_PLACES[side].includes(p))];
   const use = place => { const p = e.places[place] || {}; return p.bookings ? inWords(Math.round(p.hours * 60)) + ' · ' + plural(p.bookings, 'booking', 'bookings') : place === 'Gaming floor' && p.bills ? plural(p.bills, 'bill', 'bills') : ''; };
   const rows = [], charged = names.reduce((n, p) => n + ((e.places[p] || {}).netPaise || 0) + ((e.places[p] || {}).discountPaise || 0), 0);
-  const amount = (paise, sign) => ({ text: (sign === '−' ? '− ' : '') + money(paise), num: true });
+  const amount = (paise, sign) => ({ text: (sign === '−' ? '− ' : sign === '+' ? '+ ' : '') + money(paise), num: true });
   const kind = (key, title, list, sign) => {
     if (!list || !list.length) return;
     const sum = list.reduce((n, x) => n + x.paise, 0);
@@ -15502,13 +15502,17 @@ function reconStatement(side, e, dayWords, day) {
   kind('pending', 'Left pending', e.pending, '−');
   kind('credit', 'Put on credit', e.credit, '−');
   kind('later', 'Paid after these dates', e.later, '−');
-  rows.push({ cls: 'a-sum', data: { reconPaid: '' }, cells: ['Paid for ' + (dayWords === 'these dates' ? 'these dates’' : dayWords + '’s') + ' bills', e.paidPaise] });
-  kind('advance', 'Advance for later days', e.advances, '');
-  kind('pendingIn', 'Pending of earlier days collected', e.pendingIn, '');
-  kind('creditIn', 'Credit collected', e.creditIn, '');
+  // Total charged and "today's bills" read as the same thing (owner, 16 November: "total charged is there, again todays bills is there so
+  // its confusing"): nothing taken off, no line in between; something taken off, the line says what ("After discount and pending").
+  const off = [['discount', e.discounts], ['advance paid before', e.earlier], ['pending', e.pending], ['credit', e.credit], ['paid later', e.later]].filter(([, list]) => list && list.length).map(([word]) => word);
+  if (off.length) rows.push({ cls: 'a-sum', data: { reconPaid: '' }, cells: ['After ' + (off.length > 1 ? off.slice(0, -1).join(', ') + ' and ' + off[off.length - 1] : off[0]), e.paidPaise] });
+  // Money for other days comes on top, said with +.
+  kind('advance', 'Advance for later days', e.advances, '+');
+  kind('pendingIn', 'Pending of earlier days collected', e.pendingIn, '+');
+  kind('creditIn', 'Credit collected', e.creditIn, '+');
   kind('back', 'Taken back', e.takenBack, '−');
-  if (e.otherRestPaise) rows.push({ cells: ['Other money for other days', amount(Math.abs(e.otherRestPaise), e.otherRestPaise < 0 ? '−' : '')] });
-  rows.push({ cls: 'a-grand', data: { reconTotal: '' }, cells: ['Total received', e.receivedPaise] });
+  if (e.otherRestPaise) rows.push({ cells: ['Other money received', amount(Math.abs(e.otherRestPaise), e.otherRestPaise < 0 ? '−' : '+')] });
+  rows.push({ cls: 'a-grand', data: { reconTotal: '' }, cells: ['Total received ' + (dayWords === 'today' ? 'today' : dayWords === 'these dates' ? 'in these dates' : 'on ' + dayWords), e.receivedPaise] });
   return auditSection('What should have come in', '', auditTable(null, rows, 'statement-' + side));
 }
 // What was moved where: from each account to each, how many, how much.
@@ -21246,7 +21250,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "1b1e3e5c9b0d";
+const APP_BUILD = "aad0f28d9f47";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
