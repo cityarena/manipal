@@ -5166,7 +5166,8 @@ var ArenaCustomers = (function () {
   // Called when a visit, Quick Sale or reservation is saved: reuse the customer or register them.
   function touch(state, name, phone, now, id) {
     state.Customers = state.Customers || [];
-    if (!nameKey(name)) return null;
+    // Names the app gives when none is typed are never a customer: many people share them (owner, 16 November).
+    if (!nameKey(name) || /^(walk-?in|spot\s*booking|customer [a-z]{1,2})$/i.test(String(name).trim())) return null;
     var found = match(state, name, phone);
     if (found) {
       found.lastSeenMs = now;
@@ -7600,7 +7601,9 @@ var ArenaTurf = (function () {
       check(!inTheWay || cmd.anyway === true, (COURT_NAMES[cmd.court] || cmd.court) + ' is booked ' + (inTheWay ? rangeText(inTheWay) + ' by ' + (inTheWay.customer || inTheWay.phone) : '') + '. Book anyway?');
       var spot = { id: id, dateKey: cmd.dateKey, startHour: from / 60, hours: (to - from) / 60, court: cmd.court, sport: cmd.sport, customer: spotName || spotPhone || 'Spot booking', phone: spotPhone, status: 'booked', confirmSent: '', reason: 'spot', createdMs: now, updatedMs: now, revision: 1, ratePaise: rateFor(state, cmd.court), tabId: '', split: '', discountPaise: 0 };
       state.TurfBookings.push(spot);
-      if (typeof ArenaCustomers !== 'undefined' && spotPhone) ArenaCustomers.touch(state, spot.customer, spotPhone, now, id + '-customer');
+      // Kept as a customer only with a real name and a mobile (owner, 16 November: "do not save their info unless name and mobile number is
+      // added … could be different customers").
+      if (typeof ArenaCustomers !== 'undefined' && spotPhone && spotName && !/^spot\s*booking$/i.test(spotName)) ArenaCustomers.touch(state, spotName, spotPhone, now, id + '-customer');
       return { bookingId: id, bookingIds: [id], message: 'Spot booking · ' + (COURT_NAMES[cmd.court] || cmd.court) + ' · ' + rangeText(spot) + '.' };
     }
     if (cmd.type === 'TURF_BOOK') {
@@ -21250,7 +21253,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "aad0f28d9f47";
+const APP_BUILD = "b714b40e6a1f";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
