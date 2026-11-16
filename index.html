@@ -5792,7 +5792,7 @@ var ArenaViews = (function () {
    Charges raised and money received are always reported separately: a bill moved to credit is a charge, not a receipt. */
 var ArenaReports = (function () {
   'use strict';
-  var types = ['CLOSE_DAY', 'BUSINESS_DAY_SETTING', 'PAY_QR_SETTING', 'UPI_MOVE', 'UPI_MOVE_UNDO', 'UPI_MOVE_ALL'], DAY_MS = 86400000, GAMING = ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling', 'Manual'];
+  var types = ['CLOSE_DAY', 'BUSINESS_DAY_SETTING', 'PAY_QR_SETTING', 'UPI_MOVE', 'UPI_MOVE_UNDO', 'UPI_MOVE_ALL', 'UPI_MOVE_APPLY'], DAY_MS = 86400000, GAMING = ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Bowling', 'Manual'];
 
   function check(ok, message) { ArenaCore.check(ok, message); }
   function setting(state, key, fallback) {
@@ -6075,6 +6075,26 @@ var ArenaReports = (function () {
     // it, the bill's payments taken oldest first (a booking's advance before the rest). So ₹300 in advance and ₹710 later on
     // a ₹1,000 turf and a ₹10 water are turf ₹300, then turf ₹700 and water ₹10, never ₹702.97 and ₹7.03. A payment taken
     // back later gives back what it filled; one taken back the same day never filled anything.
+    var SHARED_NAMES = ['Snacks', 'Beverages', 'Ice cream'];
+    // A part of a payment moved to another account (Reconciliation's Transfer, owner 16 November) keeps the lines of the side it was
+    // moved for: the payment and its moved parts fill the bill together, as the one payment it was, then each moved part takes its
+    // side's lines and the rest stay with the payment. each: payment → { part key → paise }, in place.
+    var sideOfKey = function (k) { var name = k.split('@')[0]; return SHARED_NAMES.indexOf(name) >= 0 ? 'snacks' : OTHER_PLACES.indexOf(name) >= 0 || name === 'Rentals' || name === 'Membership' ? 'courts' : 'floor'; };
+    var regroupMoved = function (each, keys, pays) {
+      pays.forEach(function (p) {
+        var m = /^(.+)-moved-(floor|courts|snacks)(-\d+)?$/.exec(p.id);
+        if (!m || !each[m[1]] || !each[p.id]) return;
+        var whole = {};
+        [m[1], p.id].forEach(function (pid) { Object.keys(each[pid]).forEach(function (k) { whole[k] = (whole[k] || 0) + each[pid][k]; }); });
+        var mine = {}, rest = p.amountPaise;
+        keys.forEach(function (k) { if (!whole[k] || sideOfKey(k) !== m[2] || rest <= 0) return; var take = Math.min(rest, whole[k]); if (take > 0) { mine[k] = take; rest -= take; } });
+        keys.slice().reverse().forEach(function (k) { if (!whole[k] || rest <= 0) return; var take = Math.min(rest, whole[k] - (mine[k] || 0)); if (take > 0) { mine[k] = (mine[k] || 0) + take; rest -= take; } });
+        var left = {};
+        Object.keys(whole).forEach(function (k) { var v = whole[k] - (mine[k] || 0); if (v) left[k] = v; });
+        each[p.id] = mine;
+        each[m[1]] = left;
+      });
+    };
     var fillRank = function (key) { var name = key.split('@')[0]; return key === 'pending' ? 0 : name === 'turf' || OTHER_PLACES.indexOf(name) >= 0 ? 1 : ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Manual'].indexOf(name) >= 0 ? 2 : 3; };
     var billPayments = null, fills = {};
     var paymentsOfBill = function (billId) {
@@ -6121,6 +6141,7 @@ var ArenaReports = (function () {
         }
         each[item.p.id] = bits;
       });
+      regroupMoved(each, keys, paymentsOfBill(billId).map(function (item) { return item.p; }));
       fills[billId] = each;
       return each;
     };
@@ -6252,15 +6273,18 @@ var ArenaReports = (function () {
         (state.Payments || []).forEach(function (x) { if (x.billId === detail.id && !undoneSameDay[x.id]) events.push({ id: x.id, at: x.createdMs, cash: x.method === 'cash', paise: x.amountPaise, undo: x.amountPaise < 0 ? ((state.Corrections || []).find(function (c) { return c.kind === 'payment_reversal' && c.id === x.id; }) || {}).targetId : '' }); });
         (state.CreditAllocations || []).forEach(function (a) { if (a.kind === 'bill' && a.targetId === detail.id) { var pay = (state.Payments || []).find(function (x) { return x.id === a.receiptId; }); events.push({ id: a.receiptId, at: pay ? pay.createdMs : 0, paise: a.amountPaise, undo: '' }); } });
         events.sort(function (a, c) { return a.at - c.at || Number(!!a.cash) - Number(!!c.cash) || (a.id < c.id ? -1 : a.id > c.id ? 1 : 0); });
+        var raw = {};
         events.forEach(function (ev) {
-          var got = {};
-          if (ev.undo && each[ev.undo]) Object.keys(each[ev.undo]).forEach(function (k) { got[k] = -each[ev.undo][k]; });
+          var bits = {};
+          if (ev.undo && raw[ev.undo]) Object.keys(raw[ev.undo]).forEach(function (k) { bits[k] = -raw[ev.undo][k]; });
           else if (ev.paise > 0) {
             var rest = ev.paise;
-            keys.forEach(function (k) { var take = Math.min(rest, left[k]); if (take > 0) { left[k] -= take; rest -= take; into(got, detail, k, take); } });
+            keys.forEach(function (k) { var take = Math.min(rest, left[k]); if (take > 0) { left[k] -= take; rest -= take; bits[k] = take; } });
           }
-          each[ev.id] = got;
+          raw[ev.id] = bits;
         });
+        regroupMoved(raw, keys, events.map(function (ev) { return { id: ev.id, amountPaise: ev.paise }; }));
+        events.forEach(function (ev) { var got = {}; Object.keys(raw[ev.id] || {}).forEach(function (k) { into(got, detail, k, raw[ev.id][k]); }); each[ev.id] = got; });
         var owed = {};
         keys.forEach(function (k) { if (left[k] > 0) into(owed, detail, k, left[k]); });
         fillsOf[detail.id] = { each: each, owed: owed };
@@ -6618,10 +6642,20 @@ var ArenaReports = (function () {
           out.recon.items.push({ id: moveId, paymentId: pay.id, billId: pay.billId || '', side: side, at: pay.createdMs, account: acct, should: properFor[side], wrongPaise: mine[side], paidPaise: pay.amountPaise,
             customer: payPieces[pay.id].found.customer || (tabs[tabId] || {}).customer || '', billNumber: pay.billId ? numberOf[pay.billId] || '' : '', receiptNumber: numberOf[pay.id] || '',
             as: payPieces[pay.id].found.as || 'today', lines: tabId ? linesOf(tabId) : [], moved: moved, place: tabId ? tabPlace(tabId) || tabHome(tabId) : '' });
-          if (moved) out.recon.moves.push({ id: moveId, from: acct, to: moved.to, amountPaise: moved.amountPaise, at: moved.at, side: side });
+          if (moved && !moved.applied) out.recon.moves.push({ id: moveId, from: acct, to: moved.to, amountPaise: moved.amountPaise, at: moved.at, side: side, applied: false });
         });
       });
     });
+    // Transfers already applied to their payments: listed once, from their records, for the payments of these dates.
+    Object.keys(settingOf).forEach(function (k) {
+      var rec = null;
+      try { rec = settingOf[k] ? JSON.parse(settingOf[k]) : null; } catch (e) { rec = null; }
+      if (!rec || !rec.applied) return;
+      var payId = k.slice(8, k.lastIndexOf('-'));
+      if (!payPieces[payId] && !(rec.copyId && payPieces[rec.copyId])) return;
+      out.recon.moves.push({ id: k, from: rec.from || '', to: rec.to, amountPaise: rec.amountPaise, at: rec.at, side: rec.side || k.slice(k.lastIndexOf('-') + 1), applied: true });
+    });
+    out.recon.unapplied = out.recon.moves.filter(function (m) { return !m.applied; }).length;
     out.recon.items.sort(function (a, c) { return c.at - a.at; });
     out.recon.paid.sort(function (a, c) { return a.at - c.at; });
 
@@ -6698,6 +6732,26 @@ var ArenaReports = (function () {
       if (qr) qr.value = cmd.on ? 0 : 1; else state.Settings.push({ id: 'payQrOff', value: cmd.on ? 0 : 1 });
       return { message: cmd.on ? 'Payment QR is on.' : 'Payment QR is off.' };
     }
+    // A UPI payment moved to another account: all of it (its method changed), or the part moved as a payment of its own on the same bill,
+    // receipt and moment, which fills the bill after the rest (so a bill's snacks, filled last, are what moves). A payment into a credit
+    // account or held in advance moves only whole. Kept in Corrections.
+    function movePayment(state, paid, to, amount, now, id, actor, side) {
+      check(!(state.Corrections || []).some(function (c) { return c.kind === 'payment_reversal' && c.targetId === paid.id; }), 'This payment was taken back.');
+      state.Corrections = state.Corrections || [];
+      var old = paid.method, copyId = '';
+      if (amount === Number(paid.amountPaise)) paid.method = 'upi:' + to;
+      else {
+        var whole = !paid.billId || (state.CreditReceipts || []).some(function (x) { return x.id === paid.id; }) || (state.Advances || []).some(function (x) { return x.id === paid.id; });
+        check(!whole, 'A payment into an account or paid in advance is moved whole.');
+        copyId = paid.id + '-moved-' + side + ((state.Payments || []).some(function (x) { return x.id === paid.id + '-moved-' + side; }) ? '-' + now : '');
+        paid.amountPaise = Number(paid.amountPaise) - amount;
+        state.Payments.push(Object.assign({}, paid, { id: copyId, amountPaise: amount, method: 'upi:' + to }));
+        var ref = (state.References || []).find(function (x) { return x.id === paid.id; });
+        if (ref) state.References.push({ id: copyId, kind: ref.kind, number: ref.number, createdMs: now });
+      }
+      state.Corrections.push({ id: id + '-correction', kind: 'upi_move', targetId: paid.id, field: 'method', oldValue: old, newValue: 'upi:' + to, reason: 'Transfer ₹' + (amount / 100) + (copyId ? ' as ' + copyId : ''), actor: actor.username || '', createdMs: now });
+      return { copyId: copyId };
+    }
     // Reconciliation's Transfer (owner, 14 November: "an option when i click to transfer that amount to other upi"): the money is
     // moved in the bank's own app; this records that the part of a payment paid into the wrong account was moved, from where to
     // where and how much (never more than was paid), or takes that record back.
@@ -6712,8 +6766,25 @@ var ArenaReports = (function () {
       });
       var names = function (k) { return ((ARENA_BRANCH.upiAccounts || []).find(function (a) { return a.id === k; }) || { name: k }).name; };
       // ₹1,520 as the screens write it, in Indian grouping.
-      var whole = String(Math.floor(total / 100)), grouped = whole.length > 3 ? whole.slice(0, -3).replace(/B(?=(d{2})+(?!d))/g, ',') + ',' + whole.slice(-3) : whole;
+      var whole = String(Math.floor(total / 100)), grouped = whole.length > 3 ? whole.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + whole.slice(-3) : whole;
       return { message: 'Moved ₹' + grouped + (total % 100 ? '.' + String(total % 100).padStart(2, '0') : '') + ' to ' + names(cmd.to) + ' · ' + cmd.moves.length + (cmd.moves.length === 1 ? ' payment.' : ' payments.') };
+    }
+    // Transfers recorded before the payments themselves were moved, applied to their bills now, all at once (owner, 16 November).
+    if (cmd.type === 'UPI_MOVE_APPLY') {
+      var applied = 0;
+      (state.Settings || []).forEach(function (row2, i) {
+        if (String(row2.id).indexOf('upiMove-') !== 0 || !row2.value) return;
+        var rec = null;
+        try { rec = JSON.parse(row2.value); } catch (e) { rec = null; }
+        if (!rec || rec.applied) return;
+        var payId = String(row2.id).slice(8, String(row2.id).lastIndexOf('-')), pay2 = (state.Payments || []).find(function (x) { return x.id === payId; });
+        if (!pay2 || String(pay2.method).indexOf('upi:') !== 0 || rec.amountPaise > pay2.amountPaise) return;
+        rec.from = String(pay2.method).slice(4);
+        Object.assign(rec, movePayment(state, pay2, rec.to, rec.amountPaise, now, id + '-' + i, actor, rec.side || String(row2.id).slice(String(row2.id).lastIndexOf('-') + 1)), { applied: true });
+        row2.value = JSON.stringify(rec);
+        applied++;
+      });
+      return { applied: applied, noop: !applied, message: applied ? applied + (applied === 1 ? ' transfer' : ' transfers') + ' applied to their bills.' : 'Nothing to apply.' };
     }
     if (cmd.type === 'UPI_MOVE' || cmd.type === 'UPI_MOVE_UNDO') {
       check(typeof cmd.paymentId === 'string' && (cmd.side === 'floor' || cmd.side === 'courts' || cmd.side === 'snacks'), 'Choose the payment.');
@@ -6723,14 +6794,24 @@ var ArenaReports = (function () {
       var moveId = 'upiMove-' + cmd.paymentId + '-' + cmd.side, row = state.Settings.find(function (r) { return r.id === moveId; });
       if (cmd.type === 'UPI_MOVE_UNDO') {
         check(!!row && !!row.value, 'Nothing was moved for this payment.');
+        var was = {};
+        try { was = JSON.parse(row.value) || {}; } catch (e) { was = {}; }
+        // The payment goes back into the account it was paid into.
+        if (was.applied) {
+          var back2 = was.copyId ? (state.Payments || []).find(function (x) { return x.id === was.copyId; }) : paid;
+          if (back2) { state.Corrections = state.Corrections || []; state.Corrections.push({ id: id + '-correction', kind: 'upi_move', targetId: back2.id, field: 'method', oldValue: back2.method, newValue: 'upi:' + was.from, reason: 'Transfer taken back', actor: actor.username || '', createdMs: now }); back2.method = 'upi:' + was.from; }
+        }
         row.value = '';
         return { message: 'Transfer taken back.' };
       }
       var accounts = ARENA_BRANCH.upiAccounts || [], from = String(paid.method).slice(4);
+      check(!row || !row.value, 'This was already moved.');
       check(accounts.some(function (a) { return a.id === cmd.to; }) && cmd.to !== from, 'Choose the account it was moved to.');
       check(Number.isSafeInteger(cmd.amountPaise) && cmd.amountPaise > 0 && cmd.amountPaise <= paid.amountPaise, 'Enter an amount up to what was paid.');
-      check(!row || !row.value, 'This was already moved.');
-      var value = JSON.stringify({ to: cmd.to, amountPaise: cmd.amountPaise, at: now });
+      // The payment itself is moved (owner, 16 November: "once move the bills from one upi to another, make sure the actual bills wherever
+      // they were are also moved … and once done just make sure no duplicates"): the whole of it to the account, or the part moved as a
+      // payment of its own into that account, on the same bill and receipt.
+      var value = JSON.stringify(Object.assign({ to: cmd.to, amountPaise: cmd.amountPaise, at: now, from: from, side: cmd.side }, movePayment(state, paid, cmd.to, cmd.amountPaise, now, id, actor, cmd.side), { applied: true }));
       if (row) row.value = value; else state.Settings.push({ id: moveId, value: value });
       var name = function (id) { return (accounts.find(function (a) { return a.id === id; }) || { name: id }).name; };
       return { message: 'Moved ₹' + (cmd.amountPaise / 100) + ' from ' + name(from) + ' to ' + name(cmd.to) + '.' };
@@ -15392,6 +15473,8 @@ function reconMark(item, moved) {
   const main = $('main'), top = main ? main.scrollTop : 0;
   render();
   if (main) main.scrollTop = top;
+  // The payments themselves were moved: the report is read again, so the money shows in the account it went to, once.
+  loadReport(reportKey()).then(() => { if (main) main.scrollTop = top; });
 }
 // A plain table: a heading row, rows of cells (text, or { text, num, cls, node, span }), a row opening its bill when it has one.
 // A row with kids is one line that opens to them (owner, 15 November: "when there is so much bookings, it will be so long … if i
@@ -15524,15 +15607,21 @@ function reconMoves(moves) {
   for (const m of moves) { const k = m.from + '>' + m.to; ways[k] = ways[k] || { from: m.from, to: m.to, count: 0, paise: 0 }; ways[k].count++; ways[k].paise += m.amountPaise; }
   const list = Object.values(ways);
   if (!list.length) return auditSection('Transfers recorded', 'None yet');
+  const waiting = moves.filter(m => !m.applied).length;
   return auditSection('Transfers recorded', '',
+    ...[waiting ? h('div', { class: 'station-links', data: { field: 'recon-apply' } }, h('span', { class: 'small muted', text: plural(waiting, 'transfer was', 'transfers were') + ' recorded before bills were moved with them. ' }),
+      btn([icon('transfer'), 'Move them on their bills'], () => runCommand({ type: 'UPI_MOVE_APPLY' }, result => { loadReport(reportKey()); return { text: result.message }; }), 'outline', { data: { action: 'recon-apply' } })) : null].filter(Boolean),
     auditTable([{ text: 'From', num: false }, { text: 'To', num: false }, 'Payments', 'Amount'], [
       ...list.map(w => ({ data: { reconMove: w.from + '-' + w.to }, cells: [w.from ? accountName(w.from) : 'UPI', { text: accountName(w.to), num: false }, { text: String(w.count), num: true }, w.paise] })),
       { cls: 'a-total', cells: ['Total', '', '', list.reduce((n, w) => n + w.paise, 0)] }], 'moves'));
 }
 // Each account before and after the transfers recorded here; cash is the same in both.
 function reconBalances(s, moves) {
-  const before = { cash: s.cashPaise || 0, upi: { ...(s.upiByScanner || {}) } }, after = { cash: before.cash, upi: { ...before.upi } };
-  for (const m of moves) { after.upi[m.from] = (after.upi[m.from] || 0) - m.amountPaise; after.upi[m.to] = (after.upi[m.to] || 0) + m.amountPaise; }
+  const now = { ...(s.upiByScanner || {}) }, before = { cash: s.cashPaise || 0, upi: { ...now } }, after = { cash: before.cash, upi: { ...now } };
+  for (const m of moves) {
+    if (m.applied) { before.upi[m.from] = (before.upi[m.from] || 0) + m.amountPaise; before.upi[m.to] = (before.upi[m.to] || 0) - m.amountPaise; }
+    else { after.upi[m.from] = (after.upi[m.from] || 0) - m.amountPaise; after.upi[m.to] = (after.upi[m.to] || 0) + m.amountPaise; }
+  }
   const accounts = [['cash', 'Cash'], ...(UPI_ACCOUNTS || []).map(a => [a.id, a.name]), ['', 'UPI, no account']].filter(([id]) => id === 'cash' || before.upi[id] || after.upi[id]);
   const amountOf = (side, id) => (id === 'cash' ? side.cash : side.upi[id] || 0);
   return auditSection('Accounts', 'Before and after the transfers',
@@ -21253,7 +21342,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "b714b40e6a1f";
+const APP_BUILD = "1cbc7b88e51c";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
