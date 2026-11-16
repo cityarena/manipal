@@ -2881,7 +2881,7 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 .res-card { grid-template-columns: minmax(0, 1fr); }
 .res-list .res-tools > .btn { padding-inline: 10px; }
 /* The time they will get the lane, big; the booked time small beside it when they differ (owner, 13 November). */
-.res-when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.res-when { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
 .res-booked { color: var(--ink-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* Switch lane on a booking card and its small box (owner, 13 November). */
 .res-meta-lane { display: inline-flex; align-items: center; gap: 10px; }
@@ -3539,6 +3539,11 @@ td.num:has(.owed-open) { white-space: nowrap; }
 .court-rent-cost { min-width: 48px; text-align: right; font-weight: 600; }
 .send-row { gap: 8px; }
 .send-row .btn { flex: 1 1 0; min-width: 0; }
+.res-booked { display: inline-flex; align-items: center; gap: 8px; }
+.res-booked .res-off { font-weight: 600; }
+.res-booked .res-off.late { color: var(--warn); }
+.res-booked .res-off.early { color: var(--accent); }
+.res-booked .icon-btn { width: 28px; height: 28px; }
 </style>
 </head>
 <body>
@@ -3669,7 +3674,7 @@ var ARENA_BRANCH = (function () {
     ],
     // Bowling is charged per person per game, never by the clock. The clock only estimates when a lane is free:
     // 10 minutes a player and 5 minutes more a game (4 players, one game: 45 minutes).
-    bowling: { perPersonPaise: 15000, minutesPerPlayer: 10, minutesPerGame: 5, maxPlayers: 6, maxGames: 5 },
+    bowling: { perPersonPaise: 15000, minutesPerPlayer: 10, minutesPerGame: 0, maxPlayers: 6, maxGames: 5 }, // 10 minutes a player a game, no spare 5 (owner, 16 November)
     // A 10-minute price after each full hour (owner, 13 November: "from 1.07 to 1:10 → 1 hour + 10 minutes"), the fifth rate of a
     // kind; changed on Settings → Rates. A kind without one is charged in 15-minute steps only.
     tenMinutePaise: { PS5: 1000, Pool: 1500, Snooker: 2500 },
@@ -4733,16 +4738,34 @@ var ArenaReservations=(function(){
    if(!inGap){if(start-lane.freeMs>=GAP_MIN*MIN)lane.gaps.push({fromMs:lane.freeMs,toMs:start});lane.freeMs=end;}
    out[r.id]={id:r.id,unitId:lane.unitId,any:!r.unitId||r.anyLane===true||r.anyLane==='true'||r.anyLane==='free',expectedMs:start,endMs:end,bookedMs:walkIn(r)?null:r.arrivalMs,lateMs:walkIn(r)?0:start-r.arrivalMs,waitMs:Math.max(0,start-now)};
   }
+  // A booked customer already here plays in a gap before a later booking when the game ends in time (owner, 16 November: "their time
+  // you keep in mind, but if any other bookings can be squeezed before them, you will do it right??"), as a walk-in does.
+  function placeBooked(r,lane,start,onlyLane){
+   if(r.status==='waiting'){
+    var length=bookingMinutes(r)*MIN,pick=null;
+    plan.forEach(function(l){
+     if(onlyLane&&l.unitId!==onlyLane)return;
+     l.gaps.forEach(function(gap){var s0=Math.max(gap.fromMs,now);if(gap.toMs-s0>=length&&(!pick||Math.floor(s0/MIN)<Math.floor(pick.start/MIN)))pick={lane:l,gap:gap,start:s0};});
+    });
+    if(pick&&Math.floor(pick.start/MIN)<Math.floor(start/MIN)){
+     var gi=pick.lane.gaps.indexOf(pick.gap),rest=[{fromMs:pick.gap.fromMs,toMs:pick.start},{fromMs:pick.start+length,toMs:pick.gap.toMs}].filter(function(x){return x.toMs-x.fromMs>=GAP_MIN*MIN;});
+     pick.lane.gaps.splice.apply(pick.lane.gaps,[gi,1].concat(rest));
+     put(pick.lane,r,pick.start,true);return;
+    }
+   }
+   put(lane,r,start,false);
+  }
   booked.forEach(function(r){
    var here=r.status==='waiting',best=null,bestStart=0;
-   // Made for any lane and given one when saved (anyLane 'free'; owner, 11 November): it keeps that lane, and takes another only
-   // when that one would start it at least a minute sooner. A lane kept by the lock (anyLane true) never moves.
+   // Made for any lane and given one when saved (anyLane 'free'; owner, 11 November), or kept by the lock near its time (anyLane true):
+   // it keeps that lane, and takes another only when that one would start it at least a minute sooner, until it is checked in (owner,
+   // 16 November: "that booked card it does not change automatically depending on which is free??"). A lane chosen by hand stays.
    var startOf=function(l){return here?Math.max(l.freeMs,now):Math.max(l.freeMs,r.arrivalMs);};
-   var own=r.unitId&&r.anyLane==='free'?plan.find(function(l){return l.unitId===r.unitId;}):null;
+   var own=r.unitId&&(r.anyLane==='free'||r.anyLane===true||r.anyLane==='true')?plan.find(function(l){return l.unitId===r.unitId;}):null;
    if(own){
     var sooner=null;
     plan.forEach(function(l){if(l!==own&&Math.floor(startOf(l)/MIN)<Math.floor(startOf(own)/MIN)&&(!sooner||startOf(l)<startOf(sooner)))sooner=l;});
-    var lane0=sooner||own;put(lane0,r,startOf(lane0),false);return;
+    var lane0=sooner||own;placeBooked(r,lane0,startOf(lane0),'');return;
    }
    plan.forEach(function(lane){
     if(r.unitId&&r.unitId!==lane.unitId)return;
@@ -4752,7 +4775,7 @@ var ArenaReservations=(function(){
     var same=best&&Math.floor(start/MIN)===Math.floor(bestStart/MIN);
     if(!best||Math.floor(start/MIN)<Math.floor(bestStart/MIN)||(same&&lane.freeMs<best.freeMs-MIN)){best=lane;bestStart=start;}
    });
-   if(best)put(best,r,bestStart,false);
+   if(best)placeBooked(r,best,bestStart,r.unitId||'');
   });
   walkins.forEach(function(r){
    var length=bookingMinutes(r)*MIN,best=null,bestStart=0,bestGap=null;
@@ -12418,7 +12441,7 @@ function cardInfo(tab, name, first, extras, more = {}) {
     extras.some(Boolean) ? h('div', 'card-extras', extras) : null);
 }
 // A lane in use (owner, 22 October): who, how many players, since when, when it should be free (the same plan as Reservations:
-// players × 10 + 5 a game, plus any pause and +5 / +10) and the time left, or how far over.
+// players × 10 a game, plus any pause and +5 / +10) and the time left, or how far over.
 // Another round when one is over (owner, 23 October): how many games (and players, the same unless changed); the round
 // played stays on the bill and the new one starts now on the same lane.
 function laneRepeatSheet(unit, g) {
@@ -15812,7 +15835,8 @@ function reservationStatus(r) {
   }
   if (RES_PENDING.includes(r.status)) {
     if (nowMs() > r.arrivalMs + settingValue('reservationGraceMinutes', 10) * 60000 && r.status !== 'waiting') return h('span', { class: 'badge bad', text: 'Overdue' });
-    return h('span', { class: 'badge ' + (r.status === 'waiting' ? 'warn' : 'good'), text: r.status === 'waiting' ? 'Here' : 'Booked' });
+    // No "Here" (owner, 16 November: "remove that here now, very confusing. just focus on their time and the lane").
+    return h('span', { class: 'badge good', text: 'Booked' });
   }
   const label = { in_progress: 'Checked in', completed: 'Checked in', cancelled: 'Cancelled', no_show: 'No-show' }[r.status] || r.status;
   return h('span', { class: 'badge' + (r.status === 'in_progress' ? ' good' : ''), text: label });
@@ -15861,7 +15885,12 @@ function soonestPlace(r, without = []) {
 // 3rd or 4th bookings to early or start theirs"), its own lane first.
 function laneNowFor(r) {
   if (r.category !== 'Bowling') return null;
-  const lanes = state.Equipment.filter(u => u.category === 'Bowling' && !inUse(u)).sort((a, b) => Number(b.id === r.unitId) - Number(a.id === r.unitId));
+  // Its own lane first, then a lane nobody else is on now in the plan (owner, 16 November: Lane 1 was offered while Chetan, here early,
+  // was on it), then any other.
+  const now = nowMs(), length = ArenaCore.bowlingMinutes(Number(r.players) || 1, Number(r.games) || 1) * 60000, planned = lanePlan();
+  const taken = u => ((planned.lanes.find(l => l.unitId === u.id) || {}).blocks || []).some(b => b.id !== r.id && b.startMs < now + length && b.endMs > now);
+  const rank = u => (u.id === r.unitId ? 0 : taken(u) ? 2 : 1);
+  const lanes = state.Equipment.filter(u => u.category === 'Bowling' && !inUse(u)).sort((a, b) => rank(a) - rank(b));
   const lane = lanes.find(u => !laneConflict(u, nowMs(), Number(r.players) || 1, Number(r.games) || 1, r.id));
   return lane ? { ms: Math.floor(nowMs() / 60000) * 60000, unitId: lane.id } : null;
 }
@@ -16387,7 +16416,6 @@ function reservationCard(r, plan) {
   if (place && !walk && overBy) expect = why('late', 'Bowling', 'Late by ' + inWords(offBy) + ' · ' + name(place.unitId) + ' still in use');
   else if (place && !walk && busy) expect = why('late', 'Bowling', pastBy ? 'Not here yet · ' + name(place.unitId) + ' busy till then' : 'Late by ' + inWords(offBy) + ' · the game before on ' + name(place.unitId));
   else if (place && !walk && pastBy >= show) expect = why('late', 'user', 'Not here yet · ' + inWords(pastBy) + ' past their time');
-  else if (place && !walk && here && late <= -show) expect = why('early', 'user', 'Early by ' + inWords(-offBy) + ' · here, ' + name(place.unitId) + ' free');
   // WhatsApp only when the lane makes them wait, never to someone who is late themselves.
   const tell = r.phone && pending && (walk ? 'Hi ' + r.customer + ', your ' + what + ' at City Arena is ready.' : laneLate >= resMinutes('tell') && !pastBy ? 'Hi ' + r.customer + ', your bowling lane will be ready at about ' + clock(place.expectedMs) + '.' : '');
   const other = place && !walk && late >= resMinutes('tell') && plan.lanes.some(l => l.unitId !== place.unitId && l.freeMs < place.expectedMs);
@@ -16402,9 +16430,14 @@ function reservationCard(r, plan) {
   const held = pending ? pendingHeldFor(r) : { owed: 0 };
   return h('div', { class: 'res-card' + (walk ? ' walkin' : ''), data: { reservation: r.id } },
     h('div', 'res-top', walk ? h('b', { class: 'num res-token', text: '#' + r.token }) : h('span', 'res-when', h('b', { class: 'num res-time', data: { getsAt: String(getsAt || r.arrivalMs) }, text: when(getsAt || r.arrivalMs) }),
-      getsAt && offBy ? h('span', { class: 'res-booked', text: 'Booked ' + when(r.arrivalMs) }) : null), reservationStatus(r)),
+      // Their booked time small under the time they will get, and how late or early (owner, 16 November: "just show their booked
+      // time small and the actual time they will get (late or early like that) … even if its a booking selected on next free lane").
+      getsAt ? h('span', { class: 'res-booked', data: { booked: String(r.arrivalMs) } }, h('span', { text: 'Booked ' + when(r.arrivalMs) }),
+        ...[offBy ? h('b', { class: 'res-off ' + (offBy > 0 ? 'late' : 'early'), text: inWords(Math.abs(offBy)) + (offBy > 0 ? ' late' : ' early') }) : null].filter(Boolean),
+        ...[tell ? iconButton('whatsapp', 'WhatsApp ' + r.customer + ' when the lane is ready', () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } }) : null].filter(Boolean)) : null), reservationStatus(r)),
     // WhatsApp to say when the lane is ready sits at the end of the line that says it (owner, 11 November), the buttons one row.
-    expect && tell ? h('div', 'res-expect-row', expect, iconButton('whatsapp', 'WhatsApp ' + r.customer, () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } })) : expect,
+    // A booking says only its two times (above); a walk-in still says how long the wait is.
+    walk ? (expect && tell ? h('div', 'res-expect-row', expect, iconButton('whatsapp', 'WhatsApp ' + r.customer, () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } })) : expect) : null,
     person(r.customer, [r.phone, r.notes].filter(Boolean).join(' · ')),
     h('div', 'res-meta', h('span', 'res-meta-lane', meta(r.category === 'Bowling' ? 'Bowling' : r.category, unitText),
       r.category === 'Bowling' && pending && !walk && state.Equipment.filter(u => u.category === 'Bowling').length > 1
@@ -16422,7 +16455,6 @@ function reservationCard(r, plan) {
       menu(walk ? [
         ['Edit', () => waitingSheet(r.category, r), false, 'pencil']
       ] : [
-        ...(r.status !== 'waiting' ? [['Here now', () => setStatus('waiting'), false, 'clock']] : []),
         ...(r.category === 'Bowling' ? [['Change players', () => playersSheet('Players · ' + r.customer, Number(r.players) || 1, r.category === 'Bowling' ? ARENA_BRANCH.bowling.maxPlayers : 8, n => ({ type: 'RESERVATION_PLAYERS', id: r.id, revision: r.revision, players: n })), false, 'users']] : []),
         ...(other ? [['Move booking', () => reservationSheet(r), false, 'transfer']] : []),
         ['Edit', () => reservationSheet(r), false, 'pencil']
@@ -21342,7 +21374,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "1cbc7b88e51c";
+const APP_BUILD = "fa8a18fba861";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
