@@ -5962,7 +5962,16 @@ var ArenaReports = (function () {
       spread(m.gamingOn, m.gamingShare, m.parts);
       spread(m.productOn, m.productShare, m.parts);
       spread(m.turfBy, m.turfShare, m.parts);
-      if (m.brought) m.parts.pending = m.brought;
+      // A balance brought from an earlier bill is that bill's own parts (its games and snacks, by the day each was played or bought),
+      // so it is counted once, here, where it is paid, under its own names (owner, 16 November: Pool 4 moved to PS5 5 and paid with it
+      // read Left pending ₹350 in Reconciliation). One with money already paid on it stays pending collected.
+      (ordersBy[detail.tabId] || []).forEach(function (o) {
+        if (o.status !== 'active' || o.category !== 'Carried') return;
+        var from = ArenaTurf.meta(o).carryOf || '', bl = from ? (state.Bills || []).find(function (x) { return x.id === from; }) : null, own = bl && !(Number(bl.paidPaise) > 0) ? partsFor(from) : null;
+        var sum = own ? Object.keys(own).reduce(function (n, k) { return n + own[k]; }, 0) : 0;
+        if (own && sum === o.totalPaise) Object.keys(own).forEach(function (k) { add(m.parts, k, own[k]); });
+        else add(m.parts, 'pending', o.totalPaise);
+      });
       return m;
     };
     // The parts of any bill not voided, whatever day it was made (an advance paid on the day of play for a bill closed later).
@@ -6458,7 +6467,8 @@ var ArenaReports = (function () {
       };
       (state.Bills || []).forEach(function (bl) {
         var d = details[bl.id];
-        if (!d || voided[bl.id]) return;
+        // A bill moved onto another is counted there, with the bill that pays it (makeUp), never here as pending too.
+        if (!d || voided[bl.id] || ArenaCore.carryOf(state, bl.id)) return;
         var day = billDay(d);
         if (day < firstDay || day > lastDay) return;
         var share = sideOf.share(d);
@@ -14631,7 +14641,7 @@ function correctTimeSheet(segment) {
 }
 
 // ---------- Receipt ----------
-const STATUS_LABEL = { paid: ['Paid', 'good'], part: ['Part paid', 'warn'], unpaid: ['Pending', 'warn'], credit: ['On credit', 'gold'], carried: ['Moved to next booking', 'gold'], void: ['Voided', 'bad'] };
+const STATUS_LABEL = { paid: ['Paid', 'good'], part: ['Part paid', 'warn'], unpaid: ['Pending', 'warn'], credit: ['On credit', 'gold'], carried: ['Moved', 'gold'], void: ['Voided', 'bad'] };
 // The icon and colour that stand for a bill's state at the top of its sheet.
 const BILL_STATE = { paid: ['checkCircle', 'jade'], part: ['clock', 'warn'], unpaid: ['clock', 'warn'], credit: ['credits', 'gold'], carried: ['reservations', 'gold'], void: ['ban', 'bad'] };
 function statusBadge(status) { const [text, tone] = STATUS_LABEL[status] || [status, '']; return h('span', { class: 'badge ' + tone, text }); }
@@ -14896,8 +14906,8 @@ async function receiptSheet(billId, back) {
       if (data.status !== 'void') {
         if (paidHere > 0) summary.append(kv(data.transfer ? 'Paid at the counter' : 'Paid towards this bill', money(paidHere), 'good'));
         if (data.transfer) summary.append(kv('On credit · ' + data.transfer.account, money(data.transfer.amountPaise), 'gold'));
-        else if (data.carry) summary.append(kv('Moved to the booking on ' + turfDayName(data.carry.dateKey), money(data.carry.amountPaise), 'gold'));
-        else if (data.payments.length || due !== bill.totalPaise) summary.append(kv('Outstanding', money(due), 'due ' + (due > 0 ? 'owing' : 'clear'), { data: { balance: '1' } }));
+        // Moved onto a booking or a system: said once, at the foot, where it went (owner, 16 November: "Invalid Date" here, and the amount twice).
+        else if (!data.carry && (data.payments.length || due !== bill.totalPaise)) summary.append(kv('Outstanding', money(due), 'due ' + (due > 0 ? 'owing' : 'clear'), { data: { balance: '1' } }));
       }
       // The whole-bill line already says the total; nothing else to sum up then (nothing paid, no discount).
       if (!ticking) section('Bill summary', summary);
@@ -21236,7 +21246,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "21bcba3c9bb6";
+const APP_BUILD = "1b1e3e5c9b0d";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
