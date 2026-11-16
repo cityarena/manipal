@@ -1766,7 +1766,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .court-items { display: grid; gap: 4px; padding: 9px 12px; border: 1px solid rgb(var(--w-968c76) / 0.2); border-radius: 10px; background: rgb(var(--w-faf8f4)); }
 .court-line { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
 .court-rent { display: grid; gap: 4px; }
-.court-rent-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 28px auto; align-items: center; gap: 8px; font-size: 14px; }
+.court-rent-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 28px auto 56px; align-items: center; gap: 8px; min-height: 30px; font-size: 14px; }
 .court-rent-row b { text-align: center; }
 .court-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .court-actions .btn { min-height: 42px; }
@@ -1799,7 +1799,7 @@ main { min-width: 0; min-height: 0; overflow-y: auto; padding: 0 28px 36px 26px;
 .court-card.missed .court-nav { border-color: rgba(178, 52, 46, 0.25); background: #fcf1ef; }
 .court-photo-foot .badge.bad { color: var(--danger); }
 .court-photo-foot .badge.warn { color: var(--warn); }
-.court-rent-row.paid { grid-template-columns: minmax(0, 1fr) auto 18px; }
+.court-rent-row.paid { grid-template-columns: minmax(0, 1fr) 28px 56px 18px; }
 .paid-tick { width: 17px; height: 17px; color: var(--accent); flex: none; }
 .court-line { align-items: center; }
 .court-actions .btn.paid { border-color: rgba(31, 125, 74, 0.45); background: #dcefe0; color: var(--accent); }
@@ -3534,9 +3534,7 @@ td.num:has(.owed-open) { white-space: nowrap; }
 .carried-piece.moving { color: var(--muted); }
 .carried-piece.moving span:nth-of-type(1) { font-style: italic; }
 .carried-line.fixed input[type=checkbox] { cursor: not-allowed; opacity: 0.55; }
-.court-rent-row:has(.court-rent-cost) { grid-template-columns: minmax(0, 1fr) auto 28px auto auto; }
-.court-rent-row.paid:has(.court-rent-cost) { grid-template-columns: minmax(0, 1fr) auto auto 18px; }
-.court-rent-cost { min-width: 48px; text-align: right; font-weight: 600; }
+.court-rent-cost { text-align: right; font-weight: 600; }
 .send-row { gap: 8px; }
 .send-row .btn { flex: 1 1 0; min-width: 0; }
 .res-booked { display: inline-flex; align-items: center; gap: 8px; }
@@ -20866,13 +20864,13 @@ function courtCard(key, courts, entries, entry, wide, court, move) {
     // A tick only on rentals taken and paid (owner, 16 November: "rentals wont be settled, do not tick over there"): none taken on a slot
     // paid or settled (a membership) still takes them with − and + while it is open, and what they cost is then shown to pay.
     // What the rentals taken cost, beside their count (owner, 16 November: "if add anything, like items or rentals, show that amount").
-    const cost = lines.reduce((sum, o) => sum + Number(o.totalPaise || 0), 0), costTag = n > 0 ? h('span', { class: 'num court-rent-cost', text: money(cost) }) : null;
+    const cost = lines.reduce((sum, o) => sum + Number(o.totalPaise || 0), 0), costTag = h('span', { class: 'num court-rent-cost', text: n > 0 ? money(cost) : '' }); // always its column, so the rows line up (owner, 16 November)
     if (paidUp && n > 0) return h('div', { class: 'court-rent-row paid', data: { rental: g.id } }, h('span', { text: g.name + 's' }), h('b', { class: 'num', text: String(n) }), costTag, icon('check', 'paid-tick'));
-    if (paidUp && !open) return h('div', { class: 'court-rent-row', data: { rental: g.id } }, h('span', { text: g.name + 's' }), h('b', { class: 'num', text: '0' }));
+    if (paidUp && !open) return h('div', { class: 'court-rent-row paid', data: { rental: g.id } }, h('span', { text: g.name + 's' }), h('b', { class: 'num', text: '0' }), h('span', 'num court-rent-cost'), h('span'));
     return h('div', { class: 'court-rent-row', data: { rental: g.id } }, h('span', { text: g.name + 's' }),
       iconButton('minus', 'One ' + g.name.toLowerCase() + ' back', less, { disabled: !n || !open, data: { action: 'rent-less' } }),
       h('b', { class: 'num', text: String(n) }),
-      iconButton('plus', 'One more ' + g.name.toLowerCase(), () => runCommand({ type: 'TURF_RENT', id: b.id, item: g.id, delta: 1 }, () => ({ quiet: true })), { disabled: !open, data: { action: 'rent-more' } }), ...[costTag].filter(Boolean));
+      iconButton('plus', 'One more ' + g.name.toLowerCase(), () => runCommand({ type: 'TURF_RENT', id: b.id, item: g.id, delta: 1 }, () => ({ quiet: true })), { disabled: !open, data: { action: 'rent-more' } }), costTag);
   })));
   // The booking's tools: Add Items, Pay (the booking's own sheet, with Cash, UPI and the rest), Credit, Pending, Extend; more in ⋮.
   const later = !open;
@@ -21374,7 +21372,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "fa8a18fba861";
+const APP_BUILD = "3174753deb89";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
