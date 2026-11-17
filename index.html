@@ -3572,6 +3572,9 @@ td.num:has(.owed-open) { white-space: nowrap; }
 
 /* Update report and when the figures are from, on the Reports bar (owner, 17 November). */
 .rep-update { display: inline-flex; align-items: center; gap: 8px; }
+
+/* A booking's discount on its bill line (owner, 17 November). */
+.line-main .turf-off { display: block; margin-top: 1px; color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -7461,7 +7464,7 @@ var ArenaTurf = (function () {
       // With both teams playing, each team pays half and shares its half among its own players (owner, 20 October).
       var mine = shareGroup(sharing, p), i = mine.list.indexOf(p);
       var gross = part(part(rest, mine.of, mine.half), mine.list.length, i), net = part(part(Math.max(0, rest - discount), mine.of, mine.half), mine.list.length, i);
-      setLine(state, share, { tabId: p.tabId, label: 'Turf share · ' + (mine.of === 2 ? 'Team ' + p.team + ' · ' : '') + mine.list.length + (mine.list.length === 1 ? ' player' : ' players') + (gross > net ? ' · ' + rupees(gross - net) + ' off' : ''), quantity: 1, unitPricePaise: net, purchaser: p.name, reason: 'Turf share', ratesJson: JSON.stringify({ bookingId: booking.id, part: 'share', playerId: p.id, grossPaise: gross, discountPaise: gross - net, players: sharing.length, team: mine.of === 2 ? p.team : '' }) }, now, id + '-share-' + p.id);
+      setLine(state, share, { tabId: p.tabId, label: 'Turf share · ' + (mine.of === 2 ? 'Team ' + p.team + ' · ' : '') + mine.list.length + (mine.list.length === 1 ? ' player' : ' players'), quantity: 1, unitPricePaise: net, purchaser: p.name, reason: 'Turf share', ratesJson: JSON.stringify({ bookingId: booking.id, part: 'share', playerId: p.id, grossPaise: gross, discountPaise: gross - net, players: sharing.length, team: mine.of === 2 ? p.team : '' }) }, now, id + '-share-' + p.id);
     });
     // Items for Team A, Team B or everyone: what the group bought, shared equally among its players.
     var lines2 = poolLines(state, booking.id).filter(function (o) { return !meta(o).fixed; });
@@ -13994,7 +13997,10 @@ function drawLines(body, lines) {
   if (turf.length) {
     const card = h('div', 'lines');
     for (const o of turf) card.append(h('div', { class: 'line', data: { order: o.id } },
-      h('div', 'line-main', h('b', { text: o.label.replace(/6-a-side|5-a-side|1v1/, court => courtLabel(court)).replace(/^Turf\b/, turfWordOfLine(o)) }), h('span', { class: 'small muted', text: o.quantity > 1 ? money(o.unitPricePaise) + ' an hour' : o.purchaser && o.purchaser !== customer ? o.purchaser : (o.reason || 'Turf').replace(/^Turf\b/, turfWordOfLine(o)) })),
+      h('div', 'line-main', h('b', { text: o.label.replace(/6-a-side|5-a-side|1v1/, court => courtLabel(court)).replace(/^Turf\b/, turfWordOfLine(o)) }), h('span', { class: 'small muted', text: o.quantity > 1 ? money(o.unitPricePaise) + ' an hour' : o.purchaser && o.purchaser !== customer ? o.purchaser : (o.reason || 'Turf').replace(/^Turf\b/, turfWordOfLine(o)) }),
+        // A discount on the booking said on its line, on bills made before this too (owner, 17 November: "WHERE THE HELL IS THE
+        // DISCOUNT" — Court 1 is ₹1,300 an hour and the line read ₹1,200 with nothing to say why).
+        ...[Number(turfMeta(o).discountPaise) > 0 ? h('span', { class: 'small turf-off', data: { field: 'turf-discount' }, text: money(Number(turfMeta(o).grossPaise)) + ' less ' + money(Number(turfMeta(o).discountPaise)) + ' discount' }) : null].filter(Boolean)),
       h('span', { class: 'line-amount', text: money(o.totalPaise) })));
     // A discount on the turf sits in the turf card, under the charge (owner, 22 October).
     own.append(h('section', 'bill-group', h('div', 'group-title', icon('turf'), turfWordOfLine(turf[0])), card, lines.turfExtra || null));
@@ -15046,7 +15052,8 @@ function printReceipt(data) {
   if (brought.length) area.append(el('p-head', 'Carried from earlier'));
   for (const o of brought) { const c = carriedOf(o); area.append(row(c.what, money(o.totalPaise)), el('p-sub', ['Bill ' + c.number, c.day].filter(s => s && s !== 'Bill ').join(' · '))); }
   if (turf.length) area.append(el('p-head', turfWordOfLine(turf[0])));
-  for (const o of turf) area.append(row(o.label, money(o.totalPaise)), ...(o.quantity > 1 ? [el('p-sub', o.quantity + ' × ' + money(o.unitPricePaise))] : []));
+  // The booking's discount on the receipt too (owner, 17 November).
+  for (const o of turf) area.append(row(o.label, money(o.totalPaise)), ...(o.quantity > 1 ? [el('p-sub', o.quantity + ' × ' + money(o.unitPricePaise))] : []), ...(Number(turfMeta(o).discountPaise) > 0 ? [el('p-sub', money(Number(turfMeta(o).grossPaise)) + ' less ' + money(Number(turfMeta(o).discountPaise)) + ' discount')] : []));
   if (goods.some(isGameLine)) { area.append(el('p-head', 'Game station')); for (const o of goods.filter(isGameLine)) area.append(row(o.label, money(o.totalPaise))); }
   goods = goods.filter(o => !isGameLine(o));
   if (goods.length) area.append(el('p-head', 'Snacks & beverages'));
@@ -15764,11 +15771,22 @@ function reconStatement(side, e, dayWords, day) {
   const use = place => { const p = e.places[place] || {}; return p.bookings ? inWords(Math.round(p.hours * 60)) + ' · ' + plural(p.bookings, 'booking', 'bookings') : place === 'Gaming floor' && p.bills ? plural(p.bills, 'bill', 'bills') : ''; };
   const rows = [], charged = names.reduce((n, p) => n + ((e.places[p] || {}).netPaise || 0) + ((e.places[p] || {}).discountPaise || 0), 0);
   const amount = (paise, sign) => ({ text: (sign === '−' ? '− ' : sign === '+' ? '+ ' : '') + money(paise), num: true });
+  // One line a person (owner, 17 November: "ONE PERSONS BILL FUCKING WRITE AS 1 … IF THERE ARE 100 PEOPLE WITH 10 DIFFERENT BILLS, YOU
+  // WILL GIVE 1000 ENTRIES???"): a person's bills in a kind are added together, how many said; one bill still says what it was and opens.
   const kind = (key, title, list, sign) => {
     if (!list || !list.length) return;
-    const sum = list.reduce((n, x) => n + x.paise, 0);
-    rows.push({ fold: side + '-' + key, data: { reconKind: key }, cells: [title + ' · ' + list.length, amount(sum, sign)],
-      kids: list.map(x => ({ data: x.billId ? { reconBill: x.billId } : {}, open: x.billId ? () => receiptSheet(x.billId) : null, cells: [[x.customer || 'Walk-in', x.players > 1 ? plural(x.players, 'player', 'players') : '', reconFor(x, day)].filter(Boolean).join(' · '), amount(x.paise, sign)] })) });
+    const sum = list.reduce((n, x) => n + x.paise, 0), people = new Map();
+    for (const x of list) {
+      const who = (x.customer || 'Walk-in').trim(), id = who.toLowerCase();
+      if (!people.has(id)) people.set(id, { who, items: [] });
+      people.get(id).items.push(x);
+    }
+    rows.push({ fold: side + '-' + key, data: { reconKind: key }, cells: [title + ' · ' + people.size, amount(sum, sign)],
+      kids: [...people.values()].map(({ who, items }) => {
+        const one = items.length === 1 ? items[0] : null, paise = items.reduce((n, x) => n + x.paise, 0);
+        const words = one ? [who, one.players > 1 ? plural(one.players, 'player', 'players') : '', reconFor(one, day)] : [who, plural(items.length, 'bill', 'bills')];
+        return { data: one && one.billId ? { reconBill: one.billId } : { reconPerson: who }, open: one && one.billId ? () => receiptSheet(one.billId) : null, cells: [words.filter(Boolean).join(' · '), amount(paise, sign)] };
+      }) });
   };
   for (const p of names) {
     const v = e.places[p];
@@ -21599,7 +21617,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "383981e46f59";
+const APP_BUILD = "c538c419981b";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
