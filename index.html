@@ -17889,17 +17889,33 @@ function reportLock(target) {
     open));
   setTimeout(() => pin.focus(), 0);
 }
+// One reading of the report at a time for the same dates (owner, 17 November: "The server has not confirmed the outcome yet." over a
+// report already shown): every save anywhere made a new reading, so on a busy evening several went at once and a slow one gave up. A
+// reading asked while one for the same dates is on its way waits for it; the next one follows if the data changed meanwhile. A reading
+// that gives up while these dates are already on the screen says nothing; the figures stay and the next reading follows.
+let reportLoading = '';
+const reportDates = key => key.slice(key.indexOf('|') + 1);
 async function loadReport(key) {
+  const dates = reportDates(key);
+  if (reportLoading === dates) return;
+  reportLoading = dates;
   try {
-    const r = reportRange(), data = await rpc('rpcReport', token, r.fromMs, r.toMs, reportPass);
+    const r = reportRange(), data = await rpcWithin(90000, 'rpcReport', token, r.fromMs, r.toMs, reportPass);
     reportLocked = '';
-    if (key === reportKey()) reportCache = { key, data };
+    if (dates === reportDates(reportKey())) reportCache = { key, data };
   } catch (e) {
-    reportCache = { key, data: null };
-    if (!PIN_REFUSED.test(e.message)) { notify('error', e.message); return; }
-    // A missing or expired pass locks Reports; a remembered one that no longer works is forgotten.
-    reportLocked = e.message;
-    if (reportPass) keepReportPass('', false);
+    if (PIN_REFUSED.test(e.message)) {
+      reportCache = { key, data: null };
+      // A missing or expired pass locks Reports; a remembered one that no longer works is forgotten.
+      reportLocked = e.message;
+      if (reportPass) keepReportPass('', false);
+    } else if (dates === reportDates(reportKey()) && !(reportCache.data && reportDates(reportCache.key) === dates)) {
+      reportCache = { key, data: null };
+      notify('error', e.message);
+      return;
+    } else return;
+  } finally {
+    if (reportLoading === dates) reportLoading = '';
   }
   if (page === 'settings' && settingsMode === 'reports') render();
 }
@@ -18031,7 +18047,7 @@ const reportsPage = {
   render(page) {
     if (reportLocked) { reportLock(page); return; }
     const key = reportKey();
-    if (reportCache.key !== key) { loadReport(key); if (!reportCache.data) { page.append(loadingRows(4)); return; } }
+    if (reportCache.key !== key) { loadReport(key); if (!reportCache.data || reportDates(reportCache.key) !== reportDates(key)) { page.append(loadingRows(4)); return; } }
     const s = reportCache.data.summary;
     if (reportView === 'courts') { page.append(sideReport(s, 'courts')); return; }
     if (reportView === 'recon') { page.append(reconReport(s)); return; }
@@ -21465,7 +21481,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "a2c5fda90e7d";
+const APP_BUILD = "6e4632699a97";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
