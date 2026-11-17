@@ -3386,12 +3386,20 @@ main[data-page=turf] .turf-board { overflow-x: clip; }
 /* A pending bill moved on (owner, 15 November): Move beside Collect on each pending line, the reservation it waits for, and
    the amount a reservation brings onto its bill at check-in. */
 .pending-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* A pending bill on a person's sheet (owner, 17 November: "how bad it looks man", the name squeezed to a letter a line beside its
+   buttons): what it is, when and its amount on one line, its buttons on a line of their own under it. */
+.line.pending-line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; row-gap: 8px; align-items: center; }
+.line.pending-line > .pending-tools { grid-column: 2 / -1; justify-content: flex-end; }
+/* Its foot never cut off at the edge: Collect all across, Move all and Move to Credit side by side under it. */
+.foot-row.pending-all-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.foot-row.pending-all-tools > .btn { min-width: 0; width: 100%; }
+.foot-row.pending-all-tools > .btn:first-child { grid-column: 1 / -1; }
 .pending-held { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--gold); font-size: var(--text-xs); font-weight: 600; }
 .pending-held svg { width: 14px; height: 14px; flex: none; }
 .res-pending { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--gold-line); border-radius: var(--r-sm); background: var(--gold-soft); color: var(--gold); font-size: var(--text-sm); font-weight: 600; }
 .res-pending svg { width: 16px; height: 16px; flex: none; }
 .pending-cancel-tools { display: flex; gap: 8px; flex-wrap: wrap; }
-@media (max-width: 640px) { .pending-tools { width: 100%; } }
+@media (max-width: 640px) { .pending-tools { width: 100%; } .line.pending-line > .pending-tools { justify-content: flex-start; } }
 
 /* A lane started by a move asks how many play and how many games, nothing chosen at first (owner, 15 November). */
 .lane-ask { display: grid; gap: 4px; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--primary-line); border-radius: var(--r-md); background: var(--primary-soft); }
@@ -17149,7 +17157,7 @@ function pendingGroups(rows) {
 function pendingLine(r, back) {
   if (r.booking) {
     const b = r.booking;
-    return h('div', { class: 'line', data: { pending: b.id } },
+    return h('div', { class: 'line pending-line', data: { pending: b.id } },
       glyph('turf', '', 'sm'),
       h('div', 'line-main', h('b', { text: turfWord(b.court) + ' · ' + courtLabel(b.court) }), h('span', { class: 'small muted', text: turfRange(b) })),
       h('span', { class: 'line-amount', text: money(r.owed) }),
@@ -17159,7 +17167,7 @@ function pendingLine(r, back) {
   }
   const where = [...new Set(segmentsOf(r.detail.tabId).map(g => (unitOf(g.unitId) || {}).name).filter(Boolean))].join(', ');
   const heldBy = pendingHeldBy(r.bill.id);
-  return h('div', { class: 'line', data: { pending: r.bill.id } },
+  return h('div', { class: 'line pending-line', data: { pending: r.bill.id } },
     glyph('bills', '', 'sm'),
     h('div', 'line-main', h('b', { text: where || numberOf(r.bill.id) || 'Bill' }), h('span', { class: 'small muted', text: [clock(r.detail.createdMs), where ? numberOf(r.bill.id) : ''].filter(Boolean).join(' · ') }),
       heldBy ? h('span', { class: 'pending-held', data: { pendingHeld: heldBy.id } }, icon('reservations'), 'Comes with ' + heldBy.customer + ' · ' + reservationWhat(heldBy) + ' ' + reservationAt(heldBy)) : null),
@@ -17391,8 +17399,9 @@ function pendingCollectAll(group, back) {
     }
   });
 }
-// The Pending list's dates (owner, 4 November: "can we add dates here to filter???"): Today at first (owner, 15 November), then All
-// dates, Yesterday, one date or a date range, by the day each was played (a turf booking by its slot's day).
+// The Pending list's dates (owner, 4 November: "can we add dates here to filter???"): Today at first (owner, 15 November), by the day
+// each was played (a turf booking by its slot's day). On the page itself as on Reports (owner, 17 November: "keep the filter, today,
+// yesterday and the nomral custom date filter"): Today, Yesterday, All dates, and From – To.
 const pendingQuery = { range: 'today', from: '', to: '' };
 function pendingInDates(r) {
   const key = pendingDay(r);
@@ -17400,26 +17409,6 @@ function pendingInDates(r) {
   if (pendingQuery.range === 'yesterday') return key === shiftDay(dayKey(nowMs()), -1);
   if (pendingQuery.range === 'custom') return key >= pendingQuery.from && key <= pendingQuery.to;
   return true;
-}
-function pendingDatesWords() {
-  if (pendingQuery.range === 'today') return 'Today';
-  if (pendingQuery.range === 'yesterday') return 'Yesterday';
-  if (pendingQuery.range === 'all') return 'All dates';
-  return pendingQuery.from === pendingQuery.to ? turfDayName(pendingQuery.from) : turfDayName(pendingQuery.from) + ' – ' + turfDayName(pendingQuery.to);
-}
-function pendingDatesAsk(anchor) {
-  datesAsk(anchor, {
-    presets: [['today', 'Today'], ['yesterday', 'Yesterday'], ['all', 'All dates']],
-    chosen: pendingQuery.range,
-    from: pendingQuery.from,
-    to: pendingQuery.to,
-    oneDay: true,
-    choose(range, from, to) {
-      pendingQuery.range = range;
-      if (range === 'custom') [pendingQuery.from, pendingQuery.to] = [from, to];
-      render();
-    }
-  });
 }
 function pendingList(page) {
   const text = pendingSearch.trim().toLowerCase(), list = pendingRows().filter(pendingInDates).filter(r => !text || (r.booking ? r.booking.customer + ' ' + r.booking.phone : r.detail.customer + ' ' + ((r.tab || {}).phone || '')).toLowerCase().includes(text));
@@ -17473,7 +17462,19 @@ const pendingPage = {
   subtitle: 'Money to be cleared in a day or two.',
   open() { pendingQuery.range = 'today'; },
   bar(bar) {
-    bar.append(h('button', { type: 'button', class: 'stock-when-button', data: { action: 'pending-dates' }, onclick: e => pendingDatesAsk(e.currentTarget) }, icon('reservations'), h('span', { text: pendingDatesWords() })));
+    const presets = segmented([['today', 'Today'], ['yesterday', 'Yesterday'], ['all', 'All dates']], pendingQuery.range, value => { pendingQuery.range = value; render(); });
+    const shown = pendingQuery.range === 'custom' ? [pendingQuery.from, pendingQuery.to] : pendingQuery.range === 'yesterday' ? [shiftDay(dayKey(nowMs()), -1), shiftDay(dayKey(nowMs()), -1)] : [dayKey(nowMs()), dayKey(nowMs())];
+    const from = h('input', { type: 'date', value: shown[0], max: businessToday(), 'aria-label': 'From', data: { field: 'pending-from' } });
+    const to = h('input', { type: 'date', value: shown[1], max: businessToday(), 'aria-label': 'To', data: { field: 'pending-to' } });
+    const pick = () => {
+      if (!from.value || !to.value) return;
+      pendingQuery.range = 'custom';
+      [pendingQuery.from, pendingQuery.to] = from.value <= to.value ? [from.value, to.value] : [to.value, from.value];
+      render();
+    };
+    from.onchange = pick;
+    to.onchange = pick;
+    bar.append(h('div', { class: 'rep-range', data: { field: 'pending-dates' } }, presets.node, h('div', 'rep-dates', from, h('span', { class: 'muted', text: 'to' }), to)));
     bar.append(searchBox(pendingSearch, 'Search pending', v => { pendingSearch = v; redrawKeepingFocus(); }));
   },
   render(page) { pendingList(page); }
@@ -21363,7 +21364,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "334be853b18c";
+const APP_BUILD = "dbf514c82db3";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
