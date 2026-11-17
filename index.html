@@ -11923,7 +11923,7 @@ function rpc(name, ...args) {
 // A look asked for twice while the first is still within its time (Refresh pressed again) shares the first. Once that time is over a
 // new one is sent: from the counter's connection some requests never reach Google at all (owner, 17 November: "it updates but
 // sometimes take 10 minutes" — waiting on such a lost request held every later look for minutes).
-const READ_ONCE = new Set(['rpcSnapshot', 'rpcReport', 'rpcStock']), readsOnTheirWay = new Map();
+const READ_ONCE = new Set(['rpcReport', 'rpcStock']), readsOnTheirWay = new Map();
 function serverOnce(name, args, ms) {
   if (!READ_ONCE.has(name)) return callServer(name, args);
   const key = name === 'rpcSnapshot' ? name : name + JSON.stringify(args.slice(1)), going = readsOnTheirWay.get(key);
@@ -11934,6 +11934,29 @@ function serverOnce(name, args, ms) {
   const done = () => { if (readsOnTheirWay.get(key) === mine) readsOnTheirWay.delete(key); };
   call.then(done, done);
   return call;
+}
+// A look at the screen's data that never relies on one way to the server (owner, 17 November: Google's own frame in the hidden
+// connection dropped the server's answers — "dropping postMessage … was from host https://script.google.com but expected host
+// …googleusercontent.com" — while every look finished on the server in two seconds, so the screen read "Not updated" and Refresh did
+// nothing). Asked at once; with no answer in four seconds asked again the direct way, and again at eight; the first answer is used.
+function lookOnce(name, args, ms) {
+  return new Promise((resolve, reject) => {
+    let done = false, failures = 0;
+    const tries = [0, 4000, 8000], timers = [];
+    const finish = (fn, value) => { if (done) return; done = true; timers.forEach(clearTimeout); fn(value); };
+    const send = which => {
+      const call = which === 1 && typeof google === 'undefined' ? directCall(name, args) : callServer(name, args);
+      call.then(reply => {
+        if (reply && reply.ok) finish(resolve, reply.data);
+        else finish(reject, Object.assign(new Error(reply && reply.error || 'Request failed.'), { notSaved: !!(reply && reply.notSaved) }));
+      }, () => { failures++; if (failures === tries.length) finish(reject, new Error('Connection interrupted.')); });
+    };
+    tries.forEach((at, which) => timers.push(setTimeout(() => { if (!done) send(which); }, at)));
+    timers.push(setTimeout(() => {
+      if (bridge && typeof google === 'undefined' && Date.now() - bridgeHeard > 60000) bridgeTrouble();
+      finish(reject, new Error('The server has not confirmed the outcome yet.'));
+    }, ms));
+  });
 }
 // A look at the data gives up sooner than a save, so a lost answer never holds the screen for long.
 function rpcWithin(ms, name, ...args) {
@@ -21519,7 +21542,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "f85fe400e1b1";
+const APP_BUILD = "85d3f4dab85b";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -21593,12 +21616,14 @@ function applySaved(snapshot) {
 let refreshStarted = 0, retrySoon = 0;
 function refresh(force) {
   if (!token) return Promise.resolve();
-  if (refreshing && !(force && nowMs() - refreshStarted > 4000)) return force ? refreshing.then(() => refresh(true)) : refreshing;
+  // Refresh pressed always asks at once (owner, 17 November: "THAT FUCKING REFERSH BUTTON IF I CLCIK ALSO DOES NOT WORK"); the screen's
+  // own look every 15 seconds waits for one already on its way.
+  if (refreshing && !force) return refreshing;
   refreshStarted = nowMs();
   $('refresh').classList.add('busy');
   const mine = (async () => {
     try {
-      applySnapshot(await rpcWithin(15000, 'rpcSnapshot', token, force ? '' : version));
+      applySnapshot(await lookOnce('rpcSnapshot', [token, force ? '' : version], 15000));
     } catch (e) {
       if (/sign in|expired|Access denied/i.test(e.message)) signedOut(/expired/i.test(e.message) ? 'Signed out after 30 days. Sign in again.' : '');
       else {
