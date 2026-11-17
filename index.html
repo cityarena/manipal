@@ -7603,14 +7603,21 @@ var ArenaTurf = (function () {
       if (setting) setting.value = JSON.stringify(rates); else state.Settings.push({ id: 'academy-' + club, value: JSON.stringify(rates) });
       return { accountId: club, message: 'Academy rates saved. Bookings already made keep their rate.' };
     }
+    var PENDING_FROM_HOUR = 23;
     if (cmd.type === 'TURF_PENDING_DUE') {
-      // Once its day is over (after midnight), a booking still orange on the board, over and not paid or paid in part, goes
+      // Once it is 11 PM of its day (owner, 17 November; midnight before), a booking still orange on the board, over and not paid or paid in part, goes
       // to Pending by itself (owner, 3 November: "once the day is ended, whatver is in orange should directly go to pending,
       // unless i do anything"). An academy's slot goes to its account instead; a slot paid with another is moved with it. Any
       // open screen asks; nothing is kept pending twice, and nothing to do is not an error.
+      // From 11 PM of its day, once it has ended (owner, 17 November: "just keep the time 11pm instead of 12 am").
       var today = dateKeyOf(now), kept = 0, keptPaise = 0;
+      var over = function (b) {
+        if (b.dateKey < today) return true;
+        var day0 = Date.parse(b.dateKey + 'T00:00:00+05:30');
+        return b.dateKey === today && day0 + PENDING_FROM_HOUR * 3600000 <= now && day0 + (Number(b.startHour) + Number(b.hours)) * 3600000 <= now;
+      };
       booked(state).forEach(function (b, n) {
-        if (b.dateKey >= today || leadOf(state, b) || accountOf(state, b.id)) return;
+        if (!over(b) || leadOf(state, b) || accountOf(state, b.id)) return;
         var st = settlement(state, b).state;
         if (st !== 'open' && st !== 'part') return;
         var done = keepPending(state, b, '', actor, now, id + '-' + n);
@@ -11984,19 +11991,22 @@ function serverOnce(name, args, ms) {
 // connection dropped the server's answers — "dropping postMessage … was from host https://script.google.com but expected host
 // …googleusercontent.com" — while every look finished on the server in two seconds, so the screen read "Not updated" and Refresh did
 // nothing). Asked at once; with no answer in four seconds asked again the direct way, and again at eight; the first answer is used.
-function lookOnce(name, args, ms) {
+function lookOnce(name, args, ms, tries = [0, 4000, 8000]) {
   return new Promise((resolve, reject) => {
-    let done = false, failures = 0;
-    const tries = [0, 4000, 8000], timers = [];
+    let done = false, failures = 0, sent = 0;
+    const timers = [];
     const finish = (fn, value) => { if (done) return; done = true; timers.forEach(clearTimeout); fn(value); };
+    // Each try once: at its time, or at once when the one before it failed outright (a held one is waited for).
     const send = which => {
+      if (done || which >= tries.length || which < sent) return;
+      sent = which + 1;
       const call = which === 1 && typeof google === 'undefined' ? directCall(name, args) : callServer(name, args);
       call.then(reply => {
         if (reply && reply.ok) finish(resolve, reply.data);
         else finish(reject, Object.assign(new Error(reply && reply.error || 'Request failed.'), { notSaved: !!(reply && reply.notSaved) }));
-      }, () => { failures++; if (failures === tries.length) finish(reject, new Error('Connection interrupted.')); });
+      }, () => { failures++; if (failures === tries.length) finish(reject, new Error('Connection interrupted.')); else send(sent); });
     };
-    tries.forEach((at, which) => timers.push(setTimeout(() => { if (!done) send(which); }, at)));
+    tries.forEach((at, which) => timers.push(setTimeout(() => send(which), at)));
     timers.push(setTimeout(() => {
       if (bridge && typeof google === 'undefined' && Date.now() - bridgeHeard > 60000) bridgeTrouble();
       finish(reject, new Error('The server has not confirmed the outcome yet.'));
@@ -18013,7 +18023,10 @@ async function loadReport(key, asked = false) {
   if (reportLoading === dates) return;
   reportLoading = dates;
   try {
-    const r = reportRange(), data = await rpcWithin(90000, 'rpcReport', token, r.fromMs, r.toMs, reportPass);
+    // Asked again at 15 and 30 seconds when Google holds the request, the first answer used (owner, 17 November: "Updating…" stood
+    // and stood — one held request was waited on for 90 seconds). Saves still on their way go first, as before.
+    if (typeof outbox !== 'undefined' && outbox.length) await outboxDrained();
+    const r = reportRange(), data = await lookOnce('rpcReport', [token, r.fromMs, r.toMs, reportPass], 90000, [0, 15000, 30000]);
     reportLocked = '';
     if (dates === reportDates(reportKey())) reportCache = { key, data, at: Date.now() };
   } catch (e) {
@@ -21249,8 +21262,9 @@ function extendSeries() {
 let pendingDueTried = 0;
 function postPendingDue() {
   if (!state || outbox.length || flow.saving() || nowMs() - pendingDueTried < SWEEP_EVERY_MS) return;
-  const today = dayKey(nowMs());
-  const due = (state.TurfBookings || []).some(b => b.dateKey < today && !turfAccountOf(b.id) && !turfStatusOf(b.id).leadId && ['open', 'part'].includes(turfStatusOf(b.id).state));
+  // From 11 PM of its day once it has ended, as the server (owner, 17 November: "just keep the time 11pm instead of 12 am").
+  const today = dayKey(nowMs()), over = b => b.dateKey < today || (b.dateKey === today && hourStart(today, 23) <= nowMs() && hourStart(today, Number(b.startHour) + Number(b.hours)) <= nowMs());
+  const due = (state.TurfBookings || []).some(b => over(b) && !turfAccountOf(b.id) && !turfStatusOf(b.id).leadId && ['open', 'part'].includes(turfStatusOf(b.id).state));
   if (!due) return;
   pendingDueTried = nowMs();
   const here = trySaveHere({ type: 'TURF_PENDING_DUE' });
@@ -21617,7 +21631,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "c538c419981b";
+const APP_BUILD = "e272c7d5242b";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
