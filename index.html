@@ -11659,6 +11659,7 @@ function whenInput(value, props = {}) {
     paintHalf();
     const digits = raw.replace(/[^0-9]/g, '').slice(0, 4);
     time.value = digits.length <= 2 ? digits : digits.slice(0, -2) + ':' + digits.slice(-2);
+    if (props.oninput) props.oninput();
   };
   time.onblur = () => { tidy(); changed(); };
   time.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); tidy(); changed(); } };
@@ -12226,7 +12227,8 @@ function tick() {
     laneMinute = minute;
     if (page === 'reservations' && !$('sheet').open && document.querySelector('[data-lane-over]')) render();
   }
-  lockLanes();
+  // No lane is fixed to a booking by itself any more: a booking for any lane follows the lane free first until check-in (owner,
+  // 16 November), and fixing it changed the booking under an open sheet (owner, 17 November: "changed on another device").
 }
 // Pauses the running timers given, or resumes them all if all are paused.
 function togglePause(segments) {
@@ -15906,7 +15908,28 @@ function lanePlace(r, wanted, party, unitId) {
   place.freeMs = Math.max(nowMs(), lane.game ? lane.game.endMs : 0, ...lane.blocks.filter(x => x.id !== '__probe' && x.endMs <= place.expectedMs).map(x => x.endMs));
   return place;
 }
+// Who would start later if the evening changed so (owner, 17 November: a warning said "Only 3 players can play", yet once booked
+// nobody was delayed — the other booking simply moved to the other lane): the plan worked out again with the change, every booking
+// for any lane free to take the lane free first; the first booked customer who would start a minute or more later, or null.
+function whoStartsLater(change) {
+  const now = nowMs(), before = lanePlan(), copy = structuredClone(state);
+  change(copy);
+  const after = ArenaReservations.lanes(copy, now);
+  return Object.keys(after.bookings).map(id => ({ r: state.Reservations.find(x => x.id === id), was: before.bookings[id], is: after.bookings[id] }))
+    .filter(x => x.r && !isWalkIn(x.r) && x.was && x.is.expectedMs - x.was.expectedMs >= 60000).sort((a, b) => a.was.expectedMs - b.was.expectedMs)[0] || null;
+}
+// A new booking at a time: does it start then, and does anyone start later because of it?
+function bookingFits(r, ms, players, games) {
+  const probe = { id: '__probe', category: 'Bowling', status: 'confirmed', kind: 'booking', arrivalMs: ms, players, games, unitId: '', createdMs: nowMs(), customer: '' };
+  let mine = null;
+  const late = whoStartsLater(copy => { copy.Reservations = copy.Reservations.filter(x => !r || x.id !== r.id).concat(probe); });
+  const copy = structuredClone(state);
+  copy.Reservations = copy.Reservations.filter(x => !r || x.id !== r.id).concat(probe);
+  mine = ArenaReservations.lanes(copy, nowMs()).bookings.__probe;
+  return { late, startsLate: !mine || mine.expectedMs - ms >= 60000, mine };
+}
 function laneFit(r, wanted, party) {
+  if (wanted < nowMs() - 60000) return h('p', { class: 'lane-fit late', data: { laneFit: 'past' } }, icon('alert'), 'That time has passed. Choose a time from now on.');
   const best = lanePlace(r, wanted, party, '');
   if (!best || best.expectedMs <= wanted + 60000) return null;
   return h('p', { class: 'lane-fit late', data: { laneFit: 'clash' } }, icon('alert'), 'Both lanes are busy at ' + clock(wanted) + ' · the earliest a lane is free is ' + clock(best.expectedMs));
@@ -15983,14 +16006,14 @@ function laneShortNotice(o, anyway, onTick) {
     h('label', 'when-anyway', box, h('span', { text: 'Book anyway' })));
 }
 function reservationSheet(r, kind) {
-  let who, category, at, notes, when = null, times = {}, anyway = false;
+  let who, category, at, notes, when = null, times = {}, anyway = false, fitBox = null, refreshFit = () => {}, clashNow = null;
   const keep = {};
   openSheet({
     title: r ? 'Edit reservation' : 'New reservation',
     icon: 'reservations',
     build(ui) {
       who = who || customerFields(r ? r.customer : '', r ? r.phone : '');
-      at = at || whenInput(istInput(r ? r.arrivalMs : nowMs() + 3600000), { 'aria-label': 'Arrival time', data: { field: 'arrival' }, onchange: () => ui.redraw() });
+      at = at || whenInput(istInput(r ? r.arrivalMs : nowMs() + 3600000), { 'aria-label': 'Arrival time', data: { field: 'arrival' }, onchange: () => { if ($('sheet').open && current) ui.redraw(); }, oninput: () => { if ($('sheet').open && current) refreshFit(); } });
       notes = notes || textInput({ value: r ? r.notes : '', 'aria-label': 'Notes' });
       const chosen = category ? category.value() : r ? r.category : kind || RES_KINDS[0];
       category = segmented(RES_KINDS.map(c => [c, catName(c), c]), chosen, () => ui.redraw());
@@ -15998,7 +16021,14 @@ function reservationSheet(r, kind) {
       ui.body.append(who.node, h('div', 'field', h('span', { text: 'For' }), category.node));
       if (chosen === 'Bowling') {
         // When: the lanes' times in one list, any lane (owner, 14 November); Choose another time for any other.
-        const wants = party.value(), choices = laneChoices(r, Number(wants.players) || 1, Number(wants.games) || 1), list = anyLaneTimes(choices);
+        const wants = party.value(), choices = laneChoices(r, Number(wants.players) || 1, Number(wants.games) || 1);
+        const checked = anyLaneTimes(choices).map(o => {
+          if (!o.short || o.soon) return o;
+          const fit = bookingFits(r, o.ms, Number(wants.players) || 1, Number(wants.games) || 1);
+          return fit.late || fit.startsLate ? o : { ...o, short: null };
+        });
+        // The first time fits after all: it is the one time offered.
+        const list = checked.length && !checked[0].short ? checked.slice(0, 1) : checked;
         times = Object.fromEntries(list.map(o => [o.key, o]));
         // A time that has passed since the sheet opened gives way to the first one now.
         if (when == null || (when !== 'own' && !times[when])) { when = r && when == null ? 'own' : (list[0] || { key: 'own' }).key; anyway = false; }
@@ -16008,20 +16038,32 @@ function reservationSheet(r, kind) {
           h('button', { type: 'button', class: 'chip when-own', 'aria-pressed': String(when === 'own'), data: { when: 'own' }, onclick: () => { when = 'own'; anyway = false; ui.redraw(); } }, 'Choose another time')));
         if (chosenTime && chosenTime.short) ui.body.append(laneShortNotice(chosenTime, anyway, on => { anyway = on; if (current.primaryButton) current.primaryButton.disabled = !on; }));
         if (when === 'own') {
-          ui.body.append(field('Arriving', at));
-          const wanted = at.value ? stamp(at.value) : 0;
-          if (wanted) ui.body.append(laneFit(r, wanted, party.value()) || '');
-        }
+          // Said while the time is typed, not only after leaving the box (owner, 17 November), and Save waits for a time a lane is free.
+          fitBox = h('div', { data: { field: 'arrival-fit' } });
+          ui.body.append(field('Arriving', at), fitBox);
+          refreshFit = () => {
+            const wanted = at.value ? stamp(at.value) : 0, wants2 = party.value();
+            clashNow = wanted ? laneFit(r, wanted, wants2) : null;
+            // A lane free then, but someone booked after would start later: said, never stopping the save.
+            const fit = wanted && !clashNow ? bookingFits(r, wanted, Number(wants2.players) || 1, Number(wants2.games) || 1) : null;
+            const late = fit && fit.late ? h('p', { class: 'lane-fit late', data: { laneFit: 'delay' } }, icon('alert'), fit.late.r.customer + ' would start ' + inWords(Math.round((fit.late.is.expectedMs - fit.late.was.expectedMs) / 60000)) + ' later, at ' + clock(fit.late.is.expectedMs) + ' instead of ' + clock(fit.late.was.expectedMs) + '.') : null;
+            fitBox.replaceChildren(...[clashNow, late].filter(Boolean));
+            if (current && current.primaryButton) current.primaryButton.disabled = !!clashNow;
+          };
+        } else { refreshFit = () => {}; clashNow = null; }
       } else ui.body.append(...party.nodes, field('Arriving', at));
       ui.body.append(field('Notes (optional)', notes));
       const held = chosen === 'Bowling' && times[when] && times[when].short && !anyway;
       ui.primary('Save reservation', !!held);
       current.party = party;
+      if (chosen === 'Bowling' && when === 'own') refreshFit();
     },
     command() {
       const laneTime = category.value() === 'Bowling' && when && when !== 'own' ? times[when] : null;
       if (!laneTime && !at.value) throw new Error('Enter the arrival time.');
       if (laneTime && laneTime.short && !anyway) throw new Error('Tick Book anyway to book this time.');
+      // Never at a time both lanes are busy (owner, 17 November: "how can i save reservation at the time both lanes are playing?").
+      if (category.value() === 'Bowling' && when === 'own' && at.value && laneFit(r, stamp(at.value), current.party.value())) throw new Error('Both lanes are busy then. Choose a time a lane is free.');
       const party = current.party.value(), arrivalMs = laneTime ? laneTime.ms : stamp(at.value);
       // Bowling is any lane, never a lane chosen here (owner, 14 November): the plan gives it the best lane until they come. A lane
       // fixed with Switch stays fixed when the booking is changed.
@@ -16073,7 +16115,7 @@ function checkInAsk(anchor, r) {
       btn('Wait for ' + planned.name, closePopover, 'quiet', { data: { action: 'check-in-wait' } })));
 }
 function checkInSheet(given, unitId) {
-  // The booking as it is now: a card drawn a moment ago may hold it from before its lane was kept (lockLanes).
+  // The booking as it is now: a card drawn a moment ago may hold it from before it last changed.
   const r = state.Reservations.find(x => x.id === given.id) || given;
   const candidates = state.Equipment.filter(u => u.category === r.category && (!inUse(u) || (u.category === 'PS5' && activeOn(u.id).length < 4 && !legacyOn(u.id))));
   const free = candidates.filter(u => !inUse(u)), walk = isWalkIn(r), bowling = r.category === 'Bowling';
@@ -16122,23 +16164,6 @@ function checkInSheet(given, unitId) {
     },
     then() { closeSheet(); floorCategory = floorKeyOf(r.category); go('floor'); }
   });
-}
-// From the hold point an "any lane" booking keeps the lane the plan gave it (owner, 22 October). Said quietly, once per booking
-// on this device; the server keeps the first and ignores the rest. Never while a sheet is open: a check-in open on the booking
-// would be refused as changed on another device.
-const lanesLocked = new Set();
-function lockLanes() {
-  if (!state || !CATEGORIES.includes('Bowling') || flow.saving() || flow.pending() || $('sheet').open) return;
-  const now = nowMs(), hold = resMinutes('lock') * 60000;
-  const todo = state.Reservations.filter(r => r.category === 'Bowling' && RES_PENDING.includes(r.status) && resCurrent(r) && !r.unitId && !lanesLocked.has(r.id));
-  if (!todo.length) return;
-  const plan = lanePlan();
-  for (const r of todo) {
-    const at = plan.bookings[r.id];
-    if (!at || at.expectedMs - now > hold) continue;
-    const saved = trySaveHere({ type: 'LANE_LOCK', id: r.id, unitId: at.unitId });
-    if (saved && !saved.refused) lanesLocked.add(r.id);
-  }
 }
 // The top of Bowling (owner, 22 October: "just properly nicely mention lane 1 and 2 and free time"): one plain tile per lane
 // with the time it is free, and an open slot under it only when one is long enough for a game.
@@ -16201,12 +16226,11 @@ const bowlingFits = ms => { let n = 0; for (let p = 1; p <= ARENA_BRANCH.bowling
 const waitingText = r => (isWalkIn(r) ? 'Waiting #' + r.token + ' ' : '') + r.customer + (Number(r.players) ? ' (' + r.players + ')' : '');
 // Cancel (owner, 22 October): one button on every booking, an optional reason, never deleted, Undo for a moment. A walk-in's
 // equivalent is Left. Afterwards: what the freed time is now, and who on the waiting list it fits, with Seat.
+// Cancel a booking, or a walk-in who left: asked once, then done (owner, 17 November: "when cancelling, do not show extra options there,
+// just ask to confirm cancel and cancel thats it"). The revision is read when Cancel is pressed, so a booking changed a moment before
+// (a lane given to it, players changed) is never refused as "changed on another device".
 function cancelSheet(r) {
-  const walk = isWalkIn(r), before = r.category === 'Bowling' ? lanePlan().bookings[r.id] : null;
-  // The next lane booking not here yet, and the soonest it could start once this one is gone (owner, 22 October).
-  const next = r.category === 'Bowling' && !walk ? resOpen('Bowling').filter(x => x.id !== r.id && !isWalkIn(x) && x.status !== 'waiting' && x.arrivalMs >= r.arrivalMs).sort((a, b) => a.arrivalMs - b.arrivalMs)[0] : null;
-  const freeAt = next ? soonestFor(next, [r.id]) : 0, canMove = next && Math.floor(next.arrivalMs / 60000) * 60000 - freeAt >= 60000;
-  let reason, move = 'keep', own = null;
+  const walk = isWalkIn(r);
   // Pending bills that were to come onto this booking: asked about once it is cancelled (owner, 15 November).
   const heldBefore = ArenaTurf.pendingFor(state, r.id);
   openSheet({
@@ -16216,57 +16240,19 @@ function cancelSheet(r) {
     sub: walk ? 'Waiting #' + r.token + ' since ' + clock(r.arrivalMs) : catName(r.category) + ' · booked for ' + when(r.arrivalMs),
     focus: false,
     build(ui) {
-      if (!walk) {
-        reason = segmented([['Called to cancel', 'Called to cancel'], ['No-show', 'No-show']], reason ? reason.value() : '', () => {});
-        ui.body.append(h('div', { class: 'field', data: { field: 'cancel-reason' } }, h('span', { text: 'Reason (optional)' }), reason.node));
-      }
-      if (canMove) {
-        own = own || whenInput(istInput(freeAt), { 'aria-label': 'New time for ' + next.customer, data: { field: 'move-time' } });
-        const pick = (value, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(move === value), data: { move: value }, onclick: () => { move = value; ui.redraw(); } }, label);
-        ui.body.append(h('div', { class: 'field', data: { field: 'move-next' } }, h('span', { text: 'Next booking · ' + next.customer + ' ' + clock(next.arrivalMs) + ' (' + (Number(next.players) || 1) + ')' }),
-          h('div', 'chips', pick('keep', 'Keep ' + clock(next.arrivalMs)), pick('free', 'Move to ' + clock(freeAt)), pick('own', 'Own time'))));
-        if (move === 'own') ui.body.append(field('New time', own));
-      }
+      ui.body.append(h('p', { class: 'muted', data: { field: 'cancel-ask' }, text: walk ? r.customer + ' left without playing?' : 'Cancel ' + r.customer + '’s booking for ' + when(r.arrivalMs) + '?' }));
       ui.primary(walk ? 'Left' : 'Cancel booking');
     },
     command() {
-      const why = reason ? reason.value() || '' : '';
-      const to = canMove && move === 'free' ? freeAt : canMove && move === 'own' ? stamp(own.value) : 0;
-      if (canMove && move === 'own' && !to) throw new Error('Enter the new time.');
-      return { type: 'RESERVATION_STATUS', id: r.id, revision: r.revision, status: walk ? 'left' : why === 'No-show' ? 'no_show' : 'cancelled', reason: why, ...(to ? { moveNext: { id: next.id, revision: next.revision, arrivalMs: to } } : {}) };
+      const now = state.Reservations.find(x => x.id === r.id) || r;
+      return { type: 'RESERVATION_STATUS', id: r.id, revision: now.revision, status: walk ? 'left' : 'cancelled', reason: '' };
     },
-    then(result, command) {
+    then() {
       closeSheet();
       if (heldBefore.length) pendingCancelSheet(r, heldBefore);
-      const undo = { label: 'Undo', run: () => runCommand({ type: 'RESERVATION_UNDO', id: r.id }, () => {}), data: { action: 'undo-cancel' } };
-      const moved = command && command.moveNext;
-      if (!moved) return freedNotice(r, before, undo);
-      // The next booking moved: say so, with WhatsApp to tell them.
-      const tell = next.phone ? { label: 'WhatsApp', run: () => whatsapp(next.phone, 'Hi ' + next.customer + ', your bowling lane is now ready at ' + clock(moved.arrivalMs) + ' instead of ' + clock(next.arrivalMs) + '.'), data: { action: 'whatsapp-moved' } } : null;
-      return { text: r.customer + ' cancelled ' + clock(r.arrivalMs) + ' · ' + next.customer + ' moved from ' + clock(next.arrivalMs) + ' to ' + clock(moved.arrivalMs), action: [tell, undo].filter(Boolean) };
+      return { text: walk ? r.customer + ' left.' : r.customer + '’s booking cancelled.', action: [{ label: 'Undo', run: () => runCommand({ type: 'RESERVATION_UNDO', id: r.id }, () => {}), data: { action: 'undo-cancel' } }] };
     }
   });
-}
-// What a cancellation freed: a lane's time ("Lane 1 free 8:00–8:25 · fits 2") and the walk-in it now fits, or a free table or
-// console and the first walk-in waiting for it.
-function freedNotice(r, before, undo) {
-  const said = (walkText, seat) => ({ text: walkText, action: seat ? [seat, undo] : [undo] });
-  const head = r.customer + (isWalkIn(r) ? ' left' : ' cancelled ' + clock(r.arrivalMs));
-  if (r.category === 'Bowling' && before) {
-    const plan = lanePlan(), lane = plan.lanes.find(l => l.unitId === before.unitId), now = nowMs();
-    const from = Math.max(before.expectedMs, now);
-    const next = lane ? lane.blocks.map(b => ({ b, r: state.Reservations.find(x => x.id === b.id) })).filter(x => x.r && !isWalkIn(x.r) && x.b.startMs >= from).sort((a, b) => a.b.startMs - b.b.startMs)[0] : null;
-    const to = next ? next.b.startMs : Math.max(before.endMs, from);
-    const fill = lane ? lane.blocks.map(b => state.Reservations.find(x => x.id === b.id) && { b, r: state.Reservations.find(x => x.id === b.id) }).find(x => x && isWalkIn(x.r) && x.b.startMs >= from - 60000 && x.b.startMs < to) : null;
-    const parts = [head];
-    if (to - from >= ArenaCore.bowlingMinutes(1, 1) * 60000) parts.push(lane.name + ' free ' + clock(from) + '–' + clock(to), 'fits ' + bowlingFits(to - from));
-    const free = lane && !lane.game && from <= now + 60000;
-    if (fill) parts.push(waitingText(fill.r) + ' fits' + (free ? ' — Seat?' : ' at ' + clock(fill.b.startMs)));
-    return said(parts.join(' · '), fill && free ? { label: 'Seat', run: () => checkInSheet(fill.r, lane.unitId), data: { action: 'seat-freed' } } : null);
-  }
-  const offer = nextUpOffers([r.category])[0];
-  if (offer) return said(head + ' · ' + offer.unit.name + ' is free — ' + waitingText(offer.r) + ', Seat?', { label: 'Seat', run: () => checkInSheet(offer.r, offer.unit.id), data: { action: 'seat-freed' } });
-  return said(head + '.', null);
 }
 // Someone is here and a unit is free: said only after a cancellation (the strip with Seat and Skip went on 11 November, the owner:
 // "this no need anywhere").
@@ -16299,16 +16285,19 @@ function nextUpOffers(kinds) {
 }
 // Fewer players is not a cancellation (owner, 22 October): a booking, or the game on a lane, is shortened.
 // The same for the games of a lane game (owner, 23 October), with label 'Games'.
-function playersSheet(title, current, max, command, label = 'Players') {
+// warn(n): what the change would do to the bookings after it, said under the choice (null when nothing).
+function playersSheet(title, current, max, command, label = 'Players', warn = null) {
   let count;
   openSheet({
     title,
     icon: label === 'Games' ? 'Bowling' : 'users',
     focus: false,
     build(ui) {
-      count = segmented(upTo(max), count ? count.value() : current, () => {});
+      count = segmented(upTo(max), count ? count.value() : current, () => ui.redraw());
       ui.body.append(h('div', { class: 'field', data: { field: label.toLowerCase() } }, h('span', { text: label }), count.node));
-      ui.primary('Save');
+      const said = warn ? warn(Number(count.value())) : null;
+      if (said) ui.body.append(h('p', { class: 'lane-fit late', data: { laneFit: 'players' } }, icon('alert'), said));
+      ui.primary(said ? 'Save anyway' : 'Save');
     },
     command: () => command(Number(count.value()))
   });
@@ -16453,7 +16442,10 @@ function reservationCard(r, plan) {
       menu(walk ? [
         ['Edit', () => waitingSheet(r.category, r), false, 'pencil']
       ] : [
-        ...(r.category === 'Bowling' ? [['Change players', () => playersSheet('Players · ' + r.customer, Number(r.players) || 1, r.category === 'Bowling' ? ARENA_BRANCH.bowling.maxPlayers : 8, n => ({ type: 'RESERVATION_PLAYERS', id: r.id, revision: r.revision, players: n })), false, 'users']] : []),
+        ...(r.category === 'Bowling' ? [['Change players', () => playersSheet('Players · ' + r.customer, Number(r.players) || 1, r.category === 'Bowling' ? ARENA_BRANCH.bowling.maxPlayers : 8, n => ({ type: 'RESERVATION_PLAYERS', id: r.id, revision: (state.Reservations.find(x => x.id === r.id) || r).revision, players: n }), 'Players', n => {
+          const hit = whoStartsLater(copy => { const me = copy.Reservations.find(x => x.id === r.id); if (me) me.players = n; });
+          return hit ? hit.r.customer + ' would start ' + inWords(Math.round((hit.is.expectedMs - hit.was.expectedMs) / 60000)) + ' later, at ' + clock(hit.is.expectedMs) + ' instead of ' + clock(hit.was.expectedMs) + '.' : null;
+        }), false, 'users']] : []),
         ...(other ? [['Move booking', () => reservationSheet(r), false, 'transfer']] : []),
         ['Edit', () => reservationSheet(r), false, 'pencil']
       ], walk ? 'Waiting actions' : 'Reservation actions')) : null);
@@ -21372,7 +21364,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "3174753deb89";
+const APP_BUILD = "9e03e65915b5";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
