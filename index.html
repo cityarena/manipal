@@ -3555,6 +3555,20 @@ td.num:has(.owed-open) { white-space: nowrap; }
 .res-booked .res-off.late { color: var(--warn); }
 .res-booked .res-off.early { color: var(--accent); }
 .res-booked .icon-btn { width: 28px; height: 28px; }
+
+/* The total at the top of Pending bills and Credit (owner, 17 November, as on Mangalore): an icon tile, what it is, the amount large,
+   how many under it, and the part the list shows now on the right behind a fine line. */
+.balance-card { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; padding: 18px 22px; border: 1px solid var(--line); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow); }
+.balance-icon { display: grid; place-items: center; flex: none; width: 52px; height: 52px; border-radius: var(--r-lg); background: var(--gold-soft); color: var(--gold); }
+.balance-icon svg { width: 26px; height: 26px; }
+.balance-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.balance-label { color: var(--ink-2); font-size: var(--text-md); font-weight: 600; }
+.balance-amount { font-family: var(--display); font-size: var(--text-3xl); line-height: 1.05; color: var(--ink); }
+.balance-main small { color: var(--ink-3); font-size: var(--text-sm); }
+.balance-side { display: grid; gap: 2px; justify-items: end; padding-left: 20px; border-left: 1px solid var(--line-strong); }
+.balance-side span { color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; }
+.balance-side b { font-size: var(--text-xl); color: var(--gold); }
+@media (max-width: 640px) { .balance-card { flex-wrap: wrap; padding: 16px; } .balance-side { justify-items: start; padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--line-strong); width: 100%; } }
 </style>
 </head>
 <body>
@@ -17449,7 +17463,22 @@ function pendingLatestBill(group) {
   const latest = group.rows.slice().sort((a, b) => pendingDay(b).localeCompare(pendingDay(a)) || at(b) - at(a))[0];
   return latest.booking ? latest.parts[0].billId : latest.bill.id;
 }
+// A total at the top of Pending bills and Credit (owner, 17 November, as on Mangalore: "pending top, write the total pending balance of
+// all … nicely … even credit"): its icon in a tile, what it is, the amount large, how many under it, and on the right the part the list
+// shows now.
+function balanceCard(key, glyphName, label, paise, sub, side) {
+  return h('section', { class: 'balance-card', data: { balance: key } },
+    h('span', 'balance-icon', icon(glyphName)),
+    h('div', 'balance-main', h('span', { class: 'balance-label', text: label }), h('b', { class: 'balance-amount num', text: money(paise) }), ...[sub ? h('small', { text: sub }) : null].filter(Boolean)),
+    ...[side ? h('div', 'balance-side', h('span', { text: side[0] }), h('b', { class: 'num', text: money(side[1]) })) : null].filter(Boolean));
+}
 function pendingList(page) {
+  // Every pending bill, whatever the dates; on the right what is still owed from the bills of the dates chosen, the rows listed under
+  // it, going down as they pay ("when i click today, show how much is given today … if someone pays … it has to go down").
+  const allRows = pendingRows(), people = pendingGroups(allRows).length, owedAll = allRows.reduce((sum, r) => sum + r.owed, 0);
+  const shownOwed = allRows.filter(pendingInDates).reduce((sum, r) => sum + r.owed, 0);
+  const datesWord = pendingQuery.range === 'today' ? 'today' : pendingQuery.range === 'yesterday' ? 'yesterday' : pendingQuery.range === 'custom' ? (pendingQuery.from === pendingQuery.to ? turfDayName(pendingQuery.from) : turfDayName(pendingQuery.from) + ' – ' + turfDayName(pendingQuery.to)) : '';
+  page.append(balanceCard('pending', 'clock', 'Total pending', owedAll, plural(people, 'person', 'people') + ' · ' + plural(allRows.length, 'bill', 'bills'), datesWord ? ['Given ' + datesWord, shownOwed] : null));
   const text = pendingSearch.trim().toLowerCase(), list = pendingRows().filter(pendingInDates).filter(r => !text || (r.booking ? r.booking.customer + ' ' + r.booking.phone : r.detail.customer + ' ' + ((r.tab || {}).phone || '')).toLowerCase().includes(text));
   page.append(table(
     [{ label: 'Who' }, { label: 'For', class: 'hide-s' }, { label: 'Pending' }, { label: 'Actions', class: 'r' }],
@@ -17539,6 +17568,9 @@ const creditsPage = {
     const isAcademy = id => turfAcademies().some(x => x.accountId === id), shown = a => (!coaching ? !coachingAccount(a.id) : creditKind === 'academies' ? isAcademy(a.id) : coachingAccount(a.id) && !isAcademy(a.id));
     const accounts = state.CreditAccounts.filter(a => shown(a) && (!text || (a.name + ' ' + creditPhone(a.id)).toLowerCase().includes(text)))
       .sort((a, b) => creditSummary(b.id).outstandingPaise - creditSummary(a.id).outstandingPaise);
+    // What the accounts of this tab owe together, and how many owe (owner, 17 November, as on Mangalore).
+    const owing = state.CreditAccounts.filter(shown).map(a => creditSummary(a.id).outstandingPaise).filter(p => p > 0);
+    page.append(balanceCard('credit', coaching ? 'users' : 'credits', !coaching ? 'Total on credit' : creditKind === 'academies' ? 'Total owed by academies' : 'Total owed on memberships', owing.reduce((sum, p) => sum + p, 0), plural(owing.length, 'account owes', 'accounts owe'), null));
     if (coaching) page.append(...[whatsappRecordsCard(creditKind)].filter(Boolean));
     const academy = id => turfAcademies().some(x => x.accountId === id);
     page.append(table(
@@ -21407,7 +21439,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "2174f3d163d0";
+const APP_BUILD = "0c3cd4bdb381";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
