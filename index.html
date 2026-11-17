@@ -11833,7 +11833,7 @@ const AFTER_SAVES = new Set(['rpcBill', 'rpcHistory', 'rpcReport', 'rpcStock', '
 const ARENA_API = "https://script.google.com/macros/s/AKfycbwtv_y7NZeCC7HYrDWkYYwQiGIbTnuv8DMUGEqiOUqSicjzFmcD4H_yO1WD-gcB-wEDJg/exec";
 let bridge = null, bridgeTroubles = 0;
 // A connection that stops answering (the internet dropped, the frame stalled) is rebuilt after two failures in a row.
-let bridgeHeard = 0;
+let bridgeHeard = 0, bridgeStarts = 0;
 function bridgeTrouble() {
   bridgeTroubles++;
   if (bridgeTroubles < 2 || !bridge) return;
@@ -11862,7 +11862,7 @@ function openBridge() {
   const listen = ev => {
     const m = ev.data;
     if (!m || typeof m !== 'object' || !/\.googleusercontent\.com$/.test(new URL(ev.origin).hostname)) return;
-    if (m.arena === 'ready') { target = ev.source; bridgeTroubles = 0; opened(true); return; }
+    if (m.arena === 'ready') { target = ev.source; bridgeTroubles = 0; bridgeStarts = 0; bridgeHeard = Date.now(); opened(true); return; }
     const waiting = m.arena === 'reply' ? pending.get(m.id) : null;
     if (!waiting) return;
     pending.delete(m.id);
@@ -11883,7 +11883,18 @@ function openBridge() {
     })),
     close: () => { window.removeEventListener('message', listen); frame.remove(); pending.forEach(w => w.reject(new Error('Connection interrupted.'))); pending.clear(); }
   };
-  setTimeout(() => { if (!target) console.warn('[City Arena] the hidden connection has not started yet; using the direct connection meanwhile'); }, 7000);
+  // A hidden connection that has not started in ten seconds is opened again, and again (20, then every 30 seconds) until one
+  // starts (owner, 17 November: the console said it "has not started yet" and the screen stayed on the direct way, where from the
+  // counter some requests never arrive, "Not updated since 6:33").
+  const mine = bridge, wait = Math.min(30000, 10000 * (bridgeStarts + 1));
+  setTimeout(() => {
+    if (target || bridge !== mine) return;
+    console.warn('[City Arena] the hidden connection has not started yet; opening it again (the direct connection meanwhile)');
+    bridgeStarts++;
+    bridge.close();
+    bridge = null;
+    openBridge();
+  }, wait);
   window.addEventListener('message', listen);
   // No cookies: Google sees no account, so it never has to pick one of the accounts signed in to this browser.
   frame.credentialless = true;
@@ -11909,15 +11920,14 @@ function callServer(name, args) {
 function rpc(name, ...args) {
   return rpcWithin(45000, name, ...args);
 }
-// A look at the data the server is still working on is never asked for again (owner, 17 November: "Not updated since 5:44 PM", and
-// "how come mangalore is fine?"): the screen stops waiting after its time, but the server goes on, and asking again every 15 seconds
-// and at each Refresh piled up requests until even a small one waited over a minute. A new look of the same kind waits for the one on
-// its way (a snapshot for any snapshot, a report for the same dates); one older than Google's six-minute limit is let go.
+// A look asked for twice while the first is still within its time (Refresh pressed again) shares the first. Once that time is over a
+// new one is sent: from the counter's connection some requests never reach Google at all (owner, 17 November: "it updates but
+// sometimes take 10 minutes" — waiting on such a lost request held every later look for minutes).
 const READ_ONCE = new Set(['rpcSnapshot', 'rpcReport', 'rpcStock']), readsOnTheirWay = new Map();
-function serverOnce(name, args) {
+function serverOnce(name, args, ms) {
   if (!READ_ONCE.has(name)) return callServer(name, args);
   const key = name === 'rpcSnapshot' ? name : name + JSON.stringify(args.slice(1)), going = readsOnTheirWay.get(key);
-  if (going && Date.now() - going.at < 390000) return going.call;
+  if (going && Date.now() - going.at < ms) return going.call;
   const call = callServer(name, args);
   const mine = { at: Date.now(), call };
   readsOnTheirWay.set(key, mine);
@@ -11933,7 +11943,7 @@ function rpcWithin(ms, name, ...args) {
     // A slow answer is not a broken connection: only a connection that has said nothing for a minute is rebuilt (rebuilding sent
     // everything again and opened a new connection, more work for a server already behind).
     const timer = setTimeout(() => { settled = true; if (bridge && typeof google === 'undefined' && Date.now() - bridgeHeard > 60000) bridgeTrouble(); reject(new Error('The server has not confirmed the outcome yet.')); }, ms);
-    serverOnce(name, args).then(reply => {
+    serverOnce(name, args, ms).then(reply => {
       if (settled) return;
       clearTimeout(timer);
       if (reply && reply.ok) resolve(reply.data);
@@ -21509,7 +21519,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "22e8638eeae6";
+const APP_BUILD = "f85fe400e1b1";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -21580,7 +21590,7 @@ function applySaved(snapshot) {
   return true;
 }
 // A tap on Refresh while a look has been waiting more than a few seconds starts a new one rather than queueing behind it.
-let refreshStarted = 0;
+let refreshStarted = 0, retrySoon = 0;
 function refresh(force) {
   if (!token) return Promise.resolve();
   if (refreshing && !(force && nowMs() - refreshStarted > 4000)) return force ? refreshing.then(() => refresh(true)) : refreshing;
@@ -21591,7 +21601,11 @@ function refresh(force) {
       applySnapshot(await rpcWithin(15000, 'rpcSnapshot', token, force ? '' : version));
     } catch (e) {
       if (/sign in|expired|Access denied/i.test(e.message)) signedOut(/expired/i.test(e.message) ? 'Signed out after 30 days. Sign in again.' : '');
-      else showSync(false, lastGood);
+      else {
+        showSync(false, lastGood);
+        // A lost look is asked for again at once, not 15 seconds later (owner, 17 November: "sometimes take 10 minutes").
+        if (!retrySoon) retrySoon = setTimeout(() => { retrySoon = 0; refresh(); }, 1500);
+      }
     } finally {
       if (refreshing === mine) { refreshing = null; $('refresh').classList.remove('busy'); }
     }
@@ -21731,10 +21745,11 @@ window.addEventListener('online', () => { if (!token) return; reconnect(); refre
 window.addEventListener('focus', comeBack);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') comeBack(); });
 setInterval(() => { if (token && !awayTooLong()) markAlive(); }, 60000);
-// Every 15 seconds; behind for more than two minutes, the connection is rebuilt first.
+// Every 15 seconds. The connection is rebuilt only when it has answered nothing for two minutes, never just because the screen is
+// behind: a working connection torn down every 15 seconds meant a new one each time, and from the counter some never get through.
 setInterval(() => {
   if (document.visibilityState !== 'visible') return;
-  if (token && nowMs() - lastGood > 120000) reconnect();
+  if (token && nowMs() - lastGood > 120000 && Date.now() - bridgeHeard > 120000) reconnect();
   refresh();
 }, 15000);
 setInterval(tick, 1000);
