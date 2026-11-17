@@ -20869,7 +20869,7 @@ function openTurfBoard(toNow = true) { turfView = 'board'; turfBoardOpening = to
 function turfOpenAt(board, list) {
   if (!turfBoardOpening) return;
   turfBoardOpening = false;
-  if (turfDay !== dayKey(nowMs())) { setTimeout(() => { $('main').scrollTop = 0; }, 0); return; }
+  if (turfDay !== dayKey(nowMs())) { setTimeout(() => { boardMove(0, 'the board opened on another day: the top'); }, 0); return; }
   const venue = venueHere(), before = Math.min(venue.close - 1, Math.max(venue.open, Math.floor((nowMs() - hourStart(turfDay, 0)) / 3600000) - 1));
   const hour = Math.max(venue.open, Math.min(before, ...boardCourts().map(court => bookingAt(list, court, before)).filter(Boolean).map(b => Number(b.startHour))));
   // After the page has put back its own scroll (go and render do so once this returns).
@@ -20877,12 +20877,93 @@ function turfOpenAt(board, list) {
     const main = $('main'), row = board.querySelector('.turf-hour[data-hour="' + hour + '"]'), head = board.querySelector('.turf-court-head');
     if (!row || !head || !board.isConnected) return;
     const gap = parseFloat(getComputedStyle(board).rowGap) || 0;
-    main.scrollTop += row.getBoundingClientRect().top - main.getBoundingClientRect().top - head.offsetHeight - gap;
+    boardMove(main.scrollTop + row.getBoundingClientRect().top - main.getBoundingClientRect().top - head.offsetHeight - gap, 'the board opened on today: an hour before now');
   }, 0);
 }
 // What each colour on the board means.
 function turfLegend() {
   return h('div', { class: 'turf-legend', 'aria-hidden': 'true' }, [['free', 'Free'], ['booked', 'Booked'], ['paid', 'Paid'], ['owing', 'Pending · part paid'], ['hold', 'Hold · Hold (Pay)'], (venueHere().memberships || []).length ? ['member', 'Membership'] : null, ['missed', 'Time gone, not booked']].filter(Boolean).map(([k, t]) => h('span', 'turf-key ' + k, h('i'), t)));
+}
+// A log of the board (owner, 18 November: a video of the Pickleball board moving down and up and then showing today, cause not
+// found): each change of day, court or view and each move of the page on the board, with what came just before it — a tap (on
+// what), the mouse wheel, a touch, a key, the board opening, a redraw from new data, or nothing at all. Kept in the console
+// (filter "City Arena") and the last 300 on this device; boardLog() in the console prints them. Nothing on the screen.
+let boardInput = { kind: '', what: '', at: 0 }, boardSeen = null, boardDrawnAt = 0, boardWatched = false;
+let boardAt = '', boardMoveCause = '', boardScrollTimer = 0;
+function boardNote(text) {
+  const line = new Date().toLocaleTimeString('en-IN', { hour12: true }) + ' · ' + text;
+  console.info('[City Arena] board · ' + text);
+  try {
+    const kept = JSON.parse(localStorage.getItem('arenaBoardLog') || '[]');
+    kept.push(line);
+    localStorage.setItem('arenaBoardLog', JSON.stringify(kept.slice(-300)));
+  } catch (e) { /* this browser keeps nothing: the console still has it */ }
+}
+function boardLog() {
+  let kept = [];
+  try { kept = JSON.parse(localStorage.getItem('arenaBoardLog') || '[]'); } catch (e) { kept = []; }
+  console.info(kept.length ? kept.join('\n') : 'No board moves kept on this device yet.');
+  return kept.length;
+}
+// The app's own move of the board, its cause kept as it moves (a scroll event can come a moment later).
+function boardMove(top, why) {
+  const main = $('main'), was = main.scrollTop;
+  main.scrollTop = top;
+  if (main.scrollTop !== was) boardMoveCause = why;
+}
+// What came just before: the person's last input in the last second, else a redraw from new data in the last half second, else
+// nothing. A move the app made itself says so (boardMove).
+function boardCause(moving = true) {
+  const now = Date.now();
+  if (now - boardInput.at < 1000) return boardInput.kind + (boardInput.what ? ' (' + boardInput.what + ')' : '');
+  if (moving && now - boardDrawnAt < 500) return 'a redraw from new data, no tap';
+  return 'no tap, wheel, touch or key (by itself)';
+}
+function boardTopHour() {
+  const main = $('main'), head = document.querySelector('.turf-court-head');
+  if (!main || !head) return '';
+  const line = main.getBoundingClientRect().top + head.offsetHeight + 4;
+  const row = [...document.querySelectorAll('.turf-hour[data-hour]')].find(r => r.getBoundingClientRect().bottom > line);
+  return row ? hourLabel(Number(row.dataset.hour)) : '';
+}
+function boardWhat(target) {
+  const el = target && target.closest ? target.closest('[data-action],[data-field],button,label,a,[role=button],.turf-hour') : null;
+  if (!el) return target && target.id === 'main' ? 'the scroll bar' : '';
+  const name = el.dataset.action || el.dataset.field || el.getAttribute('aria-label') || el.title || el.textContent.trim();
+  return String(name || el.tagName.toLowerCase()).replace(/\s+/g, ' ').slice(0, 40);
+}
+function boardWatch() {
+  if (boardWatched) return;
+  boardWatched = true;
+  const mark = (kind, what) => { boardInput = { kind, what, at: Date.now() }; };
+  document.addEventListener('pointerdown', e => mark('a tap', boardWhat(e.target)), { capture: true, passive: true });
+  document.addEventListener('wheel', () => mark('the mouse wheel or touchpad', ''), { capture: true, passive: true });
+  document.addEventListener('touchmove', () => mark('a touch', ''), { capture: true, passive: true });
+  document.addEventListener('keydown', e => mark('a key', e.key), { capture: true, passive: true });
+  $('main').addEventListener('scroll', () => {
+    if (page !== 'turf' || turfView !== 'board') return;
+    if (!boardMoveCause) boardMoveCause = boardCause();
+    clearTimeout(boardScrollTimer);
+    boardScrollTimer = setTimeout(() => {
+      const to = boardTopHour(), cause = boardMoveCause;
+      boardMoveCause = '';
+      if (boardAt && to && to !== boardAt) boardNote('moved from ' + boardAt + ' to ' + to + ' · ' + turfDay + ' · after ' + cause);
+      boardAt = to;
+    }, 250);
+  }, { passive: true });
+}
+// Called each time the Courts page draws: notes a change of day, court or view.
+function boardDrawn() {
+  boardWatch();
+  const now = { day: turfDay, venue: turfVenue, view: turfView };
+  if (boardSeen && (boardSeen.day !== now.day || boardSeen.venue !== now.venue || boardSeen.view !== now.view)) {
+    const said = [boardSeen.view !== now.view ? (now.view === 'board' ? 'the board opened' : 'the cards opened') : '', boardSeen.venue !== now.venue ? 'court ' + boardSeen.venue + ' → ' + now.venue : '', boardSeen.day !== now.day ? 'day ' + boardSeen.day + ' → ' + now.day : ''].filter(Boolean).join(', ');
+    boardNote(said + ' · after ' + boardCause(false));
+  }
+  boardSeen = now;
+  boardDrawnAt = Date.now();
+  // Where the board stands once drawn (before the board's own opening move, which runs after this).
+  setTimeout(() => { if (!boardMoveCause) boardAt = boardTopHour(); }, 0);
 }
 // Two small round arrows at the bottom right (owner, 3 November): up, back to the top to choose another day, once the page is
 // scrolled down ("keep one small button once i come to end of screen, if i click it should automatically take me to top to
@@ -21222,6 +21303,7 @@ const turfPage = {
   },
   render(target) {
     const list = turfBookingsOn(turfDay);
+    boardDrawn();
     if (!list) { loadTurfDay(turfDay); target.append(loadingRows(6)); return; }
     // Only the court cards on the page (owner, 22 October); the day's board when Book or All bookings is tapped on a card.
     if (turfView !== 'board') { target.append(courtCards(turfDay, list)); return; }
@@ -21631,7 +21713,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "e272c7d5242b";
+const APP_BUILD = "d6b60aa061a5";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
