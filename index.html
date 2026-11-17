@@ -5975,6 +5975,17 @@ var ArenaReports = (function () {
     var segmentsBy = {}, ordersBy = {};
     (state.Segments || []).forEach(function (g) { (segmentsBy[g.tabId] = segmentsBy[g.tabId] || []).push(g); });
     (state.Orders || []).forEach(function (o) { (ordersBy[o.tabId] = ordersBy[o.tabId] || []).push(o); });
+    var fillRank = function (key) { var name = key.split('@')[0]; return key === 'pending' ? 0 : name === 'turf' || OTHER_PLACES.indexOf(name) >= 0 ? 1 : ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Manual'].indexOf(name) >= 0 ? 2 : 3; };
+    // What is left of a bill's parts once money was paid on it, the parts filled in the order payments fill a bill.
+    var leftAfter = function (parts, paid) {
+      var left = {}, rest = paid;
+      Object.keys(parts).filter(function (k) { return parts[k] > 0; }).sort(function (a, b) { return fillRank(a) - fillRank(b) || (a < b ? -1 : a > b ? 1 : 0); }).forEach(function (k) {
+        var take = Math.min(rest, parts[k]);
+        rest -= take;
+        if (parts[k] - take > 0) left[k] = parts[k] - take;
+      });
+      return left;
+    };
     var makeUp = function (detail) {
       var m = { gaming: 0, products: 0, turf: 0, turfOff: 0, brought: 0, gamingBy: {}, productBy: {}, turfBy: {}, turfPlaces: {}, gamingOn: {}, productOn: {} };
       // Each part also named with the day it was played or bought, for naming the money paid for it (owner, 2 November:
@@ -6016,10 +6027,13 @@ var ArenaReports = (function () {
       spread(m.turfBy, m.turfShare, m.parts);
       // A balance brought from an earlier bill is that bill's own parts (its games and snacks, by the day each was played or bought),
       // so it is counted once, here, where it is paid, under its own names (owner, 16 November: Pool 4 moved to PS5 5 and paid with it
-      // read Left pending ₹350 in Reconciliation). One with money already paid on it stays pending collected.
+      // read Left pending ₹350 in Reconciliation). One with money already paid on it brings what is left of its parts once that money
+      // is taken off (owner, 17 November: Customer B's "Snooker 1 · From earlier" ₹180, the rest of a game part paid, was named
+      // nowhere and left out of Left pending).
       (ordersBy[detail.tabId] || []).forEach(function (o) {
         if (o.status !== 'active' || o.category !== 'Carried') return;
-        var from = ArenaTurf.meta(o).carryOf || '', bl = from ? (state.Bills || []).find(function (x) { return x.id === from; }) : null, own = bl && !(Number(bl.paidPaise) > 0) ? partsFor(from) : null;
+        var from = ArenaTurf.meta(o).carryOf || '', bl = from ? (state.Bills || []).find(function (x) { return x.id === from; }) : null, own = bl ? partsFor(from) : null;
+        if (own && Number(bl.paidPaise) > 0) own = leftAfter(own, Number(bl.paidPaise));
         var sum = own ? Object.keys(own).reduce(function (n, k) { return n + own[k]; }, 0) : 0;
         if (own && sum === o.totalPaise) Object.keys(own).forEach(function (k) { add(m.parts, k, own[k]); });
         else add(m.parts, 'pending', o.totalPaise);
@@ -6146,7 +6160,6 @@ var ArenaReports = (function () {
         each[m[1]] = left;
       });
     };
-    var fillRank = function (key) { var name = key.split('@')[0]; return key === 'pending' ? 0 : name === 'turf' || OTHER_PLACES.indexOf(name) >= 0 ? 1 : ['PC', 'PS5', 'RC', 'Pool', 'Snooker', 'Manual'].indexOf(name) >= 0 ? 2 : 3; };
     var billPayments = null, fills = {};
     var paymentsOfBill = function (billId) {
       if (!billPayments) {
@@ -6271,8 +6284,11 @@ var ArenaReports = (function () {
         if (movedOrder[o.id]) moved[key] = (moved[key] || 0) + o.totalPaise;
       });
       ownedOf[detail.id] = function (key) {
-        if (!place) return 0;
         var name = key.split('@')[0];
+        // A court's own money is the courts' on whatever bill it is (17 November, random days: a badminton booking left pending and
+        // moved onto Snooker 1 was counted by neither side).
+        if (OTHER_PLACES.indexOf(name) >= 0) return 1;
+        if (!place) return 0;
         if (name === place) return 1;
         if (!(key in gross)) return 0;
         return gross[key] > 0 ? 1 - (moved[key] || 0) / gross[key] : 0;
@@ -6472,7 +6488,7 @@ var ArenaReports = (function () {
       own: ownedShare,
       // Snacks, beverages and ice cream are a source of their own (owner, 14 November: "its different source of income no … same needs
       // to be applied to badminton+pickleball as well"): those sold through the courts in one Snacks & drinks of this side.
-      place: function (detail, name) { var at = tabPlace(detail.tabId); return at && SHARED.indexOf(name) >= 0 ? SNACKS : at; },
+      place: function (detail, name) { var at = tabPlace(detail.tabId); return OTHER_PLACES.indexOf(name) >= 0 ? name : at && SHARED.indexOf(name) >= 0 ? SNACKS : at; },
       fine: fineOf,
       advance: function (tabId) { return tabPlace(tabId) ? [tabPlace(tabId), 'court'] : null; },
       home: function (detail) { return [tabPlace(detail.tabId), 'court']; }
@@ -6525,6 +6541,8 @@ var ArenaReports = (function () {
     var firstDay = dateKeyOf(state, fromMs), lastDay = dateKeyOf(state, toMs - 1), payAt = {}, refNumber = {};
     (state.Payments || []).forEach(function (x) { payAt[x.id] = x.createdMs; });
     (state.References || []).forEach(function (r) { refNumber[r.id] = r.number; });
+    var accountReceipt = {};
+    (state.CreditAllocations || []).forEach(function (a) { if (a.kind === 'bill') accountReceipt[a.receiptId] = true; });
     var billDay = function (d) {
       var days = Object.keys(partsFor(d.id) || {}).filter(function (k) { return k.indexOf('@') > 0; }).map(function (k) { return k.slice(k.lastIndexOf('@') + 1); }).sort();
       return days[0] || dateKeyOf(state, d.createdMs);
@@ -6564,19 +6582,26 @@ var ArenaReports = (function () {
         if (!(share > 0)) return;
         var f = sideOf.fill(d), home = (sideName === 'courts' ? tabPlace(d.tabId) : tabPlace(d.tabId) ? '' : tabHome(d.tabId)) || '', who = d.customer || (tabs[d.tabId] || {}).customer || 'Walk-in', number = refNumber[bl.id] || '';
         var before = 0, after = 0;
+        // Money paid from a credit account towards the bill is credit collected (named below), never also paid for the day's bills
+        // (owner, 17 November: clive's ₹50 read as paid and as Credit collected + ₹50, then "Other money received − ₹50"): the bill
+        // counts as put on the account, the payment as collected from it.
+        var fromAccount = 0;
         Object.keys(f.each).forEach(function (pid) {
           var at = payAt[pid] || 0, sum = addMap(f.each[pid]);
+          if (accountReceipt[pid]) { fromAccount += sum; return; }
           if (at < fromMs) before += sum; else if (at >= toMs) after += sum; else e.paidPaise += sum;
         });
         // Paid before these dates (an advance) or after them, each bill by name.
         if (before) { e.earlierPaise += before; e.earlier.push({ customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: before }); }
         if (after) { e.laterPaise += after; e.later.push({ customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: after }); }
-        var owed = movedOn ? 0 : addMap(f.owed);
+        var owed = movedOn ? 0 : addMap(f.owed) + fromAccount;
         if (owed > 0) {
           var row = { customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: owed };
           if (onCreditBill[bl.id]) { e.credit.push(row); e.creditPaise += owed; } else { e.pending.push(row); e.pendingPaise += owed; }
         }
-        var off = Math.round((Number(d.discountPaise) || 0) * share);
+        // A bill's discount is its own side's: it comes off its games or its court, never off an amount brought onto it from the other
+        // side (17 November, random days: a Snooker bill carrying a badminton balance gave the courts part of its discount).
+        var off = (sideName === 'courts') === !!tabPlace(d.tabId) ? Number(d.discountPaise) || 0 : 0;
         if (home) placeOf(home).bills++;
         // The bookings on these bills and their hours, each once (never one still to be billed).
         (ordersBy[d.tabId] || []).forEach(function (o) {
@@ -6599,7 +6624,12 @@ var ArenaReports = (function () {
           if (!(cut > 0) || (sideName === 'courts') !== (at !== 'Turf')) return;
           placeOf(at).discountPaise += cut;
           e.discountPaise += cut;
-          e.discounts.push({ customer: who, number: number, billId: bl.id, place: at, bookingId: fee.bookingId, paise: cut });
+          // One line a booking (owner, 17 November: "a · Turf · Full court" and "Player 2 · Turf · Full court" were the one booking's
+          // ₹200 discount, shared ₹100 each): the players' parts of a shared booking's discount are added together under its name.
+          var same = fee.part === 'share' ? e.discounts.find(function (x) { return x.bookingId === fee.bookingId && x.players; }) : null;
+          if (same) { same.paise += cut; same.players++; return; }
+          var bk = fee.part === 'share' ? (state.TurfBookings || []).find(function (x) { return x.id === fee.bookingId; }) : null;
+          e.discounts.push({ customer: bk ? bk.customer : who, number: bk ? '' : number, billId: bk ? '' : bl.id, place: at, bookingId: fee.bookingId, paise: cut, players: bk ? 1 : 0 });
         });
       });
       // The money received on this side in these dates, and how; what is not for these dates' bills came in for other days.
@@ -7431,7 +7461,7 @@ var ArenaTurf = (function () {
       // With both teams playing, each team pays half and shares its half among its own players (owner, 20 October).
       var mine = shareGroup(sharing, p), i = mine.list.indexOf(p);
       var gross = part(part(rest, mine.of, mine.half), mine.list.length, i), net = part(part(Math.max(0, rest - discount), mine.of, mine.half), mine.list.length, i);
-      setLine(state, share, { tabId: p.tabId, label: 'Turf share · ' + (mine.of === 2 ? 'Team ' + p.team + ' · ' : '') + mine.list.length + (mine.list.length === 1 ? ' player' : ' players'), quantity: 1, unitPricePaise: net, purchaser: p.name, reason: 'Turf share', ratesJson: JSON.stringify({ bookingId: booking.id, part: 'share', playerId: p.id, grossPaise: gross, discountPaise: gross - net, players: sharing.length, team: mine.of === 2 ? p.team : '' }) }, now, id + '-share-' + p.id);
+      setLine(state, share, { tabId: p.tabId, label: 'Turf share · ' + (mine.of === 2 ? 'Team ' + p.team + ' · ' : '') + mine.list.length + (mine.list.length === 1 ? ' player' : ' players') + (gross > net ? ' · ' + rupees(gross - net) + ' off' : ''), quantity: 1, unitPricePaise: net, purchaser: p.name, reason: 'Turf share', ratesJson: JSON.stringify({ bookingId: booking.id, part: 'share', playerId: p.id, grossPaise: gross, discountPaise: gross - net, players: sharing.length, team: mine.of === 2 ? p.team : '' }) }, now, id + '-share-' + p.id);
     });
     // Items for Team A, Team B or everyone: what the group bought, shared equally among its players.
     var lines2 = poolLines(state, booking.id).filter(function (o) { return !meta(o).fixed; });
@@ -15738,7 +15768,7 @@ function reconStatement(side, e, dayWords, day) {
     if (!list || !list.length) return;
     const sum = list.reduce((n, x) => n + x.paise, 0);
     rows.push({ fold: side + '-' + key, data: { reconKind: key }, cells: [title + ' · ' + list.length, amount(sum, sign)],
-      kids: list.map(x => ({ data: x.billId ? { reconBill: x.billId } : {}, open: x.billId ? () => receiptSheet(x.billId) : null, cells: [[x.customer || 'Walk-in', reconFor(x, day)].filter(Boolean).join(' · '), amount(x.paise, sign)] })) });
+      kids: list.map(x => ({ data: x.billId ? { reconBill: x.billId } : {}, open: x.billId ? () => receiptSheet(x.billId) : null, cells: [[x.customer || 'Walk-in', x.players > 1 ? plural(x.players, 'player', 'players') : '', reconFor(x, day)].filter(Boolean).join(' · '), amount(x.paise, sign)] })) });
   };
   for (const p of names) {
     const v = e.places[p];
@@ -21569,7 +21599,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "e1e5cf07dc27";
+const APP_BUILD = "383981e46f59";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
