@@ -15918,6 +15918,12 @@ function whoStartsLater(change) {
   return Object.keys(after.bookings).map(id => ({ r: state.Reservations.find(x => x.id === id), was: before.bookings[id], is: after.bookings[id] }))
     .filter(x => x.r && !isWalkIn(x.r) && x.was && x.is.expectedMs - x.was.expectedMs >= 60000).sort((a, b) => a.was.expectedMs - b.was.expectedMs)[0] || null;
 }
+// Who is delayed and by how much, in one sentence (owner, 17 November: "Only 3 players can play" for 2 players and a box of minutes was
+// "confusing"): "Rahul would start 24 minutes later, at 12:17 PM instead of 11:53 AM." A booking saved with no name is called by its time.
+function lateWords(hit, brief = false) {
+  const who = hit.r.customer && hit.r.customer !== 'Walk-in' ? hit.r.customer : 'The ' + clock(hit.r.arrivalMs) + ' booking';
+  return who + ' would start ' + inWords(Math.round((hit.is.expectedMs - hit.was.expectedMs) / 60000)) + ' later, at ' + clock(hit.is.expectedMs) + (brief ? '' : ' instead of ' + clock(hit.was.expectedMs) + '.');
+}
 // A new booking at a time: does it start then, and does anyone start later because of it?
 function bookingFits(r, ms, players, games) {
   const probe = { id: '__probe', category: 'Bowling', status: 'confirmed', kind: 'booking', arrivalMs: ms, players, games, unitId: '', createdMs: nowMs(), customer: '' };
@@ -15995,18 +16001,10 @@ function laneTimeList(list, players, when, choose) {
     list.map(o => h('button', { type: 'button', class: 'when-opt', 'aria-pressed': String(when === o.key), data: { when: o.key }, onclick: () => choose(o.key) },
       h('span', 'when-dot'), h('b', { text: o.soon ? 'Right after the current game' : o.ms <= nowMs() + 60000 ? 'Now' : clock(o.ms) }),
       o.soon ? tag('over', 'clock', 'That game is running ' + o.overMin + ' min late') : null,
-      o.short ? tag('short', 'alert', 'Only ' + o.short.fits + (o.short.fits === 1 ? ' player can play' : ' players can play')) : o.soon ? null : tag('ok', 'checkCircle', all(players))))));
-}
-// Not enough time before the next booking: said there and then, Save only once Book anyway is ticked (owner, 13 November).
-function laneShortNotice(o, anyway, onTick) {
-  const box = h('input', { type: 'checkbox', checked: anyway, data: { field: 'book-anyway' }, onchange: () => onTick(box.checked) });
-  return h('div', { class: 'when-warn', data: { whenShort: o.unitId } },
-    h('div', 'when-note-row', icon('alert'), h('b', { text: 'Not enough time for ' + o.short.players + ' players' })),
-    h('span', { class: 'small', text: o.short.players + ' players need ' + inWords(Math.round(o.short.needs / 60000)) + '. ' + o.laneName + ' has only ' + inWords(Math.round(o.short.room / 60000)) + (o.short.who ? ' before ' + o.short.who + '\u2019s booking at ' + clock(o.short.toMs) : '') + '.' }),
-    h('label', 'when-anyway', box, h('span', { text: 'Book anyway' })));
+      o.late ? tag('short', 'alert', lateWords(o.late, true)) : o.soon ? null : tag('ok', 'checkCircle', all(players))))));
 }
 function reservationSheet(r, kind) {
-  let who, category, at, notes, when = null, times = {}, anyway = false, fitBox = null, refreshFit = () => {}, clashNow = null;
+  let who, category, at, notes, when = null, times = {}, fitBox = null, refreshFit = () => {}, clashNow = null;
   const keep = {};
   openSheet({
     title: r ? 'Edit reservation' : 'New reservation',
@@ -16022,21 +16020,21 @@ function reservationSheet(r, kind) {
       if (chosen === 'Bowling') {
         // When: the lanes' times in one list, any lane (owner, 14 November); Choose another time for any other.
         const wants = party.value(), choices = laneChoices(r, Number(wants.players) || 1, Number(wants.games) || 1);
+        // Each time worked out with the whole evening: who it would delay (said on it, Save anyway), and never a time they would not
+        // really start at (the lanes may be busy then once every booking is placed).
         const checked = anyLaneTimes(choices).map(o => {
-          if (!o.short || o.soon) return o;
+          if (!o.short) return o;
           const fit = bookingFits(r, o.ms, Number(wants.players) || 1, Number(wants.games) || 1);
-          return fit.late || fit.startsLate ? o : { ...o, short: null };
-        });
+          return fit.startsLate && !o.soon ? null : { ...o, short: null, late: fit.late };
+        }).filter(Boolean);
         // The first time fits after all: it is the one time offered.
-        const list = checked.length && !checked[0].short ? checked.slice(0, 1) : checked;
+        const list = checked.length && !checked[0].late ? checked.slice(0, 1) : checked;
         times = Object.fromEntries(list.map(o => [o.key, o]));
         // A time that has passed since the sheet opened gives way to the first one now.
-        if (when == null || (when !== 'own' && !times[when])) { when = r && when == null ? 'own' : (list[0] || { key: 'own' }).key; anyway = false; }
-        const chosenTime = times[when] || null;
+        if (when == null || (when !== 'own' && !times[when])) when = r && when == null ? 'own' : (list[0] || { key: 'own' }).key;
         ui.body.append(...party.nodes.filter(n => n !== party.unitNode), h('div', { class: 'field', data: { field: 'when' } }, h('span', { text: 'When' }),
-          laneTimeList(list, Number(wants.players) || 1, when, key => { when = key; anyway = false; ui.redraw(); }),
-          h('button', { type: 'button', class: 'chip when-own', 'aria-pressed': String(when === 'own'), data: { when: 'own' }, onclick: () => { when = 'own'; anyway = false; ui.redraw(); } }, 'Choose another time')));
-        if (chosenTime && chosenTime.short) ui.body.append(laneShortNotice(chosenTime, anyway, on => { anyway = on; if (current.primaryButton) current.primaryButton.disabled = !on; }));
+          laneTimeList(list, Number(wants.players) || 1, when, key => { when = key; ui.redraw(); }),
+          h('button', { type: 'button', class: 'chip when-own', 'aria-pressed': String(when === 'own'), data: { when: 'own' }, onclick: () => { when = 'own'; ui.redraw(); } }, 'Choose another time')));
         if (when === 'own') {
           // Said while the time is typed, not only after leaving the box (owner, 17 November), and Save waits for a time a lane is free.
           fitBox = h('div', { data: { field: 'arrival-fit' } });
@@ -16046,22 +16044,23 @@ function reservationSheet(r, kind) {
             clashNow = wanted ? laneFit(r, wanted, wants2) : null;
             // A lane free then, but someone booked after would start later: said, never stopping the save.
             const fit = wanted && !clashNow ? bookingFits(r, wanted, Number(wants2.players) || 1, Number(wants2.games) || 1) : null;
-            const late = fit && fit.late ? h('p', { class: 'lane-fit late', data: { laneFit: 'delay' } }, icon('alert'), fit.late.r.customer + ' would start ' + inWords(Math.round((fit.late.is.expectedMs - fit.late.was.expectedMs) / 60000)) + ' later, at ' + clock(fit.late.is.expectedMs) + ' instead of ' + clock(fit.late.was.expectedMs) + '.') : null;
+            const late = fit && fit.late ? h('p', { class: 'lane-fit late', data: { laneFit: 'delay' } }, icon('alert'), lateWords(fit.late)) : null;
             fitBox.replaceChildren(...[clashNow, late].filter(Boolean));
-            if (current && current.primaryButton) current.primaryButton.disabled = !!clashNow;
+            if (current && current.primaryButton) {
+              current.primaryButton.disabled = !!clashNow;
+              current.primaryButton.textContent = late ? 'Save anyway' : 'Save reservation';
+            }
           };
         } else { refreshFit = () => {}; clashNow = null; }
       } else ui.body.append(...party.nodes, field('Arriving', at));
       ui.body.append(field('Notes (optional)', notes));
-      const held = chosen === 'Bowling' && times[when] && times[when].short && !anyway;
-      ui.primary('Save reservation', !!held);
+      ui.primary(chosen === 'Bowling' && times[when] && times[when].late ? 'Save anyway' : 'Save reservation');
       current.party = party;
       if (chosen === 'Bowling' && when === 'own') refreshFit();
     },
     command() {
       const laneTime = category.value() === 'Bowling' && when && when !== 'own' ? times[when] : null;
       if (!laneTime && !at.value) throw new Error('Enter the arrival time.');
-      if (laneTime && laneTime.short && !anyway) throw new Error('Tick Book anyway to book this time.');
       // Never at a time both lanes are busy (owner, 17 November: "how can i save reservation at the time both lanes are playing?").
       if (category.value() === 'Bowling' && when === 'own' && at.value && laneFit(r, stamp(at.value), current.party.value())) throw new Error('Both lanes are busy then. Choose a time a lane is free.');
       const party = current.party.value(), arrivalMs = laneTime ? laneTime.ms : stamp(at.value);
@@ -16444,7 +16443,7 @@ function reservationCard(r, plan) {
       ] : [
         ...(r.category === 'Bowling' ? [['Change players', () => playersSheet('Players · ' + r.customer, Number(r.players) || 1, r.category === 'Bowling' ? ARENA_BRANCH.bowling.maxPlayers : 8, n => ({ type: 'RESERVATION_PLAYERS', id: r.id, revision: (state.Reservations.find(x => x.id === r.id) || r).revision, players: n }), 'Players', n => {
           const hit = whoStartsLater(copy => { const me = copy.Reservations.find(x => x.id === r.id); if (me) me.players = n; });
-          return hit ? hit.r.customer + ' would start ' + inWords(Math.round((hit.is.expectedMs - hit.was.expectedMs) / 60000)) + ' later, at ' + clock(hit.is.expectedMs) + ' instead of ' + clock(hit.was.expectedMs) + '.' : null;
+          return hit ? lateWords(hit) : null;
         }), false, 'users']] : []),
         ...(other ? [['Move booking', () => reservationSheet(r), false, 'transfer']] : []),
         ['Edit', () => reservationSheet(r), false, 'pencil']
@@ -21364,7 +21363,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "9e03e65915b5";
+const APP_BUILD = "334be853b18c";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
