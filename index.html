@@ -6535,7 +6535,16 @@ var ArenaReports = (function () {
       var placeOf = function (name) { places[name] = places[name] || { netPaise: 0, discountPaise: 0, bills: 0, bookings: 0, hours: 0, seen: {} }; return places[name]; };
       var addMap = function (map) {
         var sum = 0;
-        Object.keys(map).forEach(function (k) { if (!map[k]) return; placeOf(k.slice(0, k.indexOf('|'))).netPaise += map[k]; sum += map[k]; });
+        // On the courts side a membership and the rentals are lines of their own, as in Reports (owner, 17 November: Badminton read
+        // ₹41,010 with a ₹30,000 membership and the rackets in it).
+        Object.keys(map).forEach(function (k) {
+          if (!map[k]) return;
+          var place = k.slice(0, k.indexOf('|')), part = k.slice(k.indexOf('|') + 1);
+          if (sideName === 'courts' && part === 'membership') place = 'Memberships';
+          else if (sideName === 'courts' && part === 'rentals') place = 'Rentals';
+          placeOf(place).netPaise += map[k];
+          sum += map[k];
+        });
         return sum;
       };
       (state.Bills || []).forEach(function (bl) {
@@ -15537,7 +15546,7 @@ function payWaysLine(c) {
 // payment into its own account; and what went into another account, with one Transfer for each account's total. Then what was
 // moved, and each account before and after.
 const RECON_SIDES = [['floor', 'Gaming floor + Turf'], ['courts', 'Badminton & Pickleball']];
-const RECON_PLACES = { courts: ['Badminton', 'Pickleball', 'Snacks & drinks'], floor: ['Gaming floor', 'Turf', 'Snacks & drinks'] };
+const RECON_PLACES = { courts: ['Badminton', 'Pickleball', 'Rentals', 'Memberships', 'Snacks & drinks'], floor: ['Gaming floor', 'Turf', 'Snacks & drinks'] };
 const accountName = id => ((UPI_ACCOUNTS || []).find(a => a.id === id) || { name: id || 'UPI, no account' }).name;
 // Reconciliation's own figures changed in place, so the page stays where it is (owner, 14 November: "after every transfer it goes
 // to top"): the item marked moved or not, the summary with it, then drawn again at the same scroll.
@@ -15642,6 +15651,13 @@ function reconSnacks(items, period, oneDay) {
     h('div', 'audit-side-head', h('h2', { text: 'Snacks & drinks' }), h('span', { class: 'audit-sub', text: period + ' · UPI belongs in ' + accountName(own) })),
     h('section', 'audit-card', lines.length ? auditTable(null, lines, 'accounts-snacks') : h('p', { class: 'muted recon-none', text: 'Every snack and drink paid by UPI went into ' + accountName(own) + '.' })));
 }
+// Which account a bill went onto: a membership (its bill is a membership's, or the account is one), an academy's, or ordinary credit.
+function reconCreditKind(x) {
+  const d = state.BillDetails.find(b => b.id === x.billId) || {}, moved = state.CreditTransfers.find(t => t.billId === x.billId), account = moved ? moved.accountId : '';
+  if (d.tabId && ordersOf(d.tabId).some(o => o.category === 'Membership' && o.status === 'active')) return 'membership';
+  if (account && turfAcademies().some(a => a.accountId === account)) return 'academy';
+  return account && coachingAccount(account) ? 'membership' : 'credit';
+}
 // The statement, one line a kind with its count and total, each opening to the names: the day's bills, less discounts, advance
 // paid before, pending and credit, is what was paid for them; with what came in for other days it is the money received.
 function reconStatement(side, e, dayWords, day) {
@@ -15663,11 +15679,17 @@ function reconStatement(side, e, dayWords, day) {
   kind('discount', 'Discounts given', e.discounts, '−');
   kind('earlier', 'Paid before, in advance', e.earlier, '−');
   kind('pending', 'Left pending', e.pending, '−');
-  kind('credit', 'Put on credit', e.credit, '−');
+  // What went on an account, by kind (owner, 17 November: "mention membership for membership, academies to academies and normal credit
+  // to credit only").
+  const credits = { membership: [], academy: [], credit: [] };
+  for (const x of e.credit || []) credits[reconCreditKind(x)].push(x);
+  kind('credit-membership', 'Memberships on account', credits.membership, '−');
+  kind('credit-academy', 'Academies on account', credits.academy, '−');
+  kind('credit', 'Put on credit', credits.credit, '−');
   kind('later', 'Paid after these dates', e.later, '−');
   // Total charged and "today's bills" read as the same thing (owner, 16 November: "total charged is there, again todays bills is there so
   // its confusing"): nothing taken off, no line in between; something taken off, the line says what ("After discount and pending").
-  const off = [['discount', e.discounts], ['advance paid before', e.earlier], ['pending', e.pending], ['credit', e.credit], ['paid later', e.later]].filter(([, list]) => list && list.length).map(([word]) => word);
+  const off = [['discount', e.discounts], ['advance paid before', e.earlier], ['pending', e.pending], ['memberships', credits.membership], ['academies', credits.academy], ['credit', credits.credit], ['paid later', e.later]].filter(([, list]) => list && list.length).map(([word]) => word);
   if (off.length) rows.push({ cls: 'a-sum', data: { reconPaid: '' }, cells: ['After ' + (off.length > 1 ? off.slice(0, -1).join(', ') + ' and ' + off[off.length - 1] : off[0]), e.paidPaise] });
   // Money for other days comes on top, said with +.
   kind('advance', 'Advance for later days', e.advances, '+');
@@ -21439,7 +21461,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "0c3cd4bdb381";
+const APP_BUILD = "3f6426a55715";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
