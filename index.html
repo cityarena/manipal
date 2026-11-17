@@ -6549,8 +6549,12 @@ var ArenaReports = (function () {
       };
       (state.Bills || []).forEach(function (bl) {
         var d = details[bl.id];
-        // A bill moved onto another is counted there, with the bill that pays it (makeUp), never here as pending too.
-        if (!d || voided[bl.id] || ArenaCore.carryOf(state, bl.id)) return;
+        // A bill moved onto another: what is left on it is counted there, with the bill that pays it (makeUp), never here as pending
+        // too; what was paid on it before the move is counted here, with the day's bills (owner, 17 November: ₹80 paid before the rest
+        // was moved read "Other money received").
+        if (!d || voided[bl.id]) return;
+        var movedOn = !!ArenaCore.carryOf(state, bl.id);
+        if (movedOn && !(Number(bl.paidPaise) > 0)) return;
         var day = billDay(d);
         if (day < firstDay || day > lastDay) return;
         var share = sideOf.share(d);
@@ -6564,7 +6568,7 @@ var ArenaReports = (function () {
         // Paid before these dates (an advance) or after them, each bill by name.
         if (before) { e.earlierPaise += before; e.earlier.push({ customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: before }); }
         if (after) { e.laterPaise += after; e.later.push({ customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: after }); }
-        var owed = addMap(f.owed);
+        var owed = movedOn ? 0 : addMap(f.owed);
         if (owed > 0) {
           var row = { customer: who, number: number, billId: bl.id, place: home, bookingId: bookingOfTab(d.tabId), paise: owed };
           if (onCreditBill[bl.id]) { e.credit.push(row); e.creditPaise += owed; } else { e.pending.push(row); e.pendingPaise += owed; }
@@ -21461,7 +21465,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "3f6426a55715";
+const APP_BUILD = "a2c5fda90e7d";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
