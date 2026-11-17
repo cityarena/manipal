@@ -11833,6 +11833,7 @@ const AFTER_SAVES = new Set(['rpcBill', 'rpcHistory', 'rpcReport', 'rpcStock', '
 const ARENA_API = "https://script.google.com/macros/s/AKfycbwtv_y7NZeCC7HYrDWkYYwQiGIbTnuv8DMUGEqiOUqSicjzFmcD4H_yO1WD-gcB-wEDJg/exec";
 let bridge = null, bridgeTroubles = 0;
 // A connection that stops answering (the internet dropped, the frame stalled) is rebuilt after two failures in a row.
+let bridgeHeard = 0;
 function bridgeTrouble() {
   bridgeTroubles++;
   if (bridgeTroubles < 2 || !bridge) return;
@@ -11865,6 +11866,7 @@ function openBridge() {
     const waiting = m.arena === 'reply' ? pending.get(m.id) : null;
     if (!waiting) return;
     pending.delete(m.id);
+    bridgeHeard = Date.now();
     if (m.failed) { bridgeTrouble(); waiting.reject(new Error('Connection interrupted.')); } else { bridgeTroubles = 0; waiting.resolve(m.reply); }
   };
   bridge = {
@@ -11907,13 +11909,31 @@ function callServer(name, args) {
 function rpc(name, ...args) {
   return rpcWithin(45000, name, ...args);
 }
+// A look at the data the server is still working on is never asked for again (owner, 17 November: "Not updated since 5:44 PM", and
+// "how come mangalore is fine?"): the screen stops waiting after its time, but the server goes on, and asking again every 15 seconds
+// and at each Refresh piled up requests until even a small one waited over a minute. A new look of the same kind waits for the one on
+// its way (a snapshot for any snapshot, a report for the same dates); one older than Google's six-minute limit is let go.
+const READ_ONCE = new Set(['rpcSnapshot', 'rpcReport', 'rpcStock']), readsOnTheirWay = new Map();
+function serverOnce(name, args) {
+  if (!READ_ONCE.has(name)) return callServer(name, args);
+  const key = name === 'rpcSnapshot' ? name : name + JSON.stringify(args.slice(1)), going = readsOnTheirWay.get(key);
+  if (going && Date.now() - going.at < 390000) return going.call;
+  const call = callServer(name, args);
+  const mine = { at: Date.now(), call };
+  readsOnTheirWay.set(key, mine);
+  const done = () => { if (readsOnTheirWay.get(key) === mine) readsOnTheirWay.delete(key); };
+  call.then(done, done);
+  return call;
+}
 // A look at the data gives up sooner than a save, so a lost answer never holds the screen for long.
 function rpcWithin(ms, name, ...args) {
   if (AFTER_SAVES.has(name) && typeof outbox !== 'undefined' && outbox.length) return outboxDrained().then(() => rpcWithin(ms, name, ...args));
   return new Promise((resolve, reject) => {
     let settled = false;
-    const timer = setTimeout(() => { settled = true; if (bridge && typeof google === 'undefined') bridgeTrouble(); reject(new Error('The server has not confirmed the outcome yet.')); }, ms);
-    callServer(name, args).then(reply => {
+    // A slow answer is not a broken connection: only a connection that has said nothing for a minute is rebuilt (rebuilding sent
+    // everything again and opened a new connection, more work for a server already behind).
+    const timer = setTimeout(() => { settled = true; if (bridge && typeof google === 'undefined' && Date.now() - bridgeHeard > 60000) bridgeTrouble(); reject(new Error('The server has not confirmed the outcome yet.')); }, ms);
+    serverOnce(name, args).then(reply => {
       if (settled) return;
       clearTimeout(timer);
       if (reply && reply.ok) resolve(reply.data);
@@ -17894,6 +17914,7 @@ function reportLock(target) {
 // reading asked while one for the same dates is on its way waits for it; the next one follows if the data changed meanwhile. A reading
 // that gives up while these dates are already on the screen says nothing; the figures stay and the next reading follows.
 let reportLoading = '';
+const REPORT_EVERY_MS = 120000;
 const reportDates = key => key.slice(key.indexOf('|') + 1);
 async function loadReport(key) {
   const dates = reportDates(key);
@@ -17902,7 +17923,7 @@ async function loadReport(key) {
   try {
     const r = reportRange(), data = await rpcWithin(90000, 'rpcReport', token, r.fromMs, r.toMs, reportPass);
     reportLocked = '';
-    if (dates === reportDates(reportKey())) reportCache = { key, data };
+    if (dates === reportDates(reportKey())) reportCache = { key, data, at: Date.now() };
   } catch (e) {
     if (PIN_REFUSED.test(e.message)) {
       reportCache = { key, data: null };
@@ -18047,7 +18068,14 @@ const reportsPage = {
   render(page) {
     if (reportLocked) { reportLock(page); return; }
     const key = reportKey();
-    if (reportCache.key !== key) { loadReport(key); if (!reportCache.data || reportDates(reportCache.key) !== reportDates(key)) { page.append(loadingRows(4)); return; } }
+    // Read again at most every two minutes while saves go on, at once for other dates or when Refresh is pressed (owner, 17 November:
+    // with Reports open, every save anywhere made the server work out the whole report again, back to back, until the screens' own
+    // looks waited behind it: "Not updated since 5:44 PM").
+    if (reportCache.key !== key) {
+      const sameDates = reportCache.data && reportDates(reportCache.key) === reportDates(key);
+      if (!sameDates) { loadReport(key); page.append(loadingRows(4)); return; }
+      if (Date.now() - (reportCache.at || 0) > REPORT_EVERY_MS) loadReport(key);
+    }
     const s = reportCache.data.summary;
     if (reportView === 'courts') { page.append(sideReport(s, 'courts')); return; }
     if (reportView === 'recon') { page.append(reconReport(s)); return; }
@@ -21481,7 +21509,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "6e4632699a97";
+const APP_BUILD = "22e8638eeae6";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -21582,7 +21610,8 @@ $('sheetClose').append(icon('close'));
 // Back (owner, 21 October): a sheet opened from another goes back to it, one step, plainly named.
 $('sheetBack').append(icon('back'), h('span', { text: 'Back' }));
 $('sheetBack').onclick = () => { if (!flow.saving()) goBack(); };
-$('refresh').onclick = () => refresh(true);
+// Refresh also reads the report again at once when Reports is open (it is otherwise read at most every two minutes).
+$('refresh').onclick = () => { if (typeof reportCache !== 'undefined') reportCache.at = 0; refresh(true); };
 $('logout').onclick = signOut;
 $('sheetClose').onclick = () => { if (!flow.saving()) dismissSheet(); };
 $('sheet').addEventListener('cancel', e => { e.preventDefault(); if (!flow.saving()) dismissSheet(); });
