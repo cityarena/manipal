@@ -574,6 +574,11 @@ input[type=checkbox]:checked::before { transform: scale(1); }
 .suggest button:hover { border-color: var(--line-bold); background: var(--hover); }
 .suggest-who { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; }
 .suggest .avatar { width: 30px; height: 30px; font-size: var(--text-xs); }
+/* People already pending, offered under a pending name (owner, 17 November), and what picking one adds to. */
+.pending-suggest { margin: 8px 0 0; }
+.pending-suggest:empty { display: none; }
+.pending-joined { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--gold); font-weight: 600; }
+.pending-joined svg { width: 14px; height: 14px; flex: none; }
 
 /* ---------- Shell: a floating menu panel, then the page ---------- */
 /* A test copy's strip across the top (Script Property TEST_COPY). */
@@ -13448,10 +13453,37 @@ function focusRest(ui) {
   if (box) { box.focus({ preventScroll: true }); box.scrollIntoView({ block: 'nearest' }); }
 }
 // Who will clear a pending amount: a name and a mobile, filled in from the bill and changed if someone else will pay.
+// As the name (or mobile) is typed, the people already pending are offered (owner, 17 November: "imran has some pending balance …
+// when i type im let it come i will click and let it add to that"): tapping one fills their name and mobile exactly, so this goes
+// onto their Pending row, and says what they already owe. Only people still owing are offered: once all of someone's pending is
+// cleared they are no longer there.
 function pendingFields(draft) {
-  const name = textInput({ value: draft.pendingName, 'aria-label': 'Pending in the name of', data: { field: 'pending-name' }, oninput: () => { draft.pendingName = name.value; } });
-  const phone = h('input', { type: 'tel', value: draft.pendingPhone, 'aria-label': 'Their mobile', data: { field: 'pending-phone' }, oninput: () => { draft.pendingPhone = phone.value; } });
-  return { node: h('div', 'foot-row pending-who', field('Name', name), field('Mobile (optional)', phone)), name, phone };
+  const suggestions = h('div', { class: 'suggest pending-suggest', data: { field: 'pending-suggest' } }), joined = h('p', { class: 'small pending-joined', data: { field: 'pending-joined' } });
+  const owing = () => pendingGroups(pendingRows()).filter(g => g.owed > 0 && g.name && !/^walk-?in$/i.test(g.name.trim()));
+  const same = g => {
+    const digits = String(draft.pendingPhone || '').replace(/\D/g, ''), mine = String(g.phone || '').replace(/\D/g, '');
+    return digits ? digits === mine : !mine && String(draft.pendingName || '').trim().toLowerCase() === g.name.trim().toLowerCase();
+  };
+  const say = () => {
+    const g = owing().find(same);
+    joined.replaceChildren(...(g ? [icon('clock'), 'Adds to ' + g.name + '’s pending · ' + money(g.owed) + ' already'] : []));
+    joined.hidden = !g;
+  };
+  const draw = () => {
+    const text = name.value.trim().toLowerCase(), digits = phone.value.replace(/\D/g, '');
+    const found = text.length < 2 && digits.length < 4 ? [] : owing().filter(g => !same(g) && ((text.length >= 2 && g.name.toLowerCase().includes(text)) || (digits.length >= 4 && String(g.phone).replace(/\D/g, '').includes(digits)))).slice(0, 3);
+    suggestions.replaceChildren(...found.map(g => h('button', { type: 'button', data: { pendingPick: g.key }, onclick: () => {
+      name.value = draft.pendingName = g.name;
+      phone.value = draft.pendingPhone = g.phone || '';
+      suggestions.replaceChildren();
+      say();
+    } }, h('span', 'suggest-who', avatar(g.name), h('span', { text: g.name })), h('span', { class: 'muted small', text: [g.phone, money(g.owed) + ' pending'].filter(Boolean).join(' · ') }))));
+    say();
+  };
+  const name = textInput({ value: draft.pendingName, 'aria-label': 'Pending in the name of', data: { field: 'pending-name' }, oninput: () => { draft.pendingName = name.value; draw(); } });
+  const phone = h('input', { type: 'tel', value: draft.pendingPhone, 'aria-label': 'Their mobile', data: { field: 'pending-phone' }, oninput: () => { draft.pendingPhone = phone.value; draw(); } });
+  say();
+  return { node: h('div', 'pending-who-box', h('div', 'foot-row pending-who', field('Name', name), field('Mobile (optional)', phone)), suggestions, joined), name, phone };
 }
 // One closed game, collected on its own: in full, or in part with the rest kept on the table, to credit or pending.
 // What can be paid with a closed game (owner, 21 October): every item on the table, whichever game it was added during (a
@@ -17196,7 +17228,8 @@ function pendingItemsSheet(billId, name, owed, back) {
       if (!items.length) throw new Error('Choose what to add.');
       return { type: 'PENDING_ADD_ITEMS', billId, items };
     },
-    then(result) { closeSheet(); render(); return { text: result.message }; }
+    // What they owe in all, as the sheet said it (owner, 17 November: from a person's row, not the one bill the items went onto).
+    then() { const sum = picker.total(); closeSheet(); render(); return { text: 'Added ' + money(sum) + '. ' + (name || 'Walk-in') + ' owes ' + money(owed + sum) + '.' }; }
   });
 }
 // The reservation a pending bill is held for, to come onto its bill at check-in (owner, 15 November).
@@ -17410,6 +17443,12 @@ function pendingInDates(r) {
   if (pendingQuery.range === 'custom') return key >= pendingQuery.from && key <= pendingQuery.to;
   return true;
 }
+// A person's latest pending bill, where items added from their row go: the one of the latest day, the latest made that day.
+function pendingLatestBill(group) {
+  const at = r => (r.booking ? (state.BillDetails.find(d => d.id === r.parts[0].billId) || {}).createdMs || 0 : r.detail.createdMs || 0);
+  const latest = group.rows.slice().sort((a, b) => pendingDay(b).localeCompare(pendingDay(a)) || at(b) - at(a))[0];
+  return latest.booking ? latest.parts[0].billId : latest.bill.id;
+}
 function pendingList(page) {
   const text = pendingSearch.trim().toLowerCase(), list = pendingRows().filter(pendingInDates).filter(r => !text || (r.booking ? r.booking.customer + ' ' + r.booking.phone : r.detail.customer + ' ' + ((r.tab || {}).phone || '')).toLowerCase().includes(text));
   page.append(table(
@@ -17423,6 +17462,10 @@ function pendingList(page) {
           h('td', { class: 'num owing', text: money(group.owed) }),
           h('td', { class: 'r' }, h('div', 'row-tools',
             group.phone ? iconButton('whatsapp', 'Remind ' + group.name + ' on WhatsApp', e => { e.stopPropagation(); whatsapp(group.phone, pendingReminderText(group.name, group.owed, 'your visits', detail)); }, { data: { action: 'pending-remind' } }) : null,
+            // Add Items and Move as on one bill (owner, 17 November: "why is add itmes not there for first?"): the items onto their
+            // latest bill, Move taking all their bills.
+            h('button', { type: 'button', class: 'btn', data: { action: 'pending-items' }, onclick: e => { e.stopPropagation(); pendingItemsSheet(pendingLatestBill(group), group.name, group.owed); } }, icon('plus'), h('span', { class: 'hide-s', text: 'Add Items' })),
+            h('button', { type: 'button', class: 'btn', data: { action: 'pending-move' }, onclick: e => { e.stopPropagation(); pendingMoveSheet(group.rows.flatMap(r => (r.booking ? r.parts.map(x => x.billId) : [r.bill.id])), group.name, group.owed); } }, icon('transfer'), h('span', { class: 'hide-s', text: 'Move' })),
             h('button', { type: 'button', class: 'btn', data: { action: 'pending-collect' }, onclick: e => { e.stopPropagation(); pendingPersonSheet(group); } }, icon('wallet'), h('span', { class: 'hide-s', text: 'Collect' })))));
       }
       const r = group.rows[0];
@@ -21364,7 +21407,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "dbf514c82db3";
+const APP_BUILD = "2174f3d163d0";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
