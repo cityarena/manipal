@@ -3569,6 +3569,9 @@ td.num:has(.owed-open) { white-space: nowrap; }
 .balance-side span { color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; }
 .balance-side b { font-size: var(--text-xl); color: var(--gold); }
 @media (max-width: 640px) { .balance-card { flex-wrap: wrap; padding: 16px; } .balance-side { justify-items: start; padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--line-strong); width: 100%; } }
+
+/* Update report and when the figures are from, on the Reports bar (owner, 17 November). */
+.rep-update { display: inline-flex; align-items: center; gap: 8px; }
 </style>
 </head>
 <body>
@@ -11651,20 +11654,24 @@ function whenInput(value, props = {}) {
   const halves = [['AM', false], ['PM', true]].map(([text, on]) => h('button', { type: 'button', data: { half: text }, onmousedown: e => e.preventDefault(), onclick: () => { pm = on; tidy(); changed(); } }, text));
   const half = h('div', { class: 'seg when-half', role: 'group', 'aria-label': 'AM or PM' }, halves);
   const paintHalf = () => halves.forEach((button, i) => button.setAttribute('aria-pressed', String(pm === (i === 1))));
-  // "10:20", "1020", "10.20", "9", "9 pm" → hours and minutes on a 12-hour clock, or null.
+  // "10:20", "1020", "10.20", "9" → hours and minutes on a 12-hour clock, or null; half is PM (true) or AM (false) when the text
+  // itself says so (a whole 24-hour time, or midnight's 0), otherwise null. Reading never changes AM or PM: only typing does (when it
+  // is typed) and the buttons do (17 November: after 0:30 was typed, PM could not be chosen — every read put it back to AM).
   const read = () => {
     const raw = time.value.trim().toLowerCase();
-    if (/p/.test(raw)) pm = true; else if (/a/.test(raw)) pm = false;
     const digits = raw.replace(/[^0-9:.\s]/g, '').trim(), parts = digits.split(/[:.\s]+/).filter(Boolean);
     let hh, mm;
     if (parts.length >= 2) { hh = Number(parts[0]); mm = Number(parts[1]); }
     else if (parts.length === 1) { const d = parts[0]; if (d.length <= 2) { hh = Number(d); mm = 0; } else { hh = Number(d.slice(0, d.length - 2)); mm = Number(d.slice(-2)); } }
     else return null;
     if (!(hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59)) return null;
-    // 13:00 to 23:59 typed as a 24-hour time is understood too.
-    if (hh > 12) { pm = true; hh -= 12; }
-    if (hh === 0) { hh = 12; pm = false; }
-    return { hh, mm };
+    // 13:00 to 23:59 typed as a 24-hour time is understood too, but only once the whole time is typed ("1430", "14:30"): while it
+    // is being typed, "14" on the way to "142" is not 2 PM, and AM chosen stays AM (17 November: 1:42 AM typed was saved as 1:42 PM).
+    const whole = parts.length >= 2 || parts[0].length >= 3;
+    let half = /p/.test(raw) ? true : /a/.test(raw) ? false : null;
+    if (hh > 12) { if (whole) half = true; hh -= 12; }
+    if (hh === 0) { hh = 12; if (whole) half = false; }
+    return { hh, mm, half };
   };
   const tidy = () => { const at = read(); if (at) time.value = at.hh + ':' + String(at.mm).padStart(2, '0'); paintHalf(); };
   const wrap = h('div', { class: 'when-input', data: props.data }, time, half, date);
@@ -11696,9 +11703,12 @@ function whenInput(value, props = {}) {
   time.oninput = () => {
     const raw = time.value.toLowerCase();
     if (/p/.test(raw)) pm = true; else if (/a/.test(raw)) pm = false;
-    paintHalf();
     const digits = raw.replace(/[^0-9]/g, '').slice(0, 4);
     time.value = digits.length <= 2 ? digits : digits.slice(0, -2) + ':' + digits.slice(-2);
+    // A whole 24-hour time ("1430") or midnight's "030" says PM or AM as it is typed; a part of one ("14" on the way to "142") never.
+    const at = read();
+    if (at && at.half !== null) pm = at.half;
+    paintHalf();
     if (props.oninput) props.oninput();
   };
   time.onblur = () => { tidy(); changed(); };
@@ -11883,10 +11893,12 @@ function openBridge() {
     })),
     close: () => { window.removeEventListener('message', listen); frame.remove(); pending.forEach(w => w.reject(new Error('Connection interrupted.'))); pending.clear(); }
   };
-  // A hidden connection that has not started in ten seconds is opened again, and again (20, then every 30 seconds) until one
+  // A hidden connection that has not started in thirty seconds is opened again, every 30 seconds, until one
   // starts (owner, 17 November: the console said it "has not started yet" and the screen stayed on the direct way, where from the
   // counter some requests never arrive, "Not updated since 6:33").
-  const mine = bridge, wait = Math.min(30000, 10000 * (bridgeStarts + 1));
+  // Google can take more than ten seconds to start it (owner's test, 17 November: reopened twice before it could start), so it is
+  // given thirty seconds each time.
+  const mine = bridge, wait = 30000;
   setTimeout(() => {
     if (target || bridge !== mine) return;
     console.warn('[City Arena] the hidden connection has not started yet; opening it again (the direct connection meanwhile)');
@@ -17947,9 +17959,8 @@ function reportLock(target) {
 // reading asked while one for the same dates is on its way waits for it; the next one follows if the data changed meanwhile. A reading
 // that gives up while these dates are already on the screen says nothing; the figures stay and the next reading follows.
 let reportLoading = '';
-const REPORT_EVERY_MS = 120000;
 const reportDates = key => key.slice(key.indexOf('|') + 1);
-async function loadReport(key) {
+async function loadReport(key, asked = false) {
   const dates = reportDates(key);
   if (reportLoading === dates) return;
   reportLoading = dates;
@@ -17964,10 +17975,19 @@ async function loadReport(key) {
       reportLocked = e.message;
       if (reportPass) keepReportPass('', false);
     } else if (dates === reportDates(reportKey()) && !(reportCache.data && reportDates(reportCache.key) === dates)) {
-      reportCache = { key, data: null };
-      notify('error', e.message);
+      // Nothing to show for these dates: said on the page with Try again, never drawn as an empty report (owner, 17 November: "This
+      // page could not be shown: Cannot read properties of null (reading 'summary')").
+      reportCache = { key, data: null, failed: true };
+      reportLoading = '';
+      if (page === 'settings' && settingsMode === 'reports') render();
       return;
-    } else return;
+    } else {
+      // Update report pressed and the server did not answer: said, the figures before it staying.
+      if (asked) notify('error', 'The report could not be updated just now. Press Update report again.');
+      if (reportLoading === dates) reportLoading = '';
+      if (page === 'settings' && settingsMode === 'reports') render();
+      return;
+    }
   } finally {
     if (reportLoading === dates) reportLoading = '';
   }
@@ -18096,19 +18116,26 @@ const reportsPage = {
     bar.append(...[h('div', 'rep-range', presets.node, h('div', 'rep-dates', from, h('span', { class: 'muted', text: 'to' }), to)), sides,
       reportView === 'recon' ? null : h('div', 'rep-export desk-only',
         btn([icon('download'), 'Export'], reportView === 'courts' ? exportCourts : exportReport, 'quiet', { data: { action: 'export-report' } })),
+      // The report is worked out again only when this is pressed (owner, 17 November: "keep a button over there and only when i click it
+      // let the report update"), or the dates change; never by itself after saves. It says when the figures shown are from.
+      h('div', 'rep-update',
+        btn([icon('refresh'), reportLoading ? 'Updating…' : 'Update report'], () => { loadReport(reportKey(), true); render(); }, 'outline', { data: { action: 'report-update' }, disabled: !!reportLoading }),
+        ...[reportCache.at ? h('span', { class: 'small muted', data: { field: 'report-as-of' }, text: 'As of ' + clock(reportCache.at) }) : null].filter(Boolean)),
       btn([icon('lock'), 'Lock'], () => { lockReports(); render(); }, 'quiet', { data: { action: 'report-lock' } })].filter(Boolean));
   },
   render(page) {
     if (reportLocked) { reportLock(page); return; }
     const key = reportKey();
-    // Read again at most every two minutes while saves go on, at once for other dates or when Refresh is pressed (owner, 17 November:
-    // with Reports open, every save anywhere made the server work out the whole report again, back to back, until the screens' own
-    // looks waited behind it: "Not updated since 5:44 PM").
-    if (reportCache.key !== key) {
-      const sameDates = reportCache.data && reportDates(reportCache.key) === reportDates(key);
-      if (!sameDates) { loadReport(key); page.append(loadingRows(4)); return; }
-      if (Date.now() - (reportCache.at || 0) > REPORT_EVERY_MS) loadReport(key);
+    // Read only for dates not read yet; the same dates again only on Update report (owner, 17 November). A reading that got no answer
+    // says so, with Try again.
+    const readDates = reportDates(reportCache.key || '') === reportDates(key);
+    if (!reportCache.data && readDates && reportCache.failed && !reportLoading) {
+      page.append(h('section', { class: 'panel', data: { field: 'report-failed' } },
+        h('p', { text: 'The report could not be loaded just now. The server did not answer in time.' }),
+        btn([icon('refresh'), 'Try again'], () => { loadReport(key, true); render(); }, 'outline', { data: { action: 'report-retry' } })));
+      return;
     }
+    if (!reportCache.data || !readDates) { loadReport(key); page.append(loadingRows(4)); return; }
     const s = reportCache.data.summary;
     if (reportView === 'courts') { page.append(sideReport(s, 'courts')); return; }
     if (reportView === 'recon') { page.append(reconReport(s)); return; }
@@ -21542,7 +21569,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "85d3f4dab85b";
+const APP_BUILD = "e1e5cf07dc27";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -21649,8 +21676,12 @@ $('sheetClose').append(icon('close'));
 // Back (owner, 21 October): a sheet opened from another goes back to it, one step, plainly named.
 $('sheetBack').append(icon('back'), h('span', { text: 'Back' }));
 $('sheetBack').onclick = () => { if (!flow.saving()) goBack(); };
-// Refresh also reads the report again at once when Reports is open (it is otherwise read at most every two minutes).
-$('refresh').onclick = () => { if (typeof reportCache !== 'undefined') reportCache.at = 0; refresh(true); };
+// Refresh says Checking… at once, until the answer comes (owner, 17 November: "that refresh button is waste" — it asked, but
+// nothing on the screen said so while Google took 3 to 6 seconds).
+$('refresh').onclick = () => {
+  $('syncText').textContent = 'Checking…';
+  refresh(true);
+};
 $('logout').onclick = signOut;
 $('sheetClose').onclick = () => { if (!flow.saving()) dismissSheet(); };
 $('sheet').addEventListener('cancel', e => { e.preventDefault(); if (!flow.saving()) dismissSheet(); });
