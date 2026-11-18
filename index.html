@@ -3978,6 +3978,16 @@ var ArenaCore = (function () {
     check(Number.isSafeInteger(amount), 'Charge exceeds supported amount.');
     return { actualMilliseconds: duration, billableMinutes: minutes, totalPaise: amount };
   }
+  // A booking's hours as charged and counted (owner, 18 November: "5 minutes and all do not consider, 55 minutes is 1 hour … this is
+  // about spot booking, not all … once a spot booking is started, bills are either 30 minutes charge or an hour like nothing in
+  // between and it keeps continuing like that"): a spot booking's minutes in half hours, 5 minutes over not counted — 20 or 30
+  // minutes is half an hour, 55 minutes or 1 hour 5 minutes an hour, 1 hour 20 an hour and a half. Every other booking as booked.
+  function countedHours(booking) {
+    if (!booking || booking.reason !== 'spot') return Number(booking && booking.hours) || 0;
+    var minutes = Math.round(Number(booking.hours) * 60);
+    if (!(minutes > 0)) return 0;
+    return 30 * Math.max(1, Math.ceil((minutes - 5) / 30)) / 60;
+  }
   function find(rows, id) { var r = rows.find(function(x){ return x.id === id; }); check(!!r, 'Record not found.'); return r; }
   // UPI to the CA scanner (owner, 20 October): recorded as 'upi:ca', so CA UPI is counted apart from plain UPI.
   // Manipal's three UPI accounts (owner, 14 November; Branch.gs upiAccounts) are recorded the same way: 'upi:<account>'.
@@ -4041,7 +4051,7 @@ var ArenaCore = (function () {
     }
     return result;
   }
-  return { bowlingRates:bowlingRates, bowlingMinutes:bowlingMinutes, scanners:scanners, payMethod:payMethod, payParts:payParts, rates:rates, pricesFor:pricesFor, rateSetting:rateSetting, bill:bill, execute:execute, check:check, startTime:startTime, nextNumber:nextNumber, isVoidedBill:isVoidedBill, carryOf:carryOf, engineFor:engineFor, run:run, freshStart:freshStart, pausedMs:pausedMs, charge:charge };
+  return { bowlingRates:bowlingRates, bowlingMinutes:bowlingMinutes, scanners:scanners, payMethod:payMethod, payParts:payParts, rates:rates, pricesFor:pricesFor, rateSetting:rateSetting, bill:bill, execute:execute, check:check, startTime:startTime, nextNumber:nextNumber, isVoidedBill:isVoidedBill, carryOf:carryOf, engineFor:engineFor, run:run, freshStart:freshStart, pausedMs:pausedMs, charge:charge, countedHours:countedHours };
 })();
 
 
@@ -5935,11 +5945,11 @@ var ArenaReports = (function () {
       var mark = String(b.confirmSent || '');
       if (mark === 'maybe' || /^hold:\d+$/.test(mark)) return;
       turf.bookings++;
-      turf.hours += Number(b.hours);
+      turf.hours += ArenaCore.countedHours(b);
       var place = COURT_PLACE[b.court] || 'Turf';
       places[place] = places[place] || { bookings: 0, hours: 0 };
       places[place].bookings++;
-      places[place].hours += Number(b.hours);
+      places[place].hours += ArenaCore.countedHours(b);
     });
     out.usage = use;
     out.turfUsage = turf;
@@ -6631,7 +6641,7 @@ var ArenaReports = (function () {
           if (!bk || (sideName === 'courts') !== (at !== 'Turf') || placeOf(at).seen[bid]) return;
           placeOf(at).seen[bid] = true;
           placeOf(at).bookings++;
-          placeOf(at).hours += Number(bk.hours) || 0;
+          placeOf(at).hours += ArenaCore.countedHours(bk);
         });
         if (off > 0) {
           if (home) placeOf(home).discountPaise += off;
@@ -7088,8 +7098,9 @@ var ArenaTurf = (function () {
     var saved = (state.Settings || []).find(function (r) { return r.id === 'turfRate-' + court; });
     return saved ? Number(saved.value) : RATE_DEFAULTS[court];
   }
-  // A spot booking of minutes is the hour's rate for its minutes, to the rupee.
-  function feeOf(booking) { var whole = Number(booking.ratePaise) * Number(booking.hours); return Number.isSafeInteger(whole) ? whole : Math.round(whole / 100) * 100; }
+  // A spot booking is charged in half hours (ArenaCore.countedHours; owner, 18 November): 55 minutes is the hour's rate.
+  function chargedHours(booking) { return ArenaCore.countedHours(booking); }
+  function feeOf(booking) { var whole = Number(booking.ratePaise) * chargedHours(booking); return Number.isSafeInteger(whole) ? whole : Math.round(whole / 100) * 100; }
 
   // ---------- Bookings ----------
   function booked(state) { return (state.TurfBookings || []).filter(function (b) { return b.status === 'booked'; }); }
@@ -7433,7 +7444,7 @@ var ArenaTurf = (function () {
   function voidLine(order, why) { order.status = 'void'; order.reason = why; order.revision = Number(order.revision || 1) + 1; }
   // Puts the turf amounts where they belong: the whole fee on the booking's bill for one payer, or one share per player.
   // One rental for the booking: an hour's price times its hours for a racket (to the rupee), the price itself for a shuttlecock.
-  function rentFor(gear, booking) { return gear.perHour ? Math.round(gear.pricePaise * Number(booking.hours) / 100) * 100 : gear.pricePaise; }
+  function rentFor(gear, booking) { return gear.perHour ? Math.round(gear.pricePaise * chargedHours(booking) / 100) * 100 : gear.pricePaise; }
   function sync(state, booking, now, id, alone) {
     if (locked(state, booking)) return;
     // A racket rented by the hour follows the booking's hours when it is extended or changed, at the hour's price it was rented at.
@@ -7456,11 +7467,13 @@ var ArenaTurf = (function () {
       if (!main || main.status !== 'open') return;
       // A discount on the turf (owner, 22 October) makes the line the turf after discount, with the gross and the discount
       // kept beside it for the reports, as a player's share is.
-      var off = Number(booking.discountPaise || 0), label = placeWord(booking.court) + ' · ' + (COURT_NAMES[booking.court] || booking.court) + ' · ' + hoursText(booking.hours);
-      if (off > 0) setLine(state, fee, { tabId: main.id, label: label, quantity: 1, unitPricePaise: feeOf(booking) - off, purchaser: booking.customer, reason: placeWord(booking.court) + ' booking', ratesJson: JSON.stringify({ bookingId: booking.id, part: 'fee', ratePaise: Number(booking.ratePaise), hours: Number(booking.hours), grossPaise: feeOf(booking), discountPaise: off }) }, now, id + '-fee');
+      // A spot booking's line says the time charged, its own minutes under it ("Spot booking · 4:05pm - 5:00pm").
+      var off = Number(booking.discountPaise || 0), label = placeWord(booking.court) + ' · ' + (COURT_NAMES[booking.court] || booking.court) + ' · ' + hoursText(chargedHours(booking));
+      var feeWhy = booking.reason === 'spot' ? 'Spot booking · ' + rangeText(booking) : placeWord(booking.court) + ' booking';
+      if (off > 0) setLine(state, fee, { tabId: main.id, label: label, quantity: 1, unitPricePaise: feeOf(booking) - off, purchaser: booking.customer, reason: feeWhy, ratesJson: JSON.stringify({ bookingId: booking.id, part: 'fee', ratePaise: Number(booking.ratePaise), hours: Number(booking.hours), grossPaise: feeOf(booking), discountPaise: off }) }, now, id + '-fee');
       // A spot booking's odd minutes (owner, 14 November): one line at its price, the hour's rate for its minutes.
-      else if (Math.round(Number(booking.hours) * 60) % 30) setLine(state, fee, { tabId: main.id, label: label, quantity: 1, unitPricePaise: feeOf(booking), purchaser: booking.customer, reason: placeWord(booking.court) + ' booking', ratesJson: JSON.stringify({ bookingId: booking.id, part: 'fee', ratePaise: Number(booking.ratePaise), hours: Number(booking.hours), grossPaise: feeOf(booking) }) }, now, id + '-fee');
-      else setLine(state, fee, { tabId: main.id, label: label, quantity: Number(booking.hours), unitPricePaise: Number(booking.ratePaise), purchaser: booking.customer, reason: placeWord(booking.court) + ' booking', ratesJson: JSON.stringify({ bookingId: booking.id, part: 'fee', ratePaise: Number(booking.ratePaise), hours: Number(booking.hours) }) }, now, id + '-fee');
+      else if (Math.round(Number(booking.hours) * 60) % 30) setLine(state, fee, { tabId: main.id, label: label, quantity: 1, unitPricePaise: feeOf(booking), purchaser: booking.customer, reason: feeWhy, ratesJson: JSON.stringify({ bookingId: booking.id, part: 'fee', ratePaise: Number(booking.ratePaise), hours: Number(booking.hours), grossPaise: feeOf(booking) }) }, now, id + '-fee');
+      else setLine(state, fee, { tabId: main.id, label: label, quantity: Number(booking.hours), unitPricePaise: Number(booking.ratePaise), purchaser: booking.customer, reason: feeWhy, ratesJson: JSON.stringify({ bookingId: booking.id, part: 'fee', ratePaise: Number(booking.ratePaise), hours: Number(booking.hours) }) }, now, id + '-fee');
       return;
     }
     if (fee) voidLine(fee, 'Split among players');
@@ -19313,7 +19326,8 @@ function turfBookingSheet(existing, preset) {
 const turfPendingWhat = b => 'your ' + turfWord(b.court).toLowerCase() + ' booking on *' + ordinalDate(b.dateKey) + '* (' + paddedHour(Number(b.startHour)) + ' – ' + paddedHour(Number(b.startHour) + Number(b.hours)) + ' · ' + courtLabel(b.court) + ')';
 
 // ---------- A booking's money ----------
-const turfFee = b => Number(b.ratePaise) * Number(b.hours);
+// The same as the server's (ArenaTurf.feeOf): a spot booking in half hours, to the rupee (owner, 18 November: "₹458.33.333…").
+const turfFee = b => ArenaTurf.feeOf(b);
 const turfStatusOf = id => (state.TurfStatus || []).find(s => s.bookingId === id) || { state: 'open', owedPaise: 0, parts: [], locked: false };
 const turfPlayersOf = b => (state.TurfPlayers || []).filter(p => p.bookingId === b.id);
 // The booking a tab belongs to: its own bill, or one of its players' bills.
@@ -19570,14 +19584,15 @@ function turfDetailSheet(id) {
       if (notes) ui.body.append(notes);
       // Play brought from the gaming floor (a group that played before the turf), at its saved price.
       // A bill moved onto the booking from the floor keeps its own items with it (owner, 4 November: "any system, turf when
-      // bills are moved do not club it"): each one, its time and its items, one line opened with +.
-      const taken = main && main.status === 'open' ? movedOnto(main.id, segmentsOf(main.id), ordersOf(main.id)) : [], takenIds = new Set(taken.flatMap(m => m.segments.map(g => g.id).concat(m.orders.map(o => o.id))));
+      // bills are moved do not club it"): each one, its time and its items, one line opened with +. Its bill closed too (owner,
+      // 18 November: Lane 2's ₹900 was in the Total bill but not on the booking — "make sure it appears on the final bill also").
+      const taken = main ? movedOnto(main.id, segmentsOf(main.id), ordersOf(main.id)) : [], takenIds = new Set(taken.flatMap(m => m.segments.map(g => g.id).concat(m.orders.map(o => o.id))));
       if (taken.length) {
         const box = h('div');
         drawLines(box, { segments: taken.flatMap(m => m.segments), orders: taken.flatMap(m => m.orders), customer: b.customer, tab: main, editable: false });
         ui.body.append(h('div', 'group-title', icon('floor'), 'From the gaming floor'), ...box.childNodes);
       }
-      const played = main && main.status === 'open' ? [...segmentsOf(main.id), ...ordersOf(main.id).filter(o => CATEGORIES.includes(o.category) || o.category === 'Manual')].filter(x => !takenIds.has(x.id)) : [];
+      const played = main ? [...segmentsOf(main.id), ...ordersOf(main.id).filter(o => CATEGORIES.includes(o.category) || o.category === 'Manual')].filter(x => !takenIds.has(x.id)) : [];
       if (played.length) ui.body.append(h('div', 'group-title', icon('floor'), 'From the gaming floor'), h('div', 'lines', played.map(x => {
         const unit = x.unitId ? unitOf(x.unitId) : null, label = unit ? unit.name + (x.player ? ' · ' + x.player : '') : x.label;
         const sub = unit ? minutes(Number(x.billableMinutes) ? x.billableMinutes * 60000 : (Number(x.endMs) || nowMs()) - x.startMs) : x.reason || x.category;
@@ -19619,7 +19634,8 @@ function turfDetailSheet(id) {
       const closedBill = !split && main && main.status !== 'open' && !turfAccountOf(b.id) && mainPart && mainPart.billId ? state.Bills.find(x => x.id === mainPart.billId) : null;
       if (closedBill) {
         const bought = new Map();
-        for (const o of goodsOf(ordersOf(main.id)).filter(x => !turfCarried(x))) {
+        // What came from the gaming floor is listed above under its own title, never again here.
+        for (const o of goodsOf(ordersOf(main.id)).filter(x => !turfCarried(x) && !takenIds.has(x.id) && !CATEGORIES.includes(x.category) && x.category !== 'Manual')) {
           const key = (o.productId || o.label) + ':' + o.unitPricePaise;
           const row = bought.get(key) || { label: o.label, unit: o.unitPricePaise, quantity: 0, total: 0, order: o, rental: !!rentalIdOf(o) };
           row.quantity += Number(o.quantity);
@@ -21354,9 +21370,9 @@ const turfPage = {
       bar.append(btn([icon('plusCircle'), h('span', { class: 'spot-long', text: 'Spot booking' }), h('span', { class: 'spot-short', text: 'Spot' })], () => turfSpotSheet(), 'quiet', { title: 'Spot booking', data: { action: 'turf-spot' } }));
       // How many courts are booked that day, next to Availability, on badminton and pickleball (owner, 14 November).
       // The hours booked that day, however many each booking has (owner, 14 November: "just keep booked hours … how many hours have
-      // been booked that you keep count").
+      // been booked that you keep count"), a spot booking's minutes counted as the system times a game (ArenaCore.countedHours; owner, 18 November).
       // A Hold or a Hold (Pay) is not counted (owner, 14 November: "do not consider, hold and hold(pay) while counting hours").
-      const here = venueHere().key === 'turf' || !list ? null : list.filter(b => courtsHere().includes(b.court) && !turfHeld(b)), hours = here ? here.reduce((n, b) => n + Number(b.hours), 0) : 0;
+      const here = venueHere().key === 'turf' || !list ? null : list.filter(b => courtsHere().includes(b.court) && !turfHeld(b)), hours = here ? here.reduce((n, b) => n + ArenaCore.countedHours(b), 0) : 0;
       if (here) bar.append(h('span', { class: 'turf-booked-count', data: { courtsHours: String(hours) }, title: 'Hours booked this day' },
         h('span', 'turf-booked-part', icon('clock'), h('b', { text: bookedHoursText(hours) }), Math.round(hours * 60) % 60 ? ' booked' : hours === 1 ? ' Hour booked' : ' Hours booked')));
     }
@@ -21778,7 +21794,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "d6df8d3f73e5";
+const APP_BUILD = "43538122933f";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
