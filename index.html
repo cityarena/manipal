@@ -524,6 +524,9 @@ svg { flex: none; }
 .row-tools .icon-btn.danger, .row-tools .icon-btn.danger:hover { color: var(--danger); }
 .row-tools .btn { min-height: 42px; border-radius: var(--r-sm); }
 .row-tools .icon-btn.placeholder { visibility: hidden; }
+/* A credit account's four tools (WhatsApp, Pay, Add Items, Edit) go onto a second line where the row is too narrow for them, never
+   hidden past the card's edge (owner, 18 November: Edit added beside them). */
+tr[data-account] .row-tools { flex-wrap: wrap; }
 
 /* ---------- Fields ---------- */
 .field { display: grid; gap: 8px; margin-bottom: 18px; }
@@ -5130,7 +5133,7 @@ var ArenaSales=(function(){
 /* Credit balances derive from original obligations and allocations; transfers are not sales. */
 var ArenaCredits=(function(){
   'use strict';
-  var types=['CREATE_CREDIT_ACCOUNT','SET_CREDIT_PHONE','CREDIT_CHARGE','CREDIT_ADJUST','CREDIT_PAY','CREDIT','PAY'];
+  var types=['CREATE_CREDIT_ACCOUNT','SET_CREDIT_PHONE','EDIT_CREDIT_ACCOUNT','CREDIT_CHARGE','CREDIT_ADJUST','CREDIT_PAY','CREDIT','PAY'];
   function check(ok,message){ArenaCore.check(ok,message);}
   function find(rows,id){var row=rows.find(function(x){return x.id===id;});check(!!row,'Record not found.');return row;}
   function text(value,max){check(typeof value==='string'&&value.trim().length>0&&value.length<=max,'Enter valid text.');return value.trim();}
@@ -5175,6 +5178,21 @@ var ArenaCredits=(function(){
       var detail=s.CreditDetails.find(function(d){return d.id===holder.id;});
       if(detail)detail.phone=number;else s.CreditDetails.push({id:holder.id,phone:number,createdMs:now});
       return {accountId:holder.id,phone:number,message:'Mobile saved.'};
+    }
+    // The account's name and mobile changed, as a customer's are (owner, 18 November: "just like how we can edit customer names, i
+    // need for credit also"). An academy's name is its account's, so it changes with it; bills and charges already made keep the
+    // name they were made with.
+    if(c.type==='EDIT_CREDIT_ACCOUNT'){
+      var edited=find(s.CreditAccounts,c.accountId);
+      var newName=text(c.name,80);
+      var newPhone=typeof c.phone==='string'?c.phone.trim():'';
+      check(!newPhone||/^[0-9+ ()-]{6,24}$/.test(newPhone),'Enter a valid mobile number.');
+      check(!s.CreditAccounts.some(function(a){return a.id!==edited.id&&a.name.toLowerCase()===newName.toLowerCase();}),'An account with this name already exists.');
+      var oldName=edited.name;
+      edited.name=newName;
+      var editedDetail=s.CreditDetails.find(function(d){return d.id===edited.id;});
+      if(editedDetail)editedDetail.phone=newPhone;else s.CreditDetails.push({id:edited.id,phone:newPhone,createdMs:now});
+      return {accountId:edited.id,name:newName,phone:newPhone,message:oldName===newName?'Account saved.':oldName+' is now '+newName+'.'};
     }
     var account=find(s.CreditAccounts,c.accountId),total=amount(c.amountPaise);
     if(c.type==='CREDIT_PAY'&&Array.isArray(c.payments)&&c.payments.length){
@@ -17061,6 +17079,35 @@ function creditAdjustSheet(account) {
     then: () => accountSheet(account.id)
   });
 }
+// A credit account's name and mobile changed, as a customer's are (owner, 18 November: "just like how we can edit customer names, i
+// need for credit also"): from the pencil on its row and the account's ⋮. An academy's name changes with it; bills already made keep
+// their name.
+function creditEditSheet(account, fromAccount) {
+  let name, phone;
+  openSheet({
+    title: 'Edit account',
+    sub: account.name,
+    icon: 'pencil',
+    tone: 'gold',
+    build(ui) {
+      name = name || textInput({ value: account.name, 'aria-label': 'Name', data: { field: 'credit-name' } });
+      phone = phone || h('input', { type: 'tel', inputmode: 'tel', value: creditPhone(account.id), 'aria-label': 'Mobile', data: { field: 'credit-phone' } });
+      ui.body.append(field('Name', name), field('Mobile (optional)', phone));
+      ui.primary('Save');
+    },
+    command() {
+      if (!name.value.trim()) throw new Error('Enter the account name.');
+      return { type: 'EDIT_CREDIT_ACCOUNT', accountId: account.id, name: name.value.trim(), phone: phone.value.trim() };
+    },
+    then(result) {
+      // From the account's ⋮, back to the account; from its row, back to the list.
+      render();
+      if (fromAccount) accountSheet(account.id);
+      else closeSheet();
+      return { text: result.message };
+    }
+  });
+}
 // A mobile for a credit account, added or changed later. From the WhatsApp button of an account without one, the
 // balance goes out on WhatsApp straight after the save.
 function creditPhoneSheet(account, sendAfter) {
@@ -17115,7 +17162,7 @@ function accountSheet(accountId) {
           ['Adjust balance', () => creditAdjustSheet(account), false, 'settings'],
           // An academy gets its statement of bookings (owner, 24 October); everyone else the day's account summary.
           ...(phone ? [turfAcademies().some(a => a.accountId === account.id) ? ['Send statement on WhatsApp', () => academyStatementSheet(account), false, 'whatsapp'] : ['Send on WhatsApp', () => whatsapp(phone, dayStatementText(account)), false, 'whatsapp']] : []),
-          [phone ? 'Change mobile' : 'Add mobile', () => creditPhoneSheet(account, false), false, 'user'],
+          ['Edit name and mobile', () => creditEditSheet(account, true), false, 'pencil'],
           ...(turfAcademies().some(a => a.accountId === account.id) ? [['Add earlier bookings', () => academyEarlierSheet(account.id), false, 'history']] : [])
         ], 'Account actions')));
       // A bill on this account opens out, in place, to show what it was for.
@@ -17738,7 +17785,9 @@ const creditsPage = {
               : iconButton('whatsapp', 'Add ' + a.name + '’s mobile, then send today’s balance on WhatsApp', e => { e.stopPropagation(); creditPhoneSheet(a, true); }, { data: { action: 'account-whatsapp-add' } }),
             // Pay beside WhatsApp (owner, 16 November: "so its simple to just click and pay how much ever they are giving").
             due > 0 ? h('button', { type: 'button', class: 'btn', 'aria-label': 'Take a payment from ' + a.name, data: { action: 'account-pay' }, onclick: e => { e.stopPropagation(); creditPaySheet(a); } }, icon('wallet'), h('span', { text: 'Pay' })) : null,
-            h('button', { type: 'button', class: 'btn', 'aria-label': 'Add snacks or beverages to ' + a.name, title: 'Add snacks or beverages', data: { action: 'account-items' }, onclick: e => { e.stopPropagation(); accountItemsSheet(a); } }, icon('sales'), h('span', { class: 'hide-s', text: 'Add Items' })))));
+            h('button', { type: 'button', class: 'btn', 'aria-label': 'Add snacks or beverages to ' + a.name, title: 'Add snacks or beverages', data: { action: 'account-items' }, onclick: e => { e.stopPropagation(); accountItemsSheet(a); } }, icon('sales'), h('span', { class: 'hide-s', text: 'Add Items' })),
+            // Edit on every row, as on Customers (owner, 18 November).
+            iconButton('pencil', 'Edit ' + a.name, e => { e.stopPropagation(); creditEditSheet(a); }, { data: { action: 'edit-account' } }))));
         return open && due > 0 ? [row, h('tr', { class: 'owed-row', data: { owed: a.id } }, h('td', { colspan: '4' }, owedBreakdown(a)))] : [row];
       }),
       !coaching ? 'No credit accounts.' : creditKind === 'academies' ? 'No academies yet.' : 'No memberships on account.', 'credits'));
@@ -20889,7 +20938,7 @@ function turfLegend() {
 // what), the mouse wheel, a touch, a key, the board opening, a redraw from new data, or nothing at all. Kept in the console
 // (filter "City Arena") and the last 300 on this device; boardLog() in the console prints them. Nothing on the screen.
 let boardInput = { kind: '', what: '', at: 0 }, boardSeen = null, boardDrawnAt = 0, boardWatched = false;
-let boardAt = '', boardMoveCause = '', boardScrollTimer = 0;
+let boardAt = '', boardMoveCause = '', boardScrollTimer = 0, boardHeld = '', boardHeight = 0;
 function boardNote(text) {
   const line = new Date().toLocaleTimeString('en-IN', { hour12: true }) + ' · ' + text;
   console.info('[City Arena] board · ' + text);
@@ -20913,10 +20962,15 @@ function boardMove(top, why) {
 }
 // What came just before: the person's last input in the last second, else a redraw from new data in the last half second, else
 // nothing. A move the app made itself says so (boardMove).
+// A mouse button still held (dragging the scroll bar) counts however long it is held (owner's console, 18 November: a scroll bar
+// dragged for more than a second read "by itself"); a page that grew or shrank above the board says so.
 function boardCause(moving = true) {
   const now = Date.now();
+  if (moving && boardHeld) return 'the mouse button held down (' + boardHeld + ')';
   if (now - boardInput.at < 1000) return boardInput.kind + (boardInput.what ? ' (' + boardInput.what + ')' : '');
   if (moving && now - boardDrawnAt < 500) return 'a redraw from new data, no tap';
+  const height = $('main').scrollHeight;
+  if (moving && boardHeight && Math.abs(height - boardHeight) > 20) return 'the page’s height changing by ' + (height - boardHeight) + ' px, no tap';
   return 'no tap, wheel, touch or key (by itself)';
 }
 function boardTopHour() {
@@ -20936,7 +20990,12 @@ function boardWatch() {
   if (boardWatched) return;
   boardWatched = true;
   const mark = (kind, what) => { boardInput = { kind, what, at: Date.now() }; };
-  document.addEventListener('pointerdown', e => mark('a tap', boardWhat(e.target)), { capture: true, passive: true });
+  document.addEventListener('pointerdown', e => { mark('a tap', boardWhat(e.target)); boardHeld = boardWhat(e.target) || 'the page'; }, { capture: true, passive: true });
+  const release = () => { boardHeld = ''; };
+  document.addEventListener('pointerup', release, { capture: true, passive: true });
+  document.addEventListener('pointercancel', release, { capture: true, passive: true });
+  // A scroll bar's let-go may not be sent: the mouse moving with no button down says it was.
+  document.addEventListener('pointermove', e => { if (boardHeld && !e.buttons) release(); }, { capture: true, passive: true });
   document.addEventListener('wheel', () => mark('the mouse wheel or touchpad', ''), { capture: true, passive: true });
   document.addEventListener('touchmove', () => mark('a touch', ''), { capture: true, passive: true });
   document.addEventListener('keydown', e => mark('a key', e.key), { capture: true, passive: true });
@@ -20949,6 +21008,7 @@ function boardWatch() {
       boardMoveCause = '';
       if (boardAt && to && to !== boardAt) boardNote('moved from ' + boardAt + ' to ' + to + ' · ' + turfDay + ' · after ' + cause);
       boardAt = to;
+      boardHeight = $('main').scrollHeight;
     }, 250);
   }, { passive: true });
 }
@@ -20963,7 +21023,7 @@ function boardDrawn() {
   boardSeen = now;
   boardDrawnAt = Date.now();
   // Where the board stands once drawn (before the board's own opening move, which runs after this).
-  setTimeout(() => { if (!boardMoveCause) boardAt = boardTopHour(); }, 0);
+  setTimeout(() => { if (!boardMoveCause) { boardAt = boardTopHour(); boardHeight = $('main').scrollHeight; } }, 0);
 }
 // Two small round arrows at the bottom right (owner, 3 November): up, back to the top to choose another day, once the page is
 // scrolled down ("keep one small button once i come to end of screen, if i click it should automatically take me to top to
@@ -21646,11 +21706,16 @@ async function signOut() {
   try { await rpc('rpcLogout', token); } catch (e) { /* signing out locally is still right */ }
   signedOut('');
 }
+// Up to date only while the last answer is less than 45 seconds old (owner, 18 November: "it simply shows upto date when i change the
+// window and come back. that refersh thing keeps revolviing and then it actually updates" — the words stayed from the last answer
+// while the screen was behind another window, where it does not ask).
+const SYNC_STALE_MS = 45000;
 function showSync(ok, at) {
   const saving = typeof outbox !== 'undefined' ? outbox.length : 0, trouble = saving && outboxTrouble;
-  $('sync').classList.toggle('stale', !ok || !!trouble);
+  const fresh = ok && nowMs() - at <= SYNC_STALE_MS;
+  $('sync').classList.toggle('stale', !fresh || !!trouble);
   $('sync').classList.toggle('saving', !!saving && !trouble);
-  $('syncText').textContent = trouble ? outboxTrouble : saving ? 'Saving…' : ok ? 'Up to date' : 'Not updated since ' + clock(at);
+  $('syncText').textContent = trouble ? outboxTrouble : saving ? 'Saving…' : fresh ? 'Up to date' : 'Not updated since ' + clock(at);
   // A save that stays waiting says how many, since when and what the server said (owner, 29 October: only the console showed it).
   $('sync').title = trouble ? saving + (saving === 1 ? ' change' : ' changes') + ' waiting since ' + clock(outbox[0].at) + (outboxReason ? ' · ' + outboxReason : '') : saving ? 'Changes are on screen; the server is confirming them' : ok ? 'Up to date at ' + clock(at) : 'The last refresh failed';
 }
@@ -21713,7 +21778,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "d6b60aa061a5";
+const APP_BUILD = "d6df8d3f73e5";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -21938,6 +22003,8 @@ const comeBack = () => {
   if (awayTooLong()) return signOutAfterAway();
   markAlive();
   if (nowMs() - lastGood > 60000) reconnect();
+  // Behind for a while: it says it is checking until the answer comes, never Up to date from before.
+  if (nowMs() - lastGood > 20000 && !outbox.length) $('syncText').textContent = 'Checking…';
   refresh();
 };
 // The internet came back: a fresh connection and the latest records at once.
@@ -21953,6 +22020,8 @@ setInterval(() => {
   refresh();
 }, 15000);
 setInterval(tick, 1000);
+// Up to date turns to Not updated since … once the last answer is 45 seconds old, whatever the reason.
+setInterval(() => { if (token && $('syncText').textContent === 'Up to date' && nowMs() - lastGood > SYNC_STALE_MS) showSync(true, lastGood); }, 1000);
 
 // On City Arena's own address the connection is opened at once, so it is ready by the time the password is typed.
 if (typeof google === 'undefined') openBridge();
