@@ -3712,6 +3712,12 @@ var ARENA_BRANCH = (function () {
     // A 10-minute price after each full hour (owner, 13 November: "from 1.07 to 1:10 → 1 hour + 10 minutes"), the fifth rate of a
     // kind; changed on Settings → Rates. A kind without one is charged in 15-minute steps only.
     tenMinutePaise: { PS5: 1000, Pool: 1500, Snooker: 2500 },
+    // Units taken off the floor (owner, 20 November: "remove ps5 9 from gaming floor okay. so only 1-8 is there anymore"): never offered
+    // or started again, their old bills keeping their name; one still in use is shown until it ends.
+    retiredUnits: ['PS5-9'],
+    // GTA 6 on any PS5 (owner, 20 November: "the prices for gta 6 is 120 for an hour and 80 for half … only 1 player … keep only 30 minutes
+    // and 1 hour only"): one controller, charged in half hours; Settings → Rates may change the two prices (gta6Rates).
+    gta6: { halfPaise: 8000, hourPaise: 12000 },
     // The Reservations page's tabs, in the owner's order (only kinds switched on are shown).
     reservationKinds: ['Bowling', 'Snooker', 'Pool', 'PS5'],
     // Minutes, each one a setting: remind before a booking; ask "No-show?" after; a lane chosen by the app is kept from this
@@ -3938,6 +3944,12 @@ var ArenaCore = (function () {
     return saved;
   }
   function pricesFor(state,category){return rateSetting(state,category).rates.slice();}
+  // GTA 6's two prices (Branch.gs gta6, or Settings gta6Rates once changed), saved with the game it starts, as every price is.
+  function gtaRates(state){
+    var base=ARENA_BRANCH.gta6||{halfPaise:8000,hourPaise:12000},row=state?(state.Settings||[]).find(function(r){return r.id==='gta6Rates';}):null,saved=null;
+    try{saved=row?JSON.parse(row.value):null;}catch(e){saved=null;}
+    return {game:'GTA 6',halfPaise:Number(saved&&saved.halfPaise)||base.halfPaise,hourPaise:Number(saved&&saved.hourPaise)||base.hourPaise};
+  }
   // A bowling game's saved price: per person per game, with the players and games it was started for.
   function bowlingRates(players, games, state) {
     var rules = ARENA_BRANCH.bowling;
@@ -3960,6 +3972,14 @@ var ArenaCore = (function () {
       var flat = prices.perPersonPaise * prices.players * prices.games;
       check(Number.isSafeInteger(flat) && flat >= 0, 'Invalid saved rates.');
       return { actualMilliseconds: duration, billableMinutes: Math.ceil(duration / 60000), totalPaise: flat };
+    }
+    // GTA 6: half an hour or an hour, nothing in between (owner, 20 November), 5 minutes over not counted: up to 35 minutes is half an
+    // hour, up to 1 hour 5 minutes an hour, then the hour's price for each whole hour and the half hour's for a half.
+    if (prices && !Array.isArray(prices) && prices.halfPaise != null) {
+      var halves = 30 * Math.max(1, Math.ceil((duration - 300000) / 1800000));
+      var gta = Math.floor(halves / 60) * prices.hourPaise + (halves % 60 ? prices.halfPaise : 0);
+      check(Number.isSafeInteger(gta) && gta >= 0, 'Invalid saved rates.');
+      return { actualMilliseconds: duration, billableMinutes: halves, totalPaise: gta };
     }
     check(Array.isArray(prices) && (prices.length === 4 || prices.length === 5) && prices.every(function(p){return Number.isSafeInteger(p) && p >= 0;}), 'Invalid saved rates.');
     // After each full hour, with a 10-minute price (the fifth; owner, 13 November): up to 6 minutes over is the hour, 7 to 10
@@ -3988,6 +4008,8 @@ var ArenaCore = (function () {
     if (!(minutes > 0)) return 0;
     return 30 * Math.max(1, Math.ceil((minutes - 5) / 30)) / 60;
   }
+  // A game started as GTA 6 (its saved prices say so).
+  function isGta(segment) { try { var p = JSON.parse(segment.ratesJson || 'null'); return !!(p && !Array.isArray(p) && p.halfPaise != null); } catch (e) { return false; } }
   function find(rows, id) { var r = rows.find(function(x){ return x.id === id; }); check(!!r, 'Record not found.'); return r; }
   // UPI to the CA scanner (owner, 20 October): recorded as 'upi:ca', so CA UPI is counted apart from plain UPI.
   // Manipal's three UPI accounts (owner, 14 November; Branch.gs upiAccounts) are recorded the same way: 'upi:<account>'.
@@ -4051,7 +4073,7 @@ var ArenaCore = (function () {
     }
     return result;
   }
-  return { bowlingRates:bowlingRates, bowlingMinutes:bowlingMinutes, scanners:scanners, payMethod:payMethod, payParts:payParts, rates:rates, pricesFor:pricesFor, rateSetting:rateSetting, bill:bill, execute:execute, check:check, startTime:startTime, nextNumber:nextNumber, isVoidedBill:isVoidedBill, carryOf:carryOf, engineFor:engineFor, run:run, freshStart:freshStart, pausedMs:pausedMs, charge:charge, countedHours:countedHours };
+  return { bowlingRates:bowlingRates, bowlingMinutes:bowlingMinutes, scanners:scanners, payMethod:payMethod, payParts:payParts, rates:rates, pricesFor:pricesFor, rateSetting:rateSetting, bill:bill, execute:execute, check:check, startTime:startTime, nextNumber:nextNumber, isVoidedBill:isVoidedBill, carryOf:carryOf, engineFor:engineFor, run:run, freshStart:freshStart, pausedMs:pausedMs, charge:charge, countedHours:countedHours, gtaRates:gtaRates, isGta:isGta };
 })();
 
 
@@ -4067,9 +4089,12 @@ var ArenaApp=(function(){
   function visitName(v){return typeof v==='string'&&v.trim()?v:'Walk-in';}
   function openTab(s,id,customer,phone,now,kind){var t={id:id,customer:text(visitName(customer),80),phone:phone?text(phone,30):'',status:'open',createdMs:now,kind:kind||'individual'};s.Tabs.push(t);return t;}
   function active(s,unitId){return s.Segments.filter(function(g){return g.unitId===unitId&&g.status==='active';});}
-  function add(s,id,tabId,groupId,unitId,controller,player,start,now,bowling){
+  function add(s,id,tabId,groupId,unitId,controller,player,start,now,bowling,game){
     var unit=row(s.Equipment,unitId), occupants=active(s,unitId);
     check(row(s.Tabs,tabId).status==='open','This tab is already finalized.');
+    // GTA 6 is one player (owner, 20 November): started on a free console, and nobody joins a console it is played on.
+    check(!occupants.some(ArenaCore.isGta),'GTA 6 is being played on '+unit.name+': one player only.');
+    if(game==='gta6')check(unit.category==='PS5'&&occupants.length===0,'GTA 6 starts on a free PS5.');
     check(!s.Sessions.some(function(x){return x.unitId===unitId&&x.status==='active';}),'This unit has a legacy session. Finish it first.');
     if(unit.category==='PS5'){
       check(Number.isInteger(controller)&&controller>=1&&controller<=4,'Invalid controller slot.');
@@ -4078,7 +4103,7 @@ var ArenaApp=(function(){
     }else{check(occupants.length===0,'This unit is occupied.');controller=0;}
     // A start time earlier than the last session on this slot ended is allowed (owner, 21 October: "let me add regardless");
     // only a controller or unit in use now is refused, above.
-    var g={id:id,tabId:tabId,groupId:groupId,unitId:unitId,controller:controller,player:text(player,80),startMs:start,endMs:'',status:'active',ratesJson:JSON.stringify(unit.category==='Bowling'?ArenaCore.bowlingRates(bowling&&bowling.players,bowling&&bowling.games,s):ArenaCore.pricesFor(s,unit.category)),totalPaise:0,billableMinutes:0};s.Segments.push(g);return g;
+    var g={id:id,tabId:tabId,groupId:groupId,unitId:unitId,controller:controller,player:text(player,80),startMs:start,endMs:'',status:'active',ratesJson:JSON.stringify(unit.category==='Bowling'?ArenaCore.bowlingRates(bowling&&bowling.players,bowling&&bowling.games,s):game==='gta6'?ArenaCore.gtaRates(s):ArenaCore.pricesFor(s,unit.category)),totalPaise:0,billableMinutes:0};s.Segments.push(g);return g;
   }
   // Money paid before the bill exists (a parent pays for an hour up front). It is received now, with its own receipt number,
   // comes off the bill when the bill is made, and anything over the bill is handed back at settlement (see SETTLE_REVIEW).
@@ -4101,6 +4126,11 @@ var ArenaApp=(function(){
     if(!active(s,g.unitId).length)(s.Reminders||[]).forEach(function(r){if(r.unitId===g.unitId&&r.status==='set')r.status='ended';});}
   function execute(s,c,actor,now,id){
     check(actor&&actor.role==='owner','Access denied.');var result;
+    // A unit taken off the floor (Branch.gs retiredUnits; owner, 20 November: PS5 9) is never started, swapped to or moved onto again;
+    // whatever is still playing on it ends as usual.
+    var retired=(typeof ARENA_BRANCH!=='undefined'&&ARENA_BRANCH.retiredUnits)||[],goingTo=[c.unitId,c.destinationId].concat(Array.isArray(c.unitIds)?c.unitIds:[]);
+    var idle=function(u){return !s.Segments.some(function(g){return g.unitId===u&&g.status==='active';});};
+    if(['OPEN_TAB','SWITCH_SEGMENT','MOVE_UNIT','MOVE_REVIEW','END_SELECTION'].indexOf(c.type)>=0)goingTo.forEach(function(u){check(!(u&&retired.indexOf(u)>=0&&(c.type!=='END_SELECTION'||c.destinationId===u)&&idle(u)),'That system is no longer on the floor.');});
     if(typeof ArenaLifecycle!=='undefined'&&ArenaLifecycle.handles(c.type))return ArenaLifecycle.execute(s,c,actor,now,id);
     // A system added to the branch (Branch.gs units) joins the floor once, sent by any open screen that finds it missing
     // (owner, 11 November: PS5 9), with no step in the editor. Units are only ever added; with none missing nothing is written.
@@ -4133,8 +4163,10 @@ var ArenaApp=(function(){
         var ended=execute(s,{type:switching?'SWITCH_SEGMENT':'END_SEGMENT',segmentId:g.id,endMs:endAt,disposition:c.disposition,unitId:c.destinationId,controller:slot,joinTable:c.joinTable===true||i>0,acknowledge:c.acknowledge},actor,now,id+'-'+i);tabs.push(ended.tabId);});
       result={message:selected.length+' controllers ended. Unselected players continue.',segmentIds:c.segmentIds,tabIds:Array.from(new Set(tabs))};
     }else if(c.type==='OPEN_TAB'){
-      var unit=row(s.Equipment,c.unitId),count=unit.category==='PS5'?c.controllers:1;
+      var unit=row(s.Equipment,c.unitId),count=unit.category==='PS5'?c.controllers:1,gta=c.game==='gta6';
       check(Number.isInteger(count)&&count>=1&&count<=4,'Invalid controller count.');
+      // GTA 6: one controller on its own console, at its own prices; the player reads GTA 6 on the card and the bill.
+      if(gta)check(unit.category==='PS5'&&count===1&&!(Array.isArray(c.alsoUnits)&&c.alsoUnits.length),'GTA 6 is one player on one PS5.');
       var occupants=active(s,unit.id);
       check(occupants.length===0||(unit.category==='PS5'&&c.joinExisting===true&&c.checkedReservationId),unit.category==='PS5'?'This console is in use. Use Add controllers to join it.':unit.category==='PC'?'This PC is in use.':unit.category==='Bowling'?'This lane is in use.':'This table is in use. Use Add joining party if the current players agree to share.');
       if(typeof ArenaReservations!=='undefined')ArenaReservations.assertRisk(s,c,unit.id,now,c.checkedReservationId);
@@ -4149,7 +4181,7 @@ var ArenaApp=(function(){
       // On a PS5 the customer name is the group's name. Every player is "Controller N" unless a name was given for that controller.
       var given=Array.isArray(c.playerNames)?c.playerNames:[];
       // A bowling lane is charged for the players and games it starts with (owner, 22 October: nobody joins mid-game).
-      for(var n=1;n<=count;n++)add(s,id+'-s'+n,tab.id,tab.id,unit.id,slots[n-1],unit.category==='PS5'?(String(given[n-1]||'').trim().slice(0,80)||'Controller '+slots[n-1]):tab.customer,start,now,{players:c.players,games:c.games==null?1:c.games});
+      for(var n=1;n<=count;n++)add(s,id+'-s'+n,tab.id,tab.id,unit.id,slots[n-1],gta?'GTA 6':unit.category==='PS5'?(String(given[n-1]||'').trim().slice(0,80)||'Controller '+slots[n-1]):tab.customer,start,now,{players:c.players,games:c.games==null?1:c.games},gta?'gta6':'');
       others.forEach(function(o,k){for(var m=1;m<=o.controllers;m++)add(s,id+'-u'+k+'-s'+m,tab.id,tab.id,o.unit.id,m,'Controller '+m,start,now);});
       if(unit.category==='Pool'||unit.category==='Snooker')ArenaLifecycle.party(s,s.Segments[s.Segments.length-1],c.partySize,now);
       // Optional, in the same save: money paid up front, and a reminder for this station.
@@ -4303,7 +4335,8 @@ var ArenaLifecycle=(function(){
   if(units.length===1&&table(units[0])&&busy(units[0]))return join(s,Object.assign({},c,{type:'JOIN_TABLE',sourceTabId:t.id,tableSegmentId:c.tableSegmentId,joiningMs:at}),actor,now,id);
   var ending=(s.Endings||[]).filter(function(e){return e.reviewTabId===t.id&&e.status==='review';}),played=ending.filter(function(e){return !!e.segmentId;}),players=played.length?played.map(function(e){return row(s.Segments,e.segmentId).player;}):[t.customer];
   // "Controller 2" belonged to the old console. One mover is known by the visit's name; several get the new console's controller numbers.
-  players=players.map(function(p){return /^Controller \d$/.test(p)?(players.length===1?t.customer:''):p;});
+  // "GTA 6" was the game, not a person (owner, 20 November): whoever carries on after it is named as a controller is.
+  players=players.map(function(p){return /^Controller \d$/.test(p)||p==='GTA 6'?(players.length===1?t.customer:''):p;});
   var target=t;
   if(units.length===1&&units[0].category==='PS5'&&c.joinTabId){
    // Joining the friends' bill: everything this visit owes so far moves onto their bill, once, and the new controller is charged there too.
@@ -5173,6 +5206,26 @@ var ArenaCredits=(function(){
     // An academy's coaching slot is never paid at the counter (owner, 1 November), whichever screen asks.
     if(c.type==='PAY'&&c.billId&&typeof ArenaTurf!=='undefined'){var paidFor=(s.BillDetails||[]).find(function(d){return d.id===c.billId;}),coaching=paidFor?ArenaTurf.coachingTab(s,paidFor.tabId):null;check(!coaching,coaching?'This slot goes to '+coaching.name+'’s account. Use To account on the booking.':'');}
     if(c.type==='PAY'){check(!s.CreditTransfers.some(function(t){return t.billId===c.billId;}),'This bill is on credit. Record repayment from the credit account so FIFO is preserved.');
+      // A discount when a pending bill is collected, as on any bill being settled (owner, 20 November: "treat it like regular with
+      // discount and all"): taken off what is still owed, kept on the bill's own discount (so Reports share it as any bill's, off its
+      // games and court first), a Corrections line of kind bill_discount for its history, and the money, if any, paid in the same save.
+      if(Number(c.discountPaise)>0){
+        var dBill=find(s.Bills,c.billId),dDetail=(s.BillDetails||[]).find(function(d){return d.id===dBill.id;});
+        var off=Number(c.discountPaise),owedNow=dBill.totalPaise-dBill.paidPaise;
+        check(Number.isSafeInteger(off)&&off<=owedNow,'The discount is more than what is still owed.');
+        check(!!dDetail&&!ArenaCore.isVoidedBill(s,dBill.id),'This bill cannot take a discount.');
+        var was=Number(dDetail.discountPaise||0);
+        dDetail.discountPaise=was+off;
+        dBill.totalPaise-=off;
+        s.Corrections=s.Corrections||[];
+        s.Corrections.push({id:id+'-discount',kind:'bill_discount',targetId:dBill.id,field:'discountPaise',oldValue:String(was),newValue:String(was+off),reason:'Discount when collected',actor:actor.username||'',createdMs:now});
+        var rest=Object.assign({},c);delete rest.discountPaise;
+        var paying=(Array.isArray(rest.payments)&&rest.payments.length)||Number(rest.amountPaise)>0;
+        if(!paying)return {billId:dBill.id,amountPaise:0,discountPaise:off,outstandingPaise:dBill.totalPaise-dBill.paidPaise,message:'Discount of ₹'+(off/100)+' given.'};
+        var paid=execute(s,rest,actor,now,id);
+        paid.discountPaise=off;
+        return paid;
+      }
       // Paid partly one way and partly another (cash and UPI): one payment, with its receipt, per part.
       if(Array.isArray(c.payments)&&c.payments.length){var parts=ArenaCore.payParts(s,c),out=null,numbers=[];parts.forEach(function(p,i){var r=ArenaCore.execute(s,{type:'PAY',billId:c.billId,amountPaise:p.amountPaise,method:p.method},actor,now,id+(i?'-'+i:''));numbers.push(r.receiptNumber);out=out||r;out.outstandingPaise=r.outstandingPaise;});out.amountPaise=parts.reduce(function(n,p){return n+p.amountPaise;},0);out.method=parts.map(function(p){return p.method;}).join('+');out.receiptNumber=numbers.join(', ');return out;}
       return ArenaCore.execute(s,c,actor,now,id);}
@@ -7582,6 +7635,13 @@ var ArenaTurf = (function () {
         if (row) row.value = value; else state.Settings.push({ id: key, value: value });
       };
       if (cmd.bowlingPaise != null) setRate('bowlingRate', cmd.bowlingPaise);
+      // GTA 6's half hour and hour (owner, 20 November); a game already started keeps its price.
+      if (cmd.gta6) {
+        var half = cmd.gta6.halfPaise, hour = cmd.gta6.hourPaise;
+        [half, hour].forEach(function (v) { check(Number.isSafeInteger(v) && v > 0 && v <= 100000000, 'Every rate must be more than zero and at most ₹10,00,000.'); });
+        var gtaRow = state.Settings.find(function (r) { return r.id === 'gta6Rates'; }), gtaValue = JSON.stringify({ halfPaise: half, hourPaise: hour });
+        if (gtaRow) gtaRow.value = gtaValue; else state.Settings.push({ id: 'gta6Rates', value: gtaValue });
+      }
       VENUES.forEach(function (v) {
         (v.rentals || []).forEach(function (g) { var value = cmd.rentals && cmd.rentals[v.key + '-' + g.id]; if (value != null) setRate('rentalPrice-' + v.key + '-' + g.id, value); });
         (v.memberships || []).forEach(function (m) { var value = cmd.memberships && cmd.memberships[v.key + '-' + m.id]; if (value != null) setRate('memberPrice-' + v.key + '-' + m.id, value); });
@@ -7634,19 +7694,14 @@ var ArenaTurf = (function () {
       if (setting) setting.value = JSON.stringify(rates); else state.Settings.push({ id: 'academy-' + club, value: JSON.stringify(rates) });
       return { accountId: club, message: 'Academy rates saved. Bookings already made keep their rate.' };
     }
-    var PENDING_FROM_HOUR = 23;
     if (cmd.type === 'TURF_PENDING_DUE') {
-      // Once it is 11 PM of its day (owner, 17 November; midnight before), a booking still orange on the board, over and not paid or paid in part, goes
-      // to Pending by itself (owner, 3 November: "once the day is ended, whatver is in orange should directly go to pending,
-      // unless i do anything"). An academy's slot goes to its account instead; a slot paid with another is moved with it. Any
-      // open screen asks; nothing is kept pending twice, and nothing to do is not an error.
-      // From 11 PM of its day, once it has ended (owner, 17 November: "just keep the time 11pm instead of 12 am").
+      // Once its day is over, after midnight, a booking still orange on the board, over and not paid or paid in part, goes to Pending
+      // by itself (owner, 3 November: "once the day is ended, whatver is in orange should directly go to pending, unless i do
+      // anything"; 17 November 11 PM was tried and taken back on 20 November: "Pending, goes after 12am, not 11pm"). An academy's
+      // slot goes to its account instead; a slot paid with another is moved with it. Any open screen asks; nothing is kept pending
+      // twice, and nothing to do is not an error.
       var today = dateKeyOf(now), kept = 0, keptPaise = 0;
-      var over = function (b) {
-        if (b.dateKey < today) return true;
-        var day0 = Date.parse(b.dateKey + 'T00:00:00+05:30');
-        return b.dateKey === today && day0 + PENDING_FROM_HOUR * 3600000 <= now && day0 + (Number(b.startHour) + Number(b.hours)) * 3600000 <= now;
-      };
+      var over = function (b) { return b.dateKey < today; };
       booked(state).forEach(function (b, n) {
         if (!over(b) || leadOf(state, b) || accountOf(state, b.id)) return;
         var st = settlement(state, b).state;
@@ -12324,17 +12379,20 @@ const TIMED_KINDS = CATEGORIES.filter(c => ArenaCore.rates[c]);
 const groupOf = kind => FLOOR_GROUPS.find(g => g.kinds.includes(kind)) || null;
 // The tile a unit's kind sits under, to open the floor there.
 const floorKeyOf = kind => (groupOf(kind) || { key: kind }).key;
-const unitsIn = key => { const group = FLOOR_GROUPS.find(g => g.key === key); return group ? state.Equipment.filter(u => group.kinds.includes(u.category)) : []; };
+const unitsIn = key => { const group = FLOOR_GROUPS.find(g => g.key === key); return group ? floorUnits().filter(u => group.kinds.includes(u.category)) : []; };
 // How a category is named on screen; the stored name stays short.
 const CATEGORY_NAMES = { RC: 'RC Gaming' };
 const catName = category => CATEGORY_NAMES[category] || category;
 const isTable = unit => unit.category === 'Pool' || unit.category === 'Snooker';
 const unitOf = id => state.Equipment.find(u => u.id === id);
+// The units on the floor: a retired one (Branch.gs retiredUnits, PS5 9 from 20 November) only while it is still in use.
+const retiredUnit = u => (ARENA_BRANCH.retiredUnits || []).includes(u.id);
+const floorUnits = () => state.Equipment.filter(u => !retiredUnit(u) || inUse(u));
 const tabOf = id => state.Tabs.find(t => t.id === id);
 const activeOn = unitId => state.Segments.filter(g => g.unitId === unitId && g.status === 'active');
 const legacyOn = unitId => state.Sessions.find(s => s.unitId === unitId && s.status === 'active');
 const inUse = unit => activeOn(unit.id).length > 0 || !!legacyOn(unit.id);
-const freeUnits = () => state.Equipment.filter(u => !inUse(u));
+const freeUnits = () => floorUnits().filter(u => !inUse(u));
 const segmentsOf = tabId => state.Segments.filter(g => g.tabId === tabId && g.status !== 'void');
 const ordersOf = tabId => state.Orders.filter(o => o.tabId === tabId && o.status === 'active');
 const tabTotal = tabId => segmentsOf(tabId).concat(ordersOf(tabId)).reduce((sum, line) => sum + line.totalPaise, 0);
@@ -12426,7 +12484,7 @@ function pauseButton(segments, label) {
 // the form is filled in. The server still checks every start; this only says it earlier and in plain words.
 function bookingsWithoutPlace(category, taken, exclude) {
   const now = nowMs(), until = now + settingValue('reservationHorizonMinutes', 60) * 60000;
-  const free = state.Equipment.filter(u => u.category === category && u.id !== taken && !inUse(u)).map(u => u.id);
+  const free = floorUnits().filter(u => u.category === category && u.id !== taken && !inUse(u)).map(u => u.id);
   const due = state.Reservations.filter(r => r.id !== exclude && r.category === category && !isWalkIn(r) && RES_PENDING.includes(r.status) && resCurrent(r) && r.arrivalMs <= until)
     .sort((a, b) => a.arrivalMs - b.arrivalMs);
   const claimed = new Set(), left = [], open = [];
@@ -12675,13 +12733,15 @@ function markCompactGroup(card, unit) {
   if (since) since.textContent = 'With ' + group.others.join(', ');
 }
 // Other consoles in use whose bill can join this one.
-const groupable = unit => state.Equipment.filter(u => u.category === 'PS5' && u.id !== unit.id && activeOn(u.id).length && billOn(u) && billOn(unit) && billOn(u).id !== billOn(unit).id);
+const groupable = unit => floorUnits().filter(u => u.category === 'PS5' && u.id !== unit.id && activeOn(u.id).length && billOn(u) && billOn(unit) && billOn(u).id !== billOn(unit).id);
 // A console's four controllers as tiles: one in use shows its time and is tapped to choose it for ending; a free one adds a
 // controller. The End button says how many it will stop (owner, 20 October: choose on the card, not in a menu).
 function controllerTiles(unit, players, paint) {
-  const tiles = [];
+  // GTA 6 is one player (owner, 20 November): its console shows its one controller, nothing free to add.
+  const tiles = [], gta = players.some(p => ArenaCore.isGta(p));
   for (let n = 1; n <= 4; n++) {
     const g = players.find(p => p.controller === n);
+    if (!g && gta) continue;
     if (!g) {
       tiles.push(h('button', { type: 'button', class: 'pad-tile free', title: 'Add controller ' + n, 'aria-label': 'Add controller ' + n + ' on ' + unit.name, data: { seatFree: String(n) }, onclick: e => { e.stopPropagation(); addControllersSheet(unit, n); } },
         h('span', 'pad-top', icon('PS5'), h('b', { text: String(n) })), h('span', 'pad-add', icon('plus'), 'Add')));
@@ -12810,7 +12870,9 @@ function stationCardBody(unit) {
       for (const [id, row] of rows) row.classList.toggle('picked', chosen().some(g => g.id === id));
     };
     // Small: the four controllers as tiles, chosen with a tap. Opened: one row each, with its pause and corrections.
-    if (small) card.append(h('div', 'pad-row', h('span', { class: 'pad-label', text: 'Controllers' }), controllerTiles(unit, players, paint)));
+    // GTA 6 said on the card where the controllers are (owner, 20 November).
+    const gtaHere = players.some(p => ArenaCore.isGta(p));
+    if (small) card.append(h('div', 'pad-row', h('span', { class: 'pad-label', data: { gta6: gtaHere ? '1' : '' }, text: gtaHere ? 'GTA 6' : 'Controllers' }), controllerTiles(unit, players, paint)));
     else for (const g of players) {
       const paused = !!pauseState(g).since;
       const box = h('input', { type: 'checkbox', checked: picked.has(g.id), 'aria-label': 'Select ' + controllerLabel(g), data: { pick: g.id },
@@ -12835,10 +12897,10 @@ function stationCardBody(unit) {
       actions.append(items, end, endAll);
     } else {
       actions.append(end, endAll);
-      if (players.length < 4) actions.append(btn([icon('plusCircle'), 'Add Controllers'], () => addControllersSheet(unit), '', { data: { action: 'add-controllers' } }));
+      if (players.length < 4 && !players.some(p => ArenaCore.isGta(p))) actions.append(btn([icon('plusCircle'), 'Add Controllers'], () => addControllersSheet(unit), '', { data: { action: 'add-controllers' } }));
       actions.append(items);
     }
-    if (!small) card.append(h('div', { class: 'slots-head', 'aria-hidden': 'true' }, h('span', { text: 'Controllers' }), h('span', { text: 'Session time' })), list);
+    if (!small) card.append(h('div', { class: 'slots-head', 'aria-hidden': 'true' }, h('span', { text: gtaHere ? 'GTA 6' : 'Controllers' }), h('span', { text: 'Session time' })), list);
     card.append(actions);
     markCompactGroup(card, unit);
     return card;
@@ -12857,7 +12919,7 @@ function stationCardBody(unit) {
   if (unit.category === 'Bowling') {
     // Switch, always on the card (owner, 12 November: "switch button needs to be there regardless"): to a free lane, or the two
     // lanes in use change places.
-    const otherFree = state.Equipment.some(u => u.category === 'Bowling' && u.id !== unit.id);
+    const otherFree = floorUnits().some(u => u.category === 'Bowling' && u.id !== unit.id);
     card.append(laneInfo(tab, who, g, [...stationExtras(unit)]),
       h('div', 'station-actions lane-actions' + (otherFree ? ' with-switch' : ''),
         btn([icon('plus'), 'Add Items'], () => addItemsFor(unit), '', { data: { action: 'items' } }),
@@ -12962,7 +13024,7 @@ function startSheet(unit) {
   // Said as soon as the station is opened: would this start leave a booking in the next hour without a place?
   // A lane warns only when the game chosen really makes a booking late (laneConflict), worked out as players and games change.
   const clashes = bowling ? [] : bookingClash(unit);
-  let who, count, time, players, games, naming = false, acked = false, laneOver = false;
+  let who, count, time, players, games, game, naming = false, acked = false, laneOver = false;
   // A group taking more than one console: the others, each with its own number of controllers, on the same bill.
   const also = new Map();
   const extras = startExtras(() => (time && time.value()) || nowMs());
@@ -12973,11 +13035,19 @@ function startSheet(unit) {
       if (clashes.length) ui.body.append(clashNotice(unit, clashes, acked, on => { acked = on; current.ack.reservation = on; if (current.primaryButton) current.primaryButton.disabled = !on; }));
       who = who || customerFields();
       ui.body.append(who.node);
+      // GTA 6 on any PS5 (owner, 20 November): one player, at its own prices; chosen here, nothing else to fill in.
       if (ps5) {
+        game = segmented([['ps5', 'PS5 games'], ['gta6', 'GTA 6']], game ? game.value() : 'ps5', () => ui.redraw());
+        game.node.dataset.field = 'game';
+        ui.body.append(h('div', 'field', h('span', { text: 'Game' }), game.node));
+      }
+      const gta = ps5 && game.value() === 'gta6';
+      if (gta) { also.clear(); naming = false; }
+      if (ps5 && !gta) {
         // The name above is the group's. Players are Controller 1–4; a name for one of them is optional.
         count = segmented([[1, '1'], [2, '2'], [3, '3'], [4, '4']], count ? count.value() : 1, () => ui.redraw());
         ui.body.append(h('div', 'field', h('span', { text: 'Controllers' }), count.node));
-        const free = state.Equipment.filter(u => u.category === 'PS5' && u.id !== unit.id && !inUse(u));
+        const free = floorUnits().filter(u => u.category === 'PS5' && u.id !== unit.id && !inUse(u));
         if (free.length) {
           ui.body.append(h('div', { class: 'field', data: { field: 'also-consoles' } }, h('span', { text: 'More consoles for this group (optional)' }),
             h('div', 'chips', free.map(u => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(also.has(u.id)), data: { also: u.id },
@@ -13001,7 +13071,7 @@ function startSheet(unit) {
           h('div', { class: 'field', data: { field: 'games' } }, h('span', { text: 'Games' }), games.node)].filter(Boolean));
       }
       const links = h('div', 'station-links');
-      if (ps5) links.append(btn([icon('pencil'), naming ? 'Hide player names' : 'Name the players'], () => { naming = !naming; ui.redraw(); }, 'quiet', { data: { action: 'name-players' } }));
+      if (ps5 && !gta) links.append(btn([icon('pencil'), naming ? 'Hide player names' : 'Name the players'], () => { naming = !naming; ui.redraw(); }, 'quiet', { data: { action: 'name-players' } }));
       ui.body.append(links);
       if (ps5 && naming) for (let n = 1; n <= Number(count.value()); n++) {
         const input = textInput({ value: names[n - 1], placeholder: 'Controller ' + n, 'aria-label': 'Name for controller ' + n, data: { playerName: String(n) } });
@@ -13014,9 +13084,9 @@ function startSheet(unit) {
       ui.primary(also.size ? 'Start ' + (also.size + 1) + ' Consoles' : 'Start Session', (clashes.length > 0 || laneOver) && !acked);
     },
     command() {
-      const controllers = count ? Number(count.value()) : 1;
-      return { type: 'OPEN_TAB', unitId: unit.id, customer: who.name.value.trim(), phone: who.phone.value.trim(), controllers, ...(bowling ? { players: Number(players.value()), games: Number(games.value()) } : {}), playerNames: ps5 && naming ? names.slice(0, controllers).map(v => v.trim()) : undefined, startMs: time.value(),
-        alsoUnits: also.size ? [...also].map(([unitId, n]) => ({ unitId, controllers: n })) : undefined, ...extras.value() };
+      const gta = ps5 && game && game.value() === 'gta6', controllers = gta ? 1 : count ? Number(count.value()) : 1;
+      return { type: 'OPEN_TAB', ...(gta ? { game: 'gta6' } : {}), unitId: unit.id, customer: who.name.value.trim(), phone: who.phone.value.trim(), controllers, ...(bowling ? { players: Number(players.value()), games: Number(games.value()) } : {}), playerNames: ps5 && naming ? names.slice(0, controllers).map(v => v.trim()) : undefined, startMs: time.value(),
+        alsoUnits: also.size && !gta ? [...also].map(([unitId, n]) => ({ unitId, controllers: n })) : undefined, ...extras.value() };
     },
     // Stay on the category so the new session is on screen.
     then() { closeSheet(); floorCategory = floorKeyOf(unit.category); go('floor'); }
@@ -14736,7 +14806,7 @@ function swapSheet(unit) {
   // A lane switches (owner, 12 November): the game, its players and games, items and time move on, to a free lane or changing
   // places with a lane in use; with one other lane it is chosen already.
   const lane = unit.category === 'Bowling', game = lane ? activeOn(unit.id)[0] : null;
-  const free = state.Equipment.filter(u => u.category === unit.category && u.id !== unit.id && (lane || !inUse(u)));
+  const free = floorUnits().filter(u => u.category === unit.category && u.id !== unit.id && (lane || !inUse(u)));
   let to = lane && free.length === 1 ? free[0].id : '', acked = false;
   const gameWords = g => { const x = ArenaReservations.gameEnd(state, g, nowMs()); return x.players + (x.players === 1 ? ' player' : ' players') + (x.games > 1 ? ' · ' + x.games + ' games' : ''); };
   const whoOn = g => { const t = tabOf(g.tabId); return (t && t.customer) || g.player || 'Walk-in'; };
@@ -14813,7 +14883,7 @@ function moveSheet(tab) {
   // Carrying on playing is for a bill that played; a turf player's share joins a system from the turf booking itself.
   const canPlayOn = segmentsOf(tab.id).some(g => g.status === 'ended') || tab.kind === 'turf' || tab.kind === 'turf_player';
   const systems = tab.kind === 'turf_player' ? [] : playingBills(tab), anyTurf = turfTakers(tab), today = dayKey(nowMs());
-  const free = canPlayOn ? CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && offered(u))) : [];
+  const free = canPlayOn ? CATEGORIES.flatMap(category => floorUnits().filter(u => u.category === category && offered(u))) : [];
   const chosen = new Set();
   // How many stopped on this bill; the usual number to start again, but fewer may play on.
   let joinTab = '', time, acked = false, turfTo = '', billTo = '', turfDay = today, dayBox = null;
@@ -15138,7 +15208,7 @@ async function receiptSheet(billId, back) {
   // For a bill that went on credit: what was paid at the counter. Later repayments belong to the account, not to this bill.
   const paidHere = data.transfer ? data.payments.reduce((sum, p) => sum + p.amountPaise, 0) : bill.paidPaise;
   const payStore = { method: 'cash' };
-  let amount, how;
+  let amount, how, collectOff = 0, offBox = null;
   // A pending bill of more than one part (nothing paid on it, no discount): each part with a tick, all ticked at first; Collect, Move
   // to Credit and Move act on what is ticked, each in one save (the ticked part becomes a bill of its own, the rest stays pending).
   const onTurf = data.tab ? turfBookingForTab(data.tab.id) : null, groups = payable && !onTurf && !(bill.paidPaise > 0) && !((detail || {}).discountPaise > 0) ? billParts(data) : [];
@@ -15156,18 +15226,18 @@ async function receiptSheet(billId, back) {
     return { billId, segmentIds: whole.flatMap(x => x.segmentIds), orderIds: whole.flatMap(x => x.orderIds), ...(some.length ? { counts: Object.fromEntries(some.map(x => [x.orderIds[0], countOf(x)])) } : {}) };
   };
   openSheet({
-    title: 'Bill ' + data.number,
-    sub: data.tab && data.tab.kind === 'quick_sale' ? 'Counter sale' : '',
-    icon: 'bills',
+    // A bill still to be collected reads as any bill being settled: the customer's name, then their mobile, when it was played and its
+    // number (owner, 20 November: "bill is bill only no??").
+    title: payable ? customer : 'Bill ' + data.number,
+    sub: payable ? [phone, billWhen(data, detail), data.number].filter(Boolean).join(' · ') : data.tab && data.tab.kind === 'quick_sale' ? 'Counter sale' : '',
+    icon: payable ? 'user' : 'bills',
     focus: false,
     // Opened from a credit account, closing goes back there; otherwise back to the list of players still to settle.
     onClose: () => (back ? back() : returnToSplit(data.tab ? data.tab.id : '')),
     build(ui) {
       const kv = (label, value, tone = '', props = {}) => h('div', ('kv ' + tone).trim(), h('span', { text: label }), h('b', { text: value, ...props }));
       const section = (title, box) => ui.body.append(h('div', { class: 'summary-title', text: title }), box);
-      ui.body.append(h('div', 'bill-head', glyph(stateIcon, stateTone, 'lg'),
-        h('div', 'bill-who', h('div', { class: 'who', text: customer }), h('div', { class: 'small muted', data: { billWhen: '1' }, text: [phone, billWhen(data, detail)].filter(Boolean).join(' · ') })),
-        h('span', 'bill-tools', statusBadge(data.status), menu([
+      const billMenu = menu([
           ['Print receipt', () => printReceipt(data), false, 'printer'],
           ...(phone ? [['WhatsApp confirmation', () => whatsapp(phone, 'City Arena: bill ' + data.number + ' for ' + money(bill.totalPaise) + '. Received ' + money(paidHere) + (data.transfer ? '. On credit ' + money(data.transfer.amountPaise) : due ? '. Balance ' + money(due) : '') + '. Thank you.' + '\n\n' + MESSAGE_SIGN.join('\n')), false, 'message']] : []),
           ...(data.archived ? [['Bring back to correct', () => restoreBill(billId), false, 'undo']] : []),
@@ -15185,7 +15255,18 @@ async function receiptSheet(billId, back) {
             // Correct charges here only when the menu has not got it already (a bill with payments has it above).
             : [...(correctable(data) && data.payments.length ? [] : [['Correct charges', () => reasonSheet({ title: 'Correct charges · Bill ' + data.number, sub: 'The visit opens again to be corrected and settled.', action: 'Open to correct', icon: 'pencil', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => (result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet()) }), false, 'pencil']]),
               ['Void bill', () => reasonSheet({ title: 'Void bill ' + data.number, sub: 'Cancelled completely: nothing is charged.', action: 'Void bill', icon: 'ban', tone: 'bad', command: reason => ({ type: 'VOID_BILL', billId, reason, whole: true }), then: result => { closeSheet(); render(); return { text: result.message }; } }), true, 'ban']]) : [])
-        ], 'Bill actions'))));
+        ], 'Bill actions');
+      if (!payable) ui.body.append(h('div', 'bill-head', glyph(stateIcon, stateTone, 'lg'),
+        h('div', 'bill-who', h('div', { class: 'who', text: customer }), h('div', { class: 'small muted', data: { billWhen: '1' }, text: [phone, billWhen(data, detail)].filter(Boolean).join(' · ') })),
+        h('span', 'bill-tools', statusBadge(data.status), billMenu)));
+      // A pending bill is laid out as any bill being settled (owner, 20 November: "why not keep the same format as of normal bills?
+      // discount on top and all … bill is bill only no?? its just pending"): one row at the top, Add Items and the discount typed
+      // straight in, then its lines, the money at the foot. The discount is on the whole bill, not while only some of it is ticked.
+      if (payable) {
+        const adds = h('div', 'station-links', ...[!onTurf && !ArenaCore.carryOf(state, billId) ? btn([icon('sales'), 'Add Items'], () => pendingItemsSheet(billId, customer, due, () => receiptSheet(billId, back)), 'quiet', { data: { action: 'pending-bill-items' } }) : null].filter(Boolean));
+        offBox = partly() ? null : h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: collectOff ? String(collectOff / 100) : '', placeholder: '0', 'aria-label': 'Discount', data: { field: 'collect-discount' } });
+        ui.body.append(h('div', 'settle-top', ...[adds, offBox ? h('label', 'settle-discount', h('span', { text: 'Discount (₹)' }), offBox) : null, billMenu].filter(Boolean)));
+      }
       if (ticking) {
         const lines = [];
         for (const r of groups) {
@@ -15211,6 +15292,8 @@ async function receiptSheet(billId, back) {
         }
         ui.body.append(h('div', { class: 'lines end-pick bill-parts', data: { field: 'bill-parts' } }, lines));
       }
+      // Still to be collected: its lines kept close together as on any bill being settled.
+      else if (payable) { const linesBox = h('div', 'settle-lines'); ui.body.append(linesBox); drawLines(linesBox, { segments: data.segments, orders: data.orders, customer, tab: data.tab || null, editable: false, detail: true, pauses: data.pauses }); }
       else drawLines(ui.body, { segments: data.segments, orders: data.orders, customer, tab: data.tab || null, editable: false, detail: true, pauses: data.pauses });
       const notes = notesBlock([billId, data.tab ? data.tab.id : '']);
       if (notes) ui.body.append(notes);
@@ -15227,7 +15310,8 @@ async function receiptSheet(billId, back) {
         else if (!data.carry && (data.payments.length || due !== bill.totalPaise)) summary.append(kv('Outstanding', money(due), 'due ' + (due > 0 ? 'owing' : 'clear'), { data: { balance: '1' } }));
       }
       // The whole-bill line already says the total; nothing else to sum up then (nothing paid, no discount).
-      if (!ticking) section('Bill summary', summary);
+      // Still to be collected with nothing paid and no discount yet: the lines say it all, and the foot what is to collect.
+      if (!ticking && !(payable && !paidHere && !(detail && detail.discountPaise))) section('Bill summary', summary);
       for (const c of data.corrections.filter(c => c.kind === 'bill_void')) ui.body.append(h('p', { class: 'small muted', style: 'margin-top:10px', text: 'Voided: ' + c.reason + ' (was ' + money(Number(c.oldValue)) + ')' }));
 
       // 2. Each payment made towards this bill, with its receipt number.
@@ -15265,32 +15349,47 @@ async function receiptSheet(billId, back) {
 
       if (payable) {
         const owing = ticking ? tickedSum() : due;
-        amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: String(owing / 100), 'aria-label': 'Amount received', data: { field: 'received' } });
+        amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: String((owing - collectOff) / 100), 'aria-label': 'Amount received', data: { field: 'received' } });
         const receivedBox = field('Received (₹)', amount);
+        // The discount typed at the top (offBox) changes what is left to collect at once.
+        const left = () => owing - (partly() ? 0 : collectOff);
+        const total = h('div', { class: 'foot-total', text: money(left()) });
+        const totalLabel = h('div', { class: 'foot-label', text: partly() ? 'Ticked' : collectOff ? 'To collect' : 'Outstanding' });
         const primary = () => {
           const b = current.primaryButton, split = how ? how.paid() : null, paise = split != null ? split : toPaise(amount.value || 0);
-          const label = !owing ? 'Tick what he pays for' : 'Collect Payment · ' + money(paise);
+          const label = !owing ? 'Tick what he pays for' : left() === 0 && collectOff > 0 ? 'Give discount · ' + money(collectOff) : 'Collect Payment · ' + money(paise);
           b.dataset.label = label;
           b.textContent = label;
-          b.disabled = !(paise > 0 && paise <= due) || (partly() && paise !== owing);
+          b.disabled = collectOff > due || (left() === 0 && collectOff > 0 ? false : !(paise > 0 && paise <= left())) || (partly() && paise !== owing);
         };
         amount.oninput = primary;
+        if (offBox) offBox.oninput = () => {
+          collectOff = Math.max(0, toPaise(offBox.value || 0));
+          total.textContent = money(Math.max(0, left()));
+          totalLabel.textContent = collectOff ? 'To collect' : 'Outstanding';
+          amount.value = String(Math.max(0, left()) / 100);
+          if (how && how.reset) how.reset();
+          primary();
+        };
         ui.foot.append(
-          h('div', 'foot-row', h('div', { class: 'foot-label', text: partly() ? 'Ticked' : 'Outstanding' }), h('div', { class: 'foot-total', text: money(owing) })),
-          h('div', 'foot-row pay-foot', receivedBox, (how = payChoice(payStore, () => primary(), { amount, due: () => owing, splittable: !partly() })).node));
+          h('div', 'foot-row', totalLabel, total),
+          h('div', 'foot-row pay-foot', receivedBox, (how = payChoice(payStore, () => primary(), { amount, due: () => left(), splittable: !partly() })).node));
         ui.primary('');
         primary();
         // A turf bill can also go to the team's next booking: the turf chooser offers both.
         const turfOwner = data.tab ? turfBookingForTab(data.tab.id) : null, turfPlayer = turfOwner ? (state.TurfPlayers || []).find(x => x.tabId === data.tab.id) || null : null;
         // A turf bill's balance can also go onto a bill running on a system (owner, 2 November: "where is it??").
-        const toSystem = turfOwner && !turfAccountOf(turfPlayer ? turfPlayer.id : turfOwner.id) && !(turfOwner.split === 'yes' && !turfPlayer) ? btn([icon('transfer'), 'Move to System'], () => turfMoveSheet(turfOwner, turfPlayer), 'quiet', { data: { action: 'bill-move-system' } }) : null;
+        // The other ways, one tap each, as on any bill being settled (owner, 20 November): Move to Credit, Keep pending, Move.
+        const act = (key, glyphName, label, run) => h('button', { type: 'button', class: 'action', data: { action: key }, onclick: run }, icon(glyphName), h('span', { text: label }));
+        const toSystem = turfOwner && !turfAccountOf(turfPlayer ? turfPlayer.id : turfOwner.id) && !(turfOwner.split === 'yes' && !turfPlayer) ? act('bill-move-system', 'transfer', 'Move to System', () => turfMoveSheet(turfOwner, turfPlayer)) : null;
         // Any other bill left pending can go onto a system, a booking or a reservation (owner, 15 November).
         // Move what is ticked; what is left of the bill is shown again after.
         const again = () => { const left = state.Bills.find(x => x.id === billId); if (left && left.totalPaise > left.paidPaise && !ArenaCore.carryOf(state, billId) && !state.CreditTransfers.some(t => t.billId === billId)) receiptSheet(billId, back); else closeSheet(); };
-        const toPlace = !turfOwner && !ArenaCore.carryOf(state, billId) && owing > 0 ? btn([icon('transfer'), 'Move'], () => pendingMoveSheet([billId], (data.tab || {}).customer, owing, () => receiptSheet(billId, back), partly() ? { split: splitOf(), after: again } : {}), 'quiet', { data: { action: 'bill-move-pending' } }) : null;
+        const toPlace = !turfOwner && !ArenaCore.carryOf(state, billId) && owing > 0 ? act('bill-move-pending', 'transfer', 'Move', () => pendingMoveSheet([billId], (data.tab || {}).customer, owing, () => receiptSheet(billId, back), partly() ? { split: splitOf(), after: again } : {})) : null;
         // Keep pending: nothing changes; what is not dealt with stays in Pending bills.
-        const keep = data.status !== 'paid' && !turfOwner ? btn([icon('clock'), 'Keep pending'], dismissSheet, 'quiet', { data: { action: 'bill-keep-pending' } }) : null;
-        ui.foot.append(h('div', 'foot-links', owing > 0 ? btn([icon('credits'), 'Move to Credit'], () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, owing, goodsOf(data.orders), partly() ? splitOf() : null)), 'quiet', { data: { action: 'bill-credit' } }) : null, toSystem, toPlace, keep || btn('Close', dismissSheet, 'quiet')));
+        const keep = data.status !== 'paid' && !turfOwner ? act('bill-keep-pending', 'clock', 'Keep pending', dismissSheet) : null;
+        const toCredit = owing > 0 ? act('bill-credit', 'credits', 'Move to Credit', () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, owing, goodsOf(data.orders), partly() ? splitOf() : null))) : null;
+        ui.foot.append(h('div', 'actions', ...[toCredit, keep, toPlace, toSystem].filter(Boolean)));
       } else {
         // Nothing left to collect: say so plainly, then offer the receipt.
         const done = data.status === 'paid' ? ['', 'checkCircle', 'Paid in full', money(bill.totalPaise) + ' settled' + (extras.length ? ' · ' + money(receivedAll) + ' received in all' : '')]
@@ -15307,7 +15406,10 @@ async function receiptSheet(billId, back) {
       // What is ticked paid now; the rest stays on the bill and is shown again.
       if (partly()) { if (!ticked().length) throw new Error('Tick what he pays for.'); return { type: 'PENDING_PART_PAY', ...splitOf(), method: how.value(tickedSum()).method }; }
       const split = how.paid(), paise = split != null ? split : toPaise(amount.value);
-      return { type: 'PAY', billId, amountPaise: paise, ...how.value() };
+      if (collectOff > due) throw new Error('The discount is more than what is still owed.');
+      // All of it given as discount: nothing taken in, the bill settled by the discount alone.
+      if (collectOff > 0 && collectOff === due) return { type: 'PAY', billId, amountPaise: 0, discountPaise: collectOff, method: 'cash' };
+      return { type: 'PAY', billId, amountPaise: paise, ...how.value(), ...(collectOff > 0 ? { discountPaise: collectOff } : {}) };
     },
     // Paid off now: back to where the bill was opened from, with a note. Still owing: the bill again.
     then: result => {
@@ -16086,7 +16188,7 @@ function partyFields(kind, r, keep, onChange) {
   // A lane booking made for any lane opens as Any lane again, so saving it never fixes it to the lane it was given.
   const unitValue = keep.unit ? keep.unit.value : r && r.category === kind ? (r.anyLane === 'free' ? '' : r.unitId) : '';
   keep.unit = h('select', { 'aria-label': kind === 'Bowling' ? 'Lane' : 'Unit', data: { field: 'res-unit' }, onchange: onChange }, h('option', { value: '' }, kind === 'Bowling' ? 'Any lane' : 'Any ' + catName(kind)),
-    state.Equipment.filter(u => u.category === kind).map(u => h('option', { value: u.id }, u.name)));
+    floorUnits().filter(u => u.category === kind).map(u => h('option', { value: u.id }, u.name)));
   keep.unit.value = unitValue;
   if (kind === 'Bowling') {
     const rules = ARENA_BRANCH.bowling;
@@ -16124,7 +16226,7 @@ function laneNowFor(r) {
   const now = nowMs(), length = ArenaCore.bowlingMinutes(Number(r.players) || 1, Number(r.games) || 1) * 60000, planned = lanePlan();
   const taken = u => ((planned.lanes.find(l => l.unitId === u.id) || {}).blocks || []).some(b => b.id !== r.id && b.startMs < now + length && b.endMs > now);
   const rank = u => (u.id === r.unitId ? 0 : taken(u) ? 2 : 1);
-  const lanes = state.Equipment.filter(u => u.category === 'Bowling' && !inUse(u)).sort((a, b) => rank(a) - rank(b));
+  const lanes = floorUnits().filter(u => u.category === 'Bowling' && !inUse(u)).sort((a, b) => rank(a) - rank(b));
   const lane = lanes.find(u => !laneConflict(u, nowMs(), Number(r.players) || 1, Number(r.games) || 1, r.id));
   return lane ? { ms: Math.floor(nowMs() / 60000) * 60000, unitId: lane.id } : null;
 }
@@ -16338,7 +16440,7 @@ function waitingSheet(kind, r) {
 // it go to the free lane, but ask for confirmation"): the lane the plan gives them still playing and another free, asked first.
 function checkInAsk(anchor, r) {
   const plan = r.category === 'Bowling' && !isWalkIn(r) ? lanePlan() : null, place = plan && plan.bookings[r.id];
-  const planned = place && unitOf(place.unitId), freeLane = planned && inUse(planned) ? state.Equipment.find(u => u.category === 'Bowling' && u.id !== planned.id && !inUse(u)) : null;
+  const planned = place && unitOf(place.unitId), freeLane = planned && inUse(planned) ? floorUnits().find(u => u.category === 'Bowling' && u.id !== planned.id && !inUse(u)) : null;
   if (!freeLane) { checkInSheet(r); return; }
   const lane = plan.lanes.find(l => l.unitId === planned.id), ends = lane ? lane.freeMs : 0;
   popover(anchor, h('b', { class: 'popover-title', text: planned.name + ' is still in use' }),
@@ -16350,7 +16452,7 @@ function checkInAsk(anchor, r) {
 function checkInSheet(given, unitId) {
   // The booking as it is now: a card drawn a moment ago may hold it from before it last changed.
   const r = state.Reservations.find(x => x.id === given.id) || given;
-  const candidates = state.Equipment.filter(u => u.category === r.category && (!inUse(u) || (u.category === 'PS5' && activeOn(u.id).length < 4 && !legacyOn(u.id))));
+  const candidates = floorUnits().filter(u => u.category === r.category && (!inUse(u) || (u.category === 'PS5' && activeOn(u.id).length < 4 && !legacyOn(u.id))));
   const free = candidates.filter(u => !inUse(u)), walk = isWalkIn(r), bowling = r.category === 'Bowling';
   // A lane booking starts on the lane the plan gave it, when that lane is free.
   const planned = bowling ? (lanePlan().bookings[r.id] || {}).unitId : '';
@@ -16503,7 +16605,7 @@ function nextUpOffers(kinds) {
       }
       continue;
     }
-    const free = state.Equipment.filter(u => u.category === kind && !inUse(u));
+    const free = floorUnits().filter(u => u.category === kind && !inUse(u));
     const queue = resOpen(kind).filter(r => !isWalkIn(r) && (r.status === 'waiting' || r.arrivalMs <= now + soon)).sort((a, b) => Number(b.status === 'waiting') - Number(a.status === 'waiting') || a.arrivalMs - b.arrivalMs)
       .concat(resOpen(kind).filter(isWalkIn).sort((a, b) => Number(a.token) - Number(b.token)));
     const used = new Set();
@@ -16577,7 +16679,7 @@ const reservationsPage = {
 // the move makes start later; one tap moves the booking to that lane, the time kept.
 function laneSwitchBox(anchor, r) {
   const now = nowMs(), before = lanePlan(), mineNow = before.bookings[r.id] || {};
-  const lanes = state.Equipment.filter(u => u.category === 'Bowling' && u.id !== (mineNow.unitId || r.unitId));
+  const lanes = floorUnits().filter(u => u.category === 'Bowling' && u.id !== (mineNow.unitId || r.unitId));
   const options = lanes.map(u => {
     const copy = structuredClone(state), moved = copy.Reservations.find(x => x.id === r.id);
     moved.unitId = u.id;
@@ -16660,7 +16762,7 @@ function reservationCard(r, plan) {
     walk ? (expect && tell ? h('div', 'res-expect-row', expect, iconButton('whatsapp', 'WhatsApp ' + r.customer, () => whatsapp(r.phone, tell), { data: { action: 'whatsapp-ready' } })) : expect) : null,
     person(r.customer, [r.phone, r.notes].filter(Boolean).join(' · ')),
     h('div', 'res-meta', h('span', 'res-meta-lane', meta(r.category === 'Bowling' ? 'Bowling' : r.category, unitText),
-      r.category === 'Bowling' && pending && !walk && state.Equipment.filter(u => u.category === 'Bowling').length > 1
+      r.category === 'Bowling' && pending && !walk && floorUnits().filter(u => u.category === 'Bowling').length > 1
         ? h('button', { type: 'button', class: 'res-lane-switch', title: 'Switch ' + r.customer + ' to another lane', data: { action: 'switch-lane' }, onclick: e => laneSwitchBox(e.currentTarget, r) }, icon('transfer'), 'Switch') : null),
       meta(pads ? 'PS5' : 'users', partyText)),
     walk && pending ? h('div', 'res-meta', meta('user', 'Arrived ' + clock(r.arrivalMs) + ' · waiting ' + minutes(nowMs() - r.arrivalMs))) : null,
@@ -16858,7 +16960,7 @@ function salePendingSheet(who, done) {
 }
 // The basket goes onto the bill of a system that is in use, and is paid with that bill.
 function saleSystemSheet(done) {
-  const items = salePicker.items(), sum = salePicker.total(), units = state.Equipment.filter(u => activeOn(u.id).length);
+  const items = salePicker.items(), sum = salePicker.total(), units = floorUnits().filter(u => activeOn(u.id).length);
   const billFor = unit => { const tabs = [...new Set(activeOn(unit.id).map(g => g.tabId))].map(tabOf).filter(Boolean); return tabs.find(t => t.kind === 'group') || tabs[0]; };
   let chosen = '';
   openSheet({
@@ -17472,7 +17574,7 @@ function pendingHeldFor(r) {
 // opts.pick(command, words): only the place is chosen, nothing saved; the sheet it came from saves it with its own (opts.except: that
 // bill, left out of the list).
 function pendingMoveSheet(billIds, name, owed, back, opts = {}) {
-  const running = playingBills({ id: opts.except || '' }), free = CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && !inUse(u)));
+  const running = playingBills({ id: opts.except || '' }), free = CATEGORIES.flatMap(category => floorUnits().filter(u => u.category === category && !inUse(u)));
   const today = dayKey(nowMs()), bookings = turfTakers({ kind: '' }).filter(x => x.dateKey >= today && x.split !== 'yes' && !turfAccountOf(x.id));
   const reservations = state.Reservations.filter(r => RES_PENDING.includes(r.status) && !isWalkIn(r)).sort((x, y) => x.arrivalMs - y.arrivalMs);
   let to = null, time, acked = false, sheet = null;
@@ -17585,8 +17687,11 @@ function pendingCreditSheet(billIds, name, owed, back, opts = {}) {
 }
 // One person's pending money: today's bills one by one, each day before one line with its total, opened out to its bills
 // (as a credit account's days are), each with its own Collect; the reminder says each day.
-function pendingPersonSheet(group) {
+function pendingPersonSheet(group, startOff = 0) {
   const openDays = new Set();
+  // One discount for all of this person's pending bills (owner, 20 November: "for this overall discount you keep"), typed straight in at
+  // the top as on any bill; Collect all takes it, off the newest bills first.
+  let off = startOff, offBox = null;
   const back = () => { const again = pendingGroups(pendingRows()).find(g => g.key === group.key); if (again && again.rows.length > 1) pendingPersonSheet(again); else closeSheet(); };
   const days = [...new Set(group.rows.map(pendingDay))].sort().reverse(), today = dayKey(nowMs());
   const dayTotal = key => group.rows.filter(r => pendingDay(r) === key).reduce((n, r) => n + r.owed, 0);
@@ -17616,11 +17721,20 @@ function pendingPersonSheet(group) {
         row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
         card.append(row, holder);
       }
+      offBox = offBox || h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: off ? String(off / 100) : '', placeholder: '0', 'aria-label': 'Discount on all', data: { field: 'pending-all-discount' } });
+      ui.body.prepend(h('div', 'settle-top', h('label', 'settle-discount', h('span', { text: 'Discount (₹)' }), offBox)));
       ui.body.append(card);
       const detail = days.map(key => '• ' + ordinalDate(key) + ' ' + money(dayTotal(key)));
       const billIds = group.rows.flatMap(r => (r.booking ? r.parts.map(x => x.billId) : [r.bill.id]));
+      const collectAll = btn([icon('wallet'), 'Collect all · ' + money(Math.max(0, group.owed - off))], () => pendingCollectAll(group, back, off), 'primary', { data: { action: 'pending-collect-all' } });
+      offBox.oninput = () => {
+        off = Math.max(0, toPaise(offBox.value || 0));
+        const label = off > group.owed ? 'The discount is more than is owed' : 'Collect all · ' + money(group.owed - off);
+        collectAll.replaceChildren(icon('wallet'), h('span', { text: label }));
+        collectAll.disabled = off > group.owed;
+      };
       ui.foot.append(h('div', 'foot-row pending-all-tools',
-        btn([icon('wallet'), 'Collect all · ' + money(group.owed)], () => pendingCollectAll(group, back), 'primary', { data: { action: 'pending-collect-all' } }),
+        collectAll,
         btn([icon('transfer'), 'Move all'], () => pendingMoveSheet(billIds, group.name, group.owed, () => pendingPersonSheet(group)), '', { data: { action: 'pending-move-all' } }),
         btn([icon('credits'), 'Move to Credit'], () => pendingCreditSheet(billIds, group.name, group.owed, () => pendingPersonSheet(group)), '', { data: { action: 'pending-credit-all' } })));
       if (group.phone) ui.foot.append(btn([icon('whatsapp'), 'Remind ' + group.name], () => whatsapp(group.phone, pendingReminderText(group.name, group.owed, 'your visits', detail)), 'block', { data: { action: 'pending-remind-sheet' } }));
@@ -17628,29 +17742,49 @@ function pendingPersonSheet(group) {
   });
 }
 // Collect all of one person's pending bills at once: how they paid (Cash, UPI, or both), each bill paid in full, oldest first.
-function pendingCollectAll(group, back) {
+function pendingCollectAll(group, back, startOff = 0) {
   const bills = group.rows.flatMap(r => (r.booking ? r.parts.map(x => ({ billId: x.billId, owed: x.owed })) : [{ billId: r.bill.id, owed: r.owed }])).reverse();
   const store = { method: 'cash' };
-  let how;
+  let how, off = startOff, offBox, after = [];
+  // A discount as on any bill (owner, 20 November: "treat it like regular with discount and all"), typed straight in: taken off the
+  // newest bills first, each bill's own discount; the rest collected in full, oldest first.
+  const plan = () => {
+    let left = off;
+    const cut = new Map();
+    for (const x of [...bills].reverse()) { const d = Math.min(left, x.owed); if (d > 0) cut.set(x.billId, d); left -= d; }
+    return bills.map(x => { const d = cut.get(x.billId) || 0; return { type: 'PAY', billId: x.billId, amountPaise: x.owed - d, ...(d ? { discountPaise: d } : {}) }; });
+  };
+  const toTake = () => group.owed - off;
   openSheet({
     title: 'Collect all · ' + money(group.owed),
     sub: group.name + ' · ' + plural(bills.length, 'bill', 'bills'),
     icon: 'wallet',
-    onClose: () => pendingPersonSheet(group),
+    onClose: () => pendingPersonSheet(group, off),
     build(ui) {
-      how = payChoice(store, () => {}, { due: () => group.owed, splittable: false });
-      ui.body.append(h('div', 'field', h('span', { text: 'Paid by' }), how.node));
-      ui.primary('Collect ' + money(group.owed));
+      offBox = offBox || h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: off ? String(off / 100) : '', placeholder: '0', 'aria-label': 'Discount', data: { field: 'collect-all-discount' } });
+      offBox.oninput = () => {
+        off = Math.max(0, toPaise(offBox.value || 0));
+        const b = current.primaryButton, label = off > group.owed ? 'The discount is more than is owed' : toTake() > 0 ? 'Collect ' + money(toTake()) : 'Give discount · ' + money(off);
+        b.dataset.label = label;
+        b.textContent = label;
+        b.disabled = off > group.owed;
+      };
+      how = payChoice(store, () => {}, { due: () => toTake(), splittable: false });
+      ui.body.append(field('Discount (₹)', offBox), h('div', 'field', h('span', { text: 'Paid by' }), how.node));
+      ui.primary(toTake() > 0 ? 'Collect ' + money(toTake()) : 'Give discount · ' + money(off));
     },
     command() {
-      const method = how.value(group.owed).method;
-      return { type: 'PAY', billId: bills[0].billId, amountPaise: bills[0].owed, method };
+      if (off > group.owed) throw new Error('The discount is more than is owed.');
+      const method = how.value(toTake()).method, all = plan().map(c => ({ ...c, method }));
+      after = all.slice(1);
+      return all[0];
     },
     then(result, command) {
-      const rest = bills.slice(1);
+      const rest = after;
+      const said = (toTake() > 0 ? 'Collected ' + money(toTake()) : 'Settled') + (off ? ' · ₹' + off / 100 + ' discount' : '') + '.';
       const done = () => { closeSheet(); back(); };
-      if (!rest.length) { done(); return { text: 'Collected ' + money(group.owed) + '.' }; }
-      saveAll(rest.map(x => ({ type: 'PAY', billId: x.billId, amountPaise: x.owed, method: command.method })), 'Collected ' + money(group.owed) + '.').then(done);
+      if (!rest.length) { done(); return { text: said }; }
+      saveAll(rest, said).then(done);
       return null;
     }
   });
@@ -18374,8 +18508,15 @@ const ratesPage = {
         (inputs[c] = inputs[c] || [])[i] = input;
         return h('td', null, input);
       })))));
+    // GTA 6 on a PS5 (owner, 20 November): its half hour and its hour, charged in half hours.
+    const gtaNow = ArenaCore.gtaRates(state), gtaInput = (key, label) => h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(gtaNow[key] / 100), 'aria-label': 'GTA 6 ' + label, data: { rate: 'gta6-' + key } });
+    const gtaHalf = gtaInput('halfPaise', 'half hour'), gtaHour = gtaInput('hourPaise', 'hour');
+    const gtaRow = h('div', { class: 'gta-rates', data: { field: 'gta6-rates' } }, h('span', 'gta-name', icon('PS5'), 'GTA 6'), field('Half hour', gtaHalf), field('1 hour', gtaHour));
     const saveRates = () => {
       const commands = [];
+      const half = toPaise(gtaHalf.value), hour = toPaise(gtaHour.value);
+      if (!(half > 0 && hour > 0)) { notify('error', 'Every rate must be more than zero.'); return; }
+      if (half !== gtaNow.halfPaise || hour !== gtaNow.hourPaise) commands.push({ type: 'RATE_EXTRAS', gta6: { halfPaise: half, hourPaise: hour } });
       for (const c of TIMED_KINDS) {
         const rates = inputs[c].map(i => toPaise(i.value)), before = saved(c);
         if (rates.some(r => !(r > 0))) { notify('error', 'Every rate must be more than zero.'); return; }
@@ -18395,7 +18536,7 @@ const ratesPage = {
     };
     const head = settingsHead;
     page.append(
-      h('section', 'panel', head('cash', 'Gaming rates (₹)', 'gold'), grid, h('div', { style: 'margin-top:16px' }, btn('Save rates', saveRates, 'primary', { data: { action: 'save-rates' } }))),
+      h('section', 'panel', head('cash', 'Gaming rates (₹)', 'gold'), grid, gtaRow, h('div', { style: 'margin-top:16px' }, btn('Save rates', saveRates, 'primary', { data: { action: 'save-rates' } }))),
       h('div', 'panel-grid',
         h('section', 'panel', head('turf', 'Court rate per hour (₹)', 'gold'), RATE_COURTS.map((court, i) => field(venueOf(courtInfo(court).venue).name + ' · ' + courtLabel(court), turfRates[i])),
           btn('Save', saveTurfRates, '', { data: { action: 'save-turf-rates' } })),
@@ -20296,7 +20437,7 @@ function turfMoveSheet(b, p) {
     running.push({ t, name, category: (unitOf(state.Segments.find(g => g.tabId === t.id && g.status === 'active').unitId) || {}).category });
   }
   running.sort((x, y) => x.name.localeCompare(y.name, 'en', { numeric: true }));
-  const free = CATEGORIES.flatMap(category => state.Equipment.filter(u => u.category === category && !inUse(u)));
+  const free = CATEGORIES.flatMap(category => floorUnits().filter(u => u.category === category && !inUse(u)));
   let chosen = '', unitTo = '', acked = false, time;
   const lane = {}, pads = {};
   const choose = (bill, unit) => { chosen = bill; unitTo = unit; acked = false; current.ack.reservation = false; };
@@ -21420,8 +21561,8 @@ function extendSeries() {
 let pendingDueTried = 0;
 function postPendingDue() {
   if (!state || outbox.length || flow.saving() || nowMs() - pendingDueTried < SWEEP_EVERY_MS) return;
-  // From 11 PM of its day once it has ended, as the server (owner, 17 November: "just keep the time 11pm instead of 12 am").
-  const today = dayKey(nowMs()), over = b => b.dateKey < today || (b.dateKey === today && hourStart(today, 23) <= nowMs() && hourStart(today, Number(b.startHour) + Number(b.hours)) <= nowMs());
+  // After midnight, as the server (owner, 20 November: "Pending, goes after 12am, not 11pm").
+  const today = dayKey(nowMs()), over = b => b.dateKey < today;
   const due = (state.TurfBookings || []).some(b => over(b) && !turfAccountOf(b.id) && !turfStatusOf(b.id).leadId && ['open', 'part'].includes(turfStatusOf(b.id).state));
   if (!due) return;
   pendingDueTried = nowMs();
@@ -21794,7 +21935,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "43538122933f";
+const APP_BUILD = "327c4117fce8";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
