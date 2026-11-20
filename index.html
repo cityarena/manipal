@@ -451,6 +451,9 @@ svg { flex: none; }
 .glyph.sm svg { width: 15px; height: 15px; }
 .glyph.jade { color: var(--accent-ink); background: #dde7d7; border-color: rgba(31, 125, 74, 0.2); }
 .glyph.gold { color: var(--gold); background: var(--gold-soft); border-color: var(--gold-line); }
+/* A bill being settled: "4 of 4", every counter one width so the − and + stand in one column (owner, 20 November). */
+.qty-n.qty-fixed { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+.settle-adds { margin-top: 8px; }
 .glyph.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); }
 .glyph.bad { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-line); }
 .avatar { width: 30px; height: 30px; flex: none; display: inline-grid; place-items: center; border-radius: 50%; background: linear-gradient(180deg, var(--avatar-top) 0%, var(--avatar-bottom) 100%); color: #ffffff; font: 600 13px/1 var(--display); }
@@ -3717,7 +3720,8 @@ var ARENA_BRANCH = (function () {
     retiredUnits: ['PS5-9'],
     // GTA 6 on any PS5 (owner, 20 November: "the prices for gta 6 is 120 for an hour and 80 for half … only 1 player … keep only 30 minutes
     // and 1 hour only"): one controller, charged in half hours; Settings → Rates may change the two prices (gta6Rates).
-    gta6: { halfPaise: 8000, hourPaise: 12000 },
+    // 45 minutes ₹100 too (owner, 20 November: "gta 6, 45 minutes is needed, 100 rupees").
+    gta6: { halfPaise: 8000, fortyFivePaise: 10000, hourPaise: 12000 },
     // The Reservations page's tabs, in the owner's order (only kinds switched on are shown).
     reservationKinds: ['Bowling', 'Snooker', 'Pool', 'PS5'],
     // Minutes, each one a setting: remind before a booking; ask "No-show?" after; a lane chosen by the app is kept from this
@@ -3946,9 +3950,9 @@ var ArenaCore = (function () {
   function pricesFor(state,category){return rateSetting(state,category).rates.slice();}
   // GTA 6's two prices (Branch.gs gta6, or Settings gta6Rates once changed), saved with the game it starts, as every price is.
   function gtaRates(state){
-    var base=ARENA_BRANCH.gta6||{halfPaise:8000,hourPaise:12000},row=state?(state.Settings||[]).find(function(r){return r.id==='gta6Rates';}):null,saved=null;
+    var base=ARENA_BRANCH.gta6||{halfPaise:8000,fortyFivePaise:10000,hourPaise:12000},row=state?(state.Settings||[]).find(function(r){return r.id==='gta6Rates';}):null,saved=null;
     try{saved=row?JSON.parse(row.value):null;}catch(e){saved=null;}
-    return {game:'GTA 6',halfPaise:Number(saved&&saved.halfPaise)||base.halfPaise,hourPaise:Number(saved&&saved.hourPaise)||base.hourPaise};
+    return {game:'GTA 6',halfPaise:Number(saved&&saved.halfPaise)||base.halfPaise,fortyFivePaise:Number(saved&&saved.fortyFivePaise)||base.fortyFivePaise,hourPaise:Number(saved&&saved.hourPaise)||base.hourPaise};
   }
   // A bowling game's saved price: per person per game, with the players and games it was started for.
   function bowlingRates(players, games, state) {
@@ -3975,7 +3979,17 @@ var ArenaCore = (function () {
     }
     // GTA 6: half an hour or an hour, nothing in between (owner, 20 November), 5 minutes over not counted: up to 35 minutes is half an
     // hour, up to 1 hour 5 minutes an hour, then the hour's price for each whole hour and the half hour's for a half.
+    if (prices && !Array.isArray(prices) && prices.halfPaise != null && prices.fortyFivePaise != null) {
+      // With 45 minutes too (owner, 20 November): after the whole hours, 5 minutes over not counted, then half an hour, 45 minutes, or
+      // the next hour — up to 35 minutes ₹80, up to 50 minutes ₹100, up to 1 hour 5 minutes ₹120; 1 hour 30 minutes ₹200.
+      var mins = Math.max(1, Math.ceil(duration / 60000)), hrs = mins <= 65 ? 0 : Math.floor((mins - 5) / 60), over = mins - hrs * 60;
+      var step = hrs > 0 && over <= 5 ? 0 : over <= 35 ? 30 : over <= 50 ? 45 : 60;
+      var gta45 = hrs * prices.hourPaise + (step === 30 ? prices.halfPaise : step === 45 ? prices.fortyFivePaise : step === 60 ? prices.hourPaise : 0);
+      check(Number.isSafeInteger(gta45) && gta45 >= 0, 'Invalid saved rates.');
+      return { actualMilliseconds: duration, billableMinutes: hrs * 60 + step, totalPaise: gta45 };
+    }
     if (prices && !Array.isArray(prices) && prices.halfPaise != null) {
+      // A GTA 6 game started before the 45-minute price: half an hour or an hour.
       var halves = 30 * Math.max(1, Math.ceil((duration - 300000) / 1800000));
       var gta = Math.floor(halves / 60) * prices.hourPaise + (halves % 60 ? prices.halfPaise : 0);
       check(Number.isSafeInteger(gta) && gta >= 0, 'Invalid saved rates.');
@@ -4683,7 +4697,12 @@ var ArenaLifecycle=(function(){
    check(oids.length+oitems.length>0&&oids.length+oitems.length<=60,'Tick what they are paying for.');
    var part=newTab(s,id+'-part',target.customer,target.phone,now,'settlement');
    oids.forEach(function(sid){var g=row(s.Segments,sid);check(g.tabId===target.id&&g.status==='ended','This charge is no longer on the bill. Refresh and try again.');g.tabId=part.id;s.Endings.forEach(function(e){if(e.segmentId===sid&&e.reviewTabId===target.id)e.reviewTabId=part.id;});});
-   if(oitems.length)ArenaSales.execute(s,{type:'TAKE_ITEMS',fromTabId:target.id,tabId:part.id,items:oitems},actor,now,id+'-items');
+   // A balance carried from an earlier bill goes to the part paid now whole, as it is (owner, 20 November: the pending bills ticked
+   // without the lane, "This item is no longer on that bill"); items are taken over as before.
+   var carriedHere=oitems.filter(function(x){var o=s.Orders.find(function(r){return r.id===x.orderId;});return o&&o.category==='Carried';});
+   carriedHere.forEach(function(x){var o=row(s.Orders,x.orderId);check(o.tabId===target.id&&o.status==='active','This item is no longer on that bill. Refresh and try again.');o.tabId=part.id;});
+   var itemsHere=oitems.filter(function(x){return carriedHere.indexOf(x)<0;});
+   if(itemsHere.length)ArenaSales.execute(s,{type:'TAKE_ITEMS',fromTabId:target.id,tabId:part.id,items:itemsHere},actor,now,id+'-items');
    check(lines(s,target.id).some(function(x){return x.status!=='void';}),'Everything is ticked: settle the whole bill.');
    var settledPart=execute(s,Object.assign({},c,{tabId:part.id,only:undefined}),actor,now,id+'-pay');
    settledPart.restTabId=target.id;settledPart.partTabId=part.id;
@@ -5206,6 +5225,16 @@ var ArenaCredits=(function(){
     // An academy's coaching slot is never paid at the counter (owner, 1 November), whichever screen asks.
     if(c.type==='PAY'&&c.billId&&typeof ArenaTurf!=='undefined'){var paidFor=(s.BillDetails||[]).find(function(d){return d.id===c.billId;}),coaching=paidFor?ArenaTurf.coachingTab(s,paidFor.tabId):null;check(!coaching,coaching?'This slot goes to '+coaching.name+'’s account. Use To account on the booking.':'');}
     if(c.type==='PAY'){check(!s.CreditTransfers.some(function(t){return t.billId===c.billId;}),'This bill is on credit. Record repayment from the credit account so FIFO is preserved.');
+      // Part paid and the rest moved to a credit account, in one save (owner, 20 November: "whenever part payment is done … ask pending or
+      // rest of the amount what to do"): the payment (and any discount) first, then what is left of the bill to the account.
+      if(c.restCredit&&typeof c.restCredit==='object'){
+        var payFirst=Object.assign({},c);delete payFirst.restCredit;
+        var firstPaid=(Number(payFirst.amountPaise)>0||(Array.isArray(payFirst.payments)&&payFirst.payments.length)||Number(payFirst.discountPaise)>0)?execute(s,payFirst,actor,now,id):{};
+        var leftBill=find(s.Bills,c.billId);check(leftBill.totalPaise>leftBill.paidPaise,'Nothing is left to move to credit.');
+        var toCredit=ArenaCore.engineFor('TRANSFER_CREDIT_INLINE').execute(s,{type:'TRANSFER_CREDIT_INLINE',billId:c.billId,accountId:c.restCredit.accountId,newAccount:c.restCredit.newAccount},actor,now,id+'-rest-credit');
+        var restTransfer=s.CreditTransfers.find(function(t){return t.billId===c.billId;})||{};
+        return Object.assign({},firstPaid,{restCredited:restTransfer.amountPaise||0,accountId:restTransfer.accountId||toCredit.accountId,message:(firstPaid.receiptNumber?'Paid. ':'')+'The rest moved to credit.'});
+      }
       // A discount when a pending bill is collected, as on any bill being settled (owner, 20 November: "treat it like regular with
       // discount and all"): taken off what is still owed, kept on the bill's own discount (so Reports share it as any bill's, off its
       // games and court first), a Corrections line of kind bill_discount for its history, and the money, if any, paid in the same save.
@@ -5356,7 +5385,7 @@ var ArenaCustomers = (function () {
 /* Audited corrections. Nothing is deleted: each change keeps the original value, the new value, a reason and who made it. */
 var ArenaCorrections = (function () {
   'use strict';
-  var types = ['VOID_SEGMENT', 'EDIT_SEGMENT_TIME', 'REVERSE_PAYMENT', 'VOID_BILL', 'VOID_TAB', 'CORRECT_CREDIT_PAYMENT', 'CORRECT_BILL'];
+  var types = ['VOID_SEGMENT', 'EDIT_SEGMENT_TIME', 'REVERSE_PAYMENT', 'VOID_BILL', 'VOID_TAB', 'CORRECT_CREDIT_PAYMENT', 'CORRECT_BILL', 'TAKE_BACK_PART'];
 
   function check(ok, message) { ArenaCore.check(ok, message); }
   function row(rows, id) {
@@ -5498,6 +5527,41 @@ var ArenaCorrections = (function () {
     return { voidedBillId: bill.id, tabId: tab ? tab.id : '', message: tab ? 'Bill voided. The visit is open again for correction.' : 'Bill voided.' };
   }
 
+  // ← Back after part of a bill was collected (owner, 20 November: "back should go to where it was earlier so i can correct whats wrong"):
+  // that collection taken back as one step — its payments reversed, its bill voided, its lines back on the bill they came from, and the
+  // pending bills that were not ticked carried onto it again — so the bill is as it was before Collect and can be collected again. The
+  // reversal and the void stay in the history; a payment taken and taken back the same day is left out of the report.
+  function takeBackPart(state, cmd, actor, now, id) {
+    var bill = row(state.Bills, cmd.partBillId), why = cmd.reason ? reason(cmd.reason) : 'Taken back to correct';
+    var detail = (state.BillDetails || []).find(function (d) { return d.id === bill.id; }), part = detail ? row(state.Tabs, detail.tabId) : null;
+    var rest = row(state.Tabs, cmd.restTabId), whole = !!part && part.id === rest.id;
+    // The whole bill collected (the pending bills not ticked sent back): the bill itself opened again. Part of it: the part's own bill.
+    check(!!part && part.status === 'billed' && (whole || part.kind === 'settlement'), 'Only what was just collected can be taken back.');
+    check(whole || rest.status === 'open', 'The rest of this bill is no longer open. Refresh and try again.');
+    check(!(state.CreditTransfers || []).some(function (t) { return t.billId === bill.id; }), 'This part went to a credit account. Correct it from the account.');
+    check(!ArenaCore.isVoidedBill(state, bill.id), 'This part was already taken back.');
+    (state.Payments || []).filter(function (p) { return p.billId === bill.id && p.amountPaise > 0 && !(state.Corrections || []).some(function (c) { return c.kind === 'payment_reversal' && c.targetId === p.id; }); })
+      .forEach(function (p, i) { reversePayment(state, { paymentId: p.id, reason: why }, actor, now, id + '-r' + i); });
+    voidBill(state, { billId: bill.id, reason: why }, actor, now, id + '-void');
+    // Part of it: its lines back on the bill they came from, and the part's own bill closed for good. The whole bill is simply open again.
+    if (!whole) {
+      (state.Segments || []).filter(function (g) { return g.tabId === part.id && g.status !== 'void'; }).forEach(function (g) { g.tabId = rest.id; });
+      (state.Endings || []).forEach(function (e) { if (e.reviewTabId === part.id) e.reviewTabId = rest.id; });
+      (state.Orders || []).filter(function (o) { return o.tabId === part.id && o.status === 'active'; }).forEach(function (o) { o.tabId = rest.id; });
+      part.status = 'merged';
+    }
+    check(rest.status === 'open', 'This bill could not be opened again. Refresh and try again.');
+    // The pending bills that were not ticked, back on this bill as they were.
+    var again = Array.isArray(cmd.recarry) ? cmd.recarry : [];
+    check(again.length <= 20, 'Too many bills.');
+    again.forEach(function (bid, i) {
+      var owed = (state.Bills || []).find(function (x) { return x.id === bid; });
+      if (!owed || owed.totalPaise <= owed.paidPaise || ArenaCore.carryOf(state, bid) || (state.CreditTransfers || []).some(function (t) { return t.billId === bid; })) return;
+      ArenaTurf.carryBack(state, bid, rest.id, now, id + '-carry-' + i);
+    });
+    return { tabId: rest.id, voidedBillId: bill.id, message: 'Taken back. The bill is as it was before Collect.' };
+  }
+
   // A repayment on a credit account was entered with the wrong amount (or should not have been entered).
   // The original stays on record with a matching reversal, its allocations are undone, and the right amount is recorded.
   function correctCreditPayment(state, cmd, actor, now, id) {
@@ -5578,6 +5642,7 @@ var ArenaCorrections = (function () {
     if (cmd.type === 'VOID_BILL') return voidBill(state, cmd, actor, now, id);
     if (cmd.type === 'VOID_TAB') return voidTab(state, cmd, actor, now, id);
     if (cmd.type === 'CORRECT_CREDIT_PAYMENT') return correctCreditPayment(state, cmd, actor, now, id);
+    if (cmd.type === 'TAKE_BACK_PART') return takeBackPart(state, cmd, actor, now, id);
     check(false, 'Unsupported operation.');
   }
 
@@ -7432,6 +7497,14 @@ var ArenaTurf = (function () {
     if (saved) saved.value = value; else if (value) state.Settings.push({ id: 'pendingFor-' + reservationId, value: value });
   }
   // Bills moved elsewhere leave any reservation they were held for (but the one named).
+  // A pending bill put back on the bill it was carried on (TAKE_BACK_PART in Corrections.gs: ← Back after part of a bill was collected),
+  // whether or not anything is playing on it now.
+  function carryBack(state, billId, intoTabId, now, id) {
+    var bl = pendingBill(state, billId), into = tabOf(state, intoTabId);
+    check(!!into && into.status === 'open', 'That bill is closed. Refresh and try again.');
+    carryPending(state, bl, into, now, id + '-line', id + '-carry');
+    unlinkPending(state, [bl.id], '');
+  }
   function unlinkPending(state, billIds, keepFor) {
     (state.Settings || []).forEach(function (r) {
       if (String(r.id).indexOf('pendingFor-') !== 0 || !r.value || r.id === 'pendingFor-' + keepFor) return;
@@ -7637,9 +7710,9 @@ var ArenaTurf = (function () {
       if (cmd.bowlingPaise != null) setRate('bowlingRate', cmd.bowlingPaise);
       // GTA 6's half hour and hour (owner, 20 November); a game already started keeps its price.
       if (cmd.gta6) {
-        var half = cmd.gta6.halfPaise, hour = cmd.gta6.hourPaise;
-        [half, hour].forEach(function (v) { check(Number.isSafeInteger(v) && v > 0 && v <= 100000000, 'Every rate must be more than zero and at most ₹10,00,000.'); });
-        var gtaRow = state.Settings.find(function (r) { return r.id === 'gta6Rates'; }), gtaValue = JSON.stringify({ halfPaise: half, hourPaise: hour });
+        var half = cmd.gta6.halfPaise, hour = cmd.gta6.hourPaise, fortyFive = cmd.gta6.fortyFivePaise;
+        [half, fortyFive, hour].forEach(function (v) { check(Number.isSafeInteger(v) && v > 0 && v <= 100000000, 'Every rate must be more than zero and at most ₹10,00,000.'); });
+        var gtaRow = state.Settings.find(function (r) { return r.id === 'gta6Rates'; }), gtaValue = JSON.stringify({ halfPaise: half, fortyFivePaise: fortyFive, hourPaise: hour });
         if (gtaRow) gtaRow.value = gtaValue; else state.Settings.push({ id: 'gta6Rates', value: gtaValue });
       }
       VENUES.forEach(function (v) {
@@ -7971,6 +8044,11 @@ var ArenaTurf = (function () {
       var partRow = (state.Bills || []).find(function (bl) { return bl.id === partBill; });
       var partPaid = ArenaCore.engineFor('PAY').execute(state, { type: 'PAY', billId: partBill, amountPaise: partRow.totalPaise, method: cmd.method || 'cash' }, actor, now, id + '-pay');
       var restRow = (state.Bills || []).find(function (bl) { return bl.id === cmd.billId; });
+      // The rest to a credit account in the same save (owner, 20 November: a part payment always asks where the rest goes).
+      if (cmd.restCredit && typeof cmd.restCredit === 'object' && restRow.totalPaise > restRow.paidPaise) {
+        ArenaCore.engineFor('TRANSFER_CREDIT_INLINE').execute(state, { type: 'TRANSFER_CREDIT_INLINE', billId: cmd.billId, accountId: cmd.restCredit.accountId, newAccount: cmd.restCredit.newAccount }, actor, now, id + '-rest-credit');
+        return { billId: partBill, receiptNumber: partPaid.receiptNumber, method: cmd.method || 'cash', message: 'Paid ₹' + (partRow.totalPaise / 100) + '. The rest moved to credit.' };
+      }
       return { billId: partBill, receiptNumber: partPaid.receiptNumber, method: cmd.method || 'cash', message: 'Paid ₹' + (partRow.totalPaise / 100) + '. ₹' + ((restRow.totalPaise - restRow.paidPaise) / 100) + ' still pending.' };
     }
     if (cmd.type === 'PENDING_SEND') {
@@ -8815,7 +8893,7 @@ var ArenaTurf = (function () {
   }
   return {
     handles: function (type) { return types.indexOf(type) >= 0; }, execute: execute, live: live, pendingFor: pendingFor, setPendingFor: setPendingFor, carryPendingFor: carryPendingFor, coachingTab: coachingTab, livePlayers: livePlayers, settlement: settlement, range: range, day: day, importRows: importRows, exportRows: exportRows,
-    memberOf: memberOf, memberPlan: memberPlan, accountOf: accountOf, untilOf: untilOf, clash: clash, meet: meet, rentalOf: rentalOf, hoursOf: hoursOf, courtOf: courtOf, linked: linked, holdOf: holdOf, maybeOf: maybeOf, dateKeyOf: dateKeyOf, feeOf: feeOf, rateFor: rateFor, locked: locked, meta: meta, COURTS: COURTS, SPORTS: SPORTS, OPEN_HOUR: OPEN_HOUR, CLOSE_HOUR: CLOSE_HOUR
+    memberOf: memberOf, memberPlan: memberPlan, carryBack: carryBack, accountOf: accountOf, untilOf: untilOf, clash: clash, meet: meet, rentalOf: rentalOf, hoursOf: hoursOf, courtOf: courtOf, linked: linked, holdOf: holdOf, maybeOf: maybeOf, dateKeyOf: dateKeyOf, feeOf: feeOf, rateFor: rateFor, locked: locked, meta: meta, COURTS: COURTS, SPORTS: SPORTS, OPEN_HOUR: OPEN_HOUR, CLOSE_HOUR: CLOSE_HOUR
   };
 })();
 
@@ -12185,7 +12263,8 @@ function openSheet(config) {
   $('sheetIcon').replaceChildren(...(config.icon ? [icon(config.icon)] : []));
   sheetStatus('', '');
   // Back shows when there is a sheet to go back to (the one it was opened from, or the place it says).
-  $('sheetBack').hidden = !(current.onBack || current.onClose);
+  // A sheet whose closing only sends something on (closeOnly: a bill's leftover to Pending) shows Back only when it can go back.
+  $('sheetBack').hidden = !(current.onBack || (current.onClose && !current.closeOnly));
   const ui = {
     body: $('sheetBody'), foot: $('sheetFoot'),
     primary(label, disabled) {
@@ -14140,9 +14219,9 @@ function drawLines(body, lines) {
         return n > qty ? update(o, Number(o.quantity) + n - qty, lines.after) : removeOne(o, lines.after);
       };
       const forWhom = o.purchaser && o.purchaser !== customer ? ' · for ' + o.purchaser : '';
-      // A bill being settled (owner, 21 October): − pays for fewer now ("2 of 3"), the rest staying on the bill to move, put
-      // on credit or keep pending; + pays for them again and, past what is on the bill, adds one more of the same item (3 to
-      // 4). Nothing is taken off the bill except with the bin, for an item added by mistake.
+      // A bill being settled (owner, 20 November: "let +- be there but not to add or minus products but rather to pay, by default let 4 of 4
+      // be there"): − and + only choose how many are paid now, from all of them ("4 of 4") down to none; nothing is added or taken off the
+      // bill by them. More of an item comes from Add Items, onto its own line; the bin takes one put on by mistake off the bill.
       if (lines.ticks && open) {
         const n = list.reduce((sum, x) => sum + lines.ticks.count(x), 0);
         const setTo = want => { let left = want; for (const x of list) { const k = Math.min(Number(x.quantity), Math.max(0, left)); lines.ticks.setCount(x, k); left -= k; } };
@@ -14150,8 +14229,8 @@ function drawLines(body, lines) {
           h('div', 'line-main', h('b', { text: o.label }), h('span', { class: 'small muted', text: (isGameLine(o) ? '' : product || turfMeta(o).hourPaise ? priceEach(o) : o.reason || 'Charge') + forWhom })),
           h('span', { class: 'item-tools', data: { itemTools: o.label } }, h('span', 'step',
             h('button', { type: 'button', 'aria-label': 'Pay for one fewer ' + o.label, disabled: n === 0, data: { action: 'pay-less' }, onclick: () => setTo(n - 1) }, icon('minus')),
-            h('b', { class: 'qty-n', text: n < qty ? n + ' of ' + qty : String(qty) }),
-            h('button', { type: 'button', 'aria-label': n < qty ? 'Pay for one more ' + o.label : 'One more ' + o.label, disabled: n >= qty && (!product || qty >= 999), data: { action: 'pay-more' }, onclick: () => { if (n < qty) setTo(n + 1); else { list.forEach(x => lines.ticks.full(x)); update(o, Number(o.quantity) + 1, lines.after); } } }, icon('plus'))),
+            h('b', { class: 'qty-n qty-fixed', text: n + ' of ' + qty }),
+            h('button', { type: 'button', 'aria-label': 'Pay for one more ' + o.label, disabled: n >= qty, data: { action: 'pay-more' }, onclick: () => setTo(n + 1) }, icon('plus'))),
             h('button', { type: 'button', class: 'item-remove', 'aria-label': 'Remove one ' + o.label + ' from the bill', title: 'Remove one from the bill', data: { action: 'item-remove' }, onclick: () => removeOne(o, lines.after) }, icon('trash'))),
           h('span', { class: 'line-amount', text: money(o.unitPricePaise * n) })));
         continue;
@@ -14208,6 +14287,17 @@ function broughtIn(tab, earlier) {
 }
 
 // preset: { receive, rest } from End N of M: the amount received set to what they ticked, the rest (credit or pending) asked.
+// What is left on a bill after part of it was paid, closed without being dealt with: pending under the bill's own name and mobile.
+function leftToPending(tabId) {
+  const t = tabOf(tabId);
+  if (!t || t.status !== 'open' || segmentsOf(tabId).some(g => g.status === 'active') || !(tabTotal(tabId) > 0)) return;
+  const who = t.customer === 'Walk-in' ? '' : t.customer;
+  runCommand({ type: 'SETTLE_REVIEW', tabId, settlement: 'pay', discountType: 'none', discountValue: 0, amountPaise: 0, method: 'cash', pending: { name: who, phone: t.phone || '' } }, result => {
+    const bill = state.Bills.find(x => x.id === result.billId), owed = bill ? bill.totalPaise - bill.paidPaise : 0;
+    render();
+    return { text: money(owed) + ' left on ' + (who ? who + '’s' : 'the') + ' bill is pending.' };
+  });
+}
 function settleSheet(tabId, mode = 'pay', preset = null) {
   const tab = tabOf(tabId);
   if (!tab || tab.status !== 'open') { closeSheet(); return; }
@@ -14224,6 +14314,12 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
   // Lines not paid now (unticked): they stay on this bill, to be moved, put on credit or kept pending after.
   // skip: time unticked; payCount: how many of an item are paid now (all of it unless lowered).
   const skip = new Set(), payCount = new Map(), carry = carryTickState(() => { draft.edited = false; current.ui.redraw(); });
+  // Opened again by ← Back after a part was collected: what was not ticked then is not ticked now (owner, 20 November).
+  if (preset && Array.isArray(preset.untick)) {
+    const off = new Set(preset.untick);
+    segmentsOf(tab.id).filter(g => off.has(g.id)).forEach(g => skip.add(g.id));
+    ordersOf(tab.id).filter(o => off.has(o.id)).forEach(o => { if (o.category === 'Carried') carry.off.add(o.id); else payCount.set(o.id, 0); });
+  }
   // The balances carried in: what is not ticked is not paid now; once the bill is collected it is shown next, to collect, move, put on
   // credit or keep pending, step by step (owner, 16 November: "first ill collect what he is willing to pay. then show me what he has not
   // paid. then i will click the items, it will show same collect move pending etc").
@@ -14269,13 +14365,19 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
     focus: discountFirst ? '[data-field=discount]' : false,
     // Closing one player's bill returns to the list of players still to settle, when there is one; Back only shows then
     // (owner, 27 October: Back on a bill opened after End closed everything).
-    onClose: returnsTo(tab.id) ? () => returnToSplit(tab.id) : endOpen(tab.id) ? () => resumeEnd(tab.id) : undefined,
+    // What is left after part of it was paid, closed without being dealt with: kept pending under the bill's name, never left open where it
+    // cannot be seen (owner, 20 November: "yes, pending").
+    onClose: returnsTo(tab.id) ? () => returnToSplit(tab.id) : endOpen(tab.id) ? () => resumeEnd(tab.id) : preset && preset.leftover ? () => leftToPending(tab.id) : undefined,
     // After End: Back takes the End back, until something is paid here.
-    onBack: preset && preset.back && !heldFor([tab.id]) ? preset.back : undefined,
+    // ← Back after a part was collected takes that collection back (preset.undo); after End it takes the End back.
+    onBack: preset && preset.undo ? preset.undo : preset && preset.back && !heldFor([tab.id]) ? preset.back : undefined,
+    // ✕ alone sends what is left to Pending; ← Back never does (owner, 20 November).
+    closeOnly: !!(preset && preset.leftover),
     build(ui) {
       // An item changed here redraws this bill in place, so the ticks and what was typed stay (owner, 21 October).
       // Ticks when there is more than one line and nothing that must go with the bill (a turf fee, a carried amount).
-      const all = segmentsOf(tab.id).concat(ordersOf(tab.id)), tickable = all.length > 1 && !stillPlaying(tab.id) && !all.some(x => x.category === 'Turf');
+      // Items always: their − and + choose how many are paid, never what is on the bill, however few lines are left (owner, 20 November).
+      const all = segmentsOf(tab.id).concat(ordersOf(tab.id)), tickable = (all.length > 1 || ordersOf(tab.id).length > 0) && !stillPlaying(tab.id) && !all.some(x => x.category === 'Turf');
       const ticks = tickable ? {
         off: skip,
         toggle: ids => { const on = ids.some(lid => skip.has(lid)); ids.forEach(lid => { if (on) skip.delete(lid); else skip.add(lid); }); draft.edited = false; ui.redraw(); },
@@ -14297,11 +14399,11 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
       const adds = h('div', 'station-links', btn([icon('sales'), 'Add Items'], () => addItemsSheet(tab), 'quiet', { data: { action: 'items' } }));
       if (tab.kind === 'quick_sale') adds.append(btn([icon('plus'), 'Gaming or other charge'], () => manualChargeSheet(tab), 'quiet'));
       if (group && goodsOf(ordersOf(group.id)).length) adds.append(btn([icon('sales'), 'Items from ' + group.customer + '’s bill'], () => takeItemsSheet(tab, group), 'quiet', { data: { action: 'take-items' } }));
-      // One row at the top (owner, 22 October): add items or a charge, and the discount typed in. On a turf bill the turf card
-      // with its discount comes first and Add Items goes under the lines.
-      const top = h('div', 'settle-top', adds);
+      // The discount typed in at the top; Add Items under the lines (owner, 20 November: "the add items keep below only"). On a turf bill the
+      // turf card with its discount comes first.
+      const top = h('div', 'settle-top', ...(onTurf ? [adds] : []));
       if (onTurf) ui.body.append(top);
-      else ui.body.prepend(top);
+      else { ui.body.prepend(top); ui.body.append(h('div', 'settle-adds', adds)); }
       if (playing || !lines) discountRow.remove();
       if (playing) { ui.body.append(h('p', { class: 'muted', style: 'margin-top:16px', text: 'Still playing. End the remaining players to settle this bill.' })); tick(); return; }
       if (!lines) { ui.body.append(h('p', { class: 'muted', style: 'margin-top:16px', text: 'Nothing to settle yet.' })); return; }
@@ -14435,13 +14537,33 @@ function settleSheet(tabId, mode = 'pay', preset = null) {
       // What he has not paid, shown next, one bill after another.
       const rest = notPaid.slice();
       notPaid = [];
+      // What was not ticked stays on this bill and comes straight back, everything on it ticked again, for the next person to pay or to
+      // be sent on (owner, 20 November: "let the bill be there with whats left … i will repeat maybe next 2 i will click settle it like that").
+      const restOpen = result.restTabId && tabOf(result.restTabId) && tabOf(result.restTabId).status === 'open';
+      // ← Back on the sheets that follow (owner, 20 November: "back should go to where it was earlier so i can correct whats wrong"): this
+      // collection taken back in one save and the bill opened as it was, with the same ticks. A part sent to a credit account is corrected
+      // from the account instead.
+      // Part of the bill (its rest stays open) or the whole of it with the pending bills not ticked sent back: either is taken back.
+      const backTo = result.restTabId || tab.id, collectedOn = result.partTabId || tab.id;
+      const undo = command.type === 'SETTLE_REVIEW' && command.settlement !== 'credit' && result.billId && (result.restTabId || rest.length) ? () => {
+        const partIds = new Set([...segmentsOf(collectedOn), ...ordersOf(collectedOn)].map(x => x.id));
+        runCommand({ type: 'TAKE_BACK_PART', partBillId: result.billId, restTabId: backTo, recarry: rest }, () => {
+          const untick = [...segmentsOf(backTo), ...ordersOf(backTo)].filter(x => !partIds.has(x.id)).map(x => x.id);
+          settleSheet(backTo, 'pay', { untick });
+          return { text: 'Taken back. Correct it and collect again.' };
+        });
+      } : null;
+      const afterRest = () => (restOpen ? settleSheet(result.restTabId, 'pay', { leftover: true, undo }) : closeSheet());
+      const restWords = restOpen ? 'The rest is still on this bill. ' : '';
       if (rest.length && command.type === 'SETTLE_REVIEW') {
-        const next = i => (i < rest.length ? receiptSheet(rest[i], () => next(i + 1)) : closeSheet());
+        // And then what is left of this bill, never skipped (owner, 20 November: a pending bill moved onto a snooker table, 2 closed games
+        // collected, "the bill just vanished … the remaining bill is not in pending or credit").
+        const next = i => (i < rest.length ? receiptSheet(rest[i], () => next(i + 1), { undo }) : afterRest());
         next(0);
-        return { text: took + 'Not paid yet: choose what to do with it.' };
+        return { text: took + restWords + 'Not paid yet: choose what to do with it.' };
       }
-      // Part settled: back to this bill with what was not ticked, to move it, put it on credit or keep it pending.
-      if (result.restTabId) { settleSheet(result.restTabId); return { text: took + 'The rest is still on this bill.' }; }
+      // Part settled: what was not ticked where it was chosen to go (or, open, back on this bill).
+      if (result.restTabId) { afterRest(); return { text: took + restWords }; }
       // Kept on the group's system, or left pending: back to where the receptionist was, with a note.
       if (command.type === 'KEEP_SHARED') { closeSheet(); render(); return { text: took + 'The rest stays on ' + keepWhere + ' for the others to pay.' }; }
       if (command.pending) {
@@ -15197,7 +15319,7 @@ function billWhen(data, detail) {
   const first = starts.length ? Math.min(...starts) : Number(detail.createdMs);
   return day(first) + ', ' + clock(first);
 }
-async function receiptSheet(billId, back) {
+async function receiptSheet(billId, back, opts = {}) {
   let data = viewHere(view => ArenaViews.bill(view, billId));
   try { data = data || await rpc('rpcBill', token, billId); }
   catch (e) { if ($('sheet').open && current) sheetStatus('error', e.message); else notify('error', e.message); return; }
@@ -15209,6 +15331,10 @@ async function receiptSheet(billId, back) {
   const paidHere = data.transfer ? data.payments.reduce((sum, p) => sum + p.amountPaise, 0) : bill.paidPaise;
   const payStore = { method: 'cash' };
   let amount, how, collectOff = 0, offBox = null;
+  // A part payment always asks where the rest goes (owner, 20 November: "when i put part payment, ask pending or rest of the amount what to
+  // do … anywhere and everywhere whenever part payment is done"): Keep pending, Move to Credit or Move, chosen before Collect.
+  let restTo = '', restPicker = null, restNow = 0, restChosen = '', restChosenPaise = 0;
+  const restStore = {};
   // A pending bill of more than one part (nothing paid on it, no discount): each part with a tick, all ticked at first; Collect, Move
   // to Credit and Move act on what is ticked, each in one save (the ticked part becomes a bill of its own, the rest stays pending).
   const onTurf = data.tab ? turfBookingForTab(data.tab.id) : null, groups = payable && !onTurf && !(bill.paidPaise > 0) && !((detail || {}).discountPaise > 0) ? billParts(data) : [];
@@ -15234,6 +15360,8 @@ async function receiptSheet(billId, back) {
     focus: false,
     // Opened from a credit account, closing goes back there; otherwise back to the list of players still to settle.
     onClose: () => (back ? back() : returnToSplit(data.tab ? data.tab.id : '')),
+    // Shown straight after a collection (a pending bill not ticked): ← Back takes that collection back (owner, 20 November).
+    onBack: opts.undo || undefined,
     build(ui) {
       const kv = (label, value, tone = '', props = {}) => h('div', ('kv ' + tone).trim(), h('span', { text: label }), h('b', { text: value, ...props }));
       const section = (title, box) => ui.body.append(h('div', { class: 'summary-title', text: title }), box);
@@ -15355,12 +15483,29 @@ async function receiptSheet(billId, back) {
         const left = () => owing - (partly() ? 0 : collectOff);
         const total = h('div', { class: 'foot-total', text: money(left()) });
         const totalLabel = h('div', { class: 'foot-label', text: partly() ? 'Ticked' : collectOff ? 'To collect' : 'Outstanding' });
+        // What is left after this payment: with ticks, what is not ticked; otherwise what is not received now.
+        const paidNow = () => { const split = how ? how.paid() : null; return split != null ? split : toPaise(amount.value || 0); };
+        const restLeft = () => (partly() ? due - owing : Math.max(0, left() - paidNow()));
+        const restBox = h('div', { class: 'rest-box', hidden: true, data: { field: 'collect-rest' } });
+        const restOptions = [['pending', 'Keep pending', 'clock'], ...(onTurf ? [] : [['credit', 'Move to Credit', 'credits']]), ['move', 'Move', 'transfer']];
+        const restPick = segmented(restOptions, restTo, v => { restTo = v; primary(); if (v === 'credit') focusRest(ui); });
+        restPick.node.dataset.field = 'rest';
+        let actionsRow = null;
         const primary = () => {
-          const b = current.primaryButton, split = how ? how.paid() : null, paise = split != null ? split : toPaise(amount.value || 0);
-          const label = !owing ? 'Tick what he pays for' : left() === 0 && collectOff > 0 ? 'Give discount · ' + money(collectOff) : 'Collect Payment · ' + money(paise);
+          // Ticking part of it asks nothing: the ticked lines are paid and the bill comes back with what is left (owner, 20 November).
+          const b = current.primaryButton, paise = paidNow(), rest = restLeft(), asking = !partly() && owing > 0 && paise > 0 && rest > 0;
+          restNow = asking ? rest : 0;
+          restBox.hidden = !asking;
+          restBox.replaceChildren(...(asking ? [h('div', 'rest-title', h('span', { text: 'The other ' + money(rest) })), restPick.node, ...(restTo === 'credit' ? [(restPicker = restPicker || accountPicker(restStore)).node] : [])] : []));
+          // The whole-bill ways step aside while part of it is being paid: the question above is about the rest.
+          if (actionsRow) actionsRow.hidden = asking;
+          const label = !owing ? 'Tick what he pays for' : left() === 0 && collectOff > 0 ? 'Give discount · ' + money(collectOff)
+            : asking && !restTo ? 'Choose for the other ' + money(rest)
+              : asking ? 'Collect ' + money(paise) + ' · ' + (restTo === 'pending' ? money(rest) + ' pending' : restTo === 'credit' ? money(rest) + ' to Credit' : 'Move ' + money(rest))
+                : 'Collect Payment · ' + money(paise);
           b.dataset.label = label;
           b.textContent = label;
-          b.disabled = collectOff > due || (left() === 0 && collectOff > 0 ? false : !(paise > 0 && paise <= left())) || (partly() && paise !== owing);
+          b.disabled = collectOff > due || (left() === 0 && collectOff > 0 ? false : !(paise > 0 && paise <= left())) || (partly() && paise !== owing) || (asking && !restTo);
         };
         amount.oninput = primary;
         if (offBox) offBox.oninput = () => {
@@ -15373,7 +15518,8 @@ async function receiptSheet(billId, back) {
         };
         ui.foot.append(
           h('div', 'foot-row', totalLabel, total),
-          h('div', 'foot-row pay-foot', receivedBox, (how = payChoice(payStore, () => primary(), { amount, due: () => left(), splittable: !partly() })).node));
+          h('div', 'foot-row pay-foot', receivedBox, (how = payChoice(payStore, () => primary(), { amount, due: () => left(), splittable: !partly() })).node),
+          restBox);
         ui.primary('');
         primary();
         // A turf bill can also go to the team's next booking: the turf chooser offers both.
@@ -15389,7 +15535,9 @@ async function receiptSheet(billId, back) {
         // Keep pending: nothing changes; what is not dealt with stays in Pending bills.
         const keep = data.status !== 'paid' && !turfOwner ? act('bill-keep-pending', 'clock', 'Keep pending', dismissSheet) : null;
         const toCredit = owing > 0 ? act('bill-credit', 'credits', 'Move to Credit', () => (turfOwner ? turfCreditSheet(turfOwner, turfPlayer, { owedPaise: due, billId }) : creditTransferSheet(billId, data.number, owing, goodsOf(data.orders), partly() ? splitOf() : null))) : null;
-        ui.foot.append(h('div', 'actions', ...[toCredit, keep, toPlace, toSystem].filter(Boolean)));
+        actionsRow = h('div', 'actions', ...[toCredit, keep, toPlace, toSystem].filter(Boolean));
+        ui.foot.append(actionsRow);
+        primary();
       } else {
         // Nothing left to collect: say so plainly, then offer the receipt.
         const done = data.status === 'paid' ? ['', 'checkCircle', 'Paid in full', money(bill.totalPaise) + ' settled' + (extras.length ? ' · ' + money(receivedAll) + ' received in all' : '')]
@@ -15404,16 +15552,30 @@ async function receiptSheet(billId, back) {
     command: () => {
       if (!payable) return null;
       // What is ticked paid now; the rest stays on the bill and is shown again.
-      if (partly()) { if (!ticked().length) throw new Error('Tick what he pays for.'); return { type: 'PENDING_PART_PAY', ...splitOf(), method: how.value(tickedSum()).method }; }
+      restChosen = restNow > 0 ? restTo : '';
+      restChosenPaise = restNow;
+      if (restNow > 0 && !restTo) throw new Error('Choose what happens to the other ' + money(restNow) + '.');
+      const restCredit = restChosen === 'credit' ? { restCredit: restPicker.value() } : {};
+      if (partly()) { if (!ticked().length) throw new Error('Tick what he pays for.'); return { type: 'PENDING_PART_PAY', ...splitOf(), method: how.value(tickedSum()).method, ...restCredit }; }
       const split = how.paid(), paise = split != null ? split : toPaise(amount.value);
       if (collectOff > due) throw new Error('The discount is more than what is still owed.');
       // All of it given as discount: nothing taken in, the bill settled by the discount alone.
       if (collectOff > 0 && collectOff === due) return { type: 'PAY', billId, amountPaise: 0, discountPaise: collectOff, method: 'cash' };
-      return { type: 'PAY', billId, amountPaise: paise, ...how.value(), ...(collectOff > 0 ? { discountPaise: collectOff } : {}) };
+      return { type: 'PAY', billId, amountPaise: paise, ...how.value(), ...(collectOff > 0 ? { discountPaise: collectOff } : {}), ...restCredit };
     },
     // Paid off now: back to where the bill was opened from, with a note. Still owing: the bill again.
     then: result => {
       const after = state.Bills.find(x => x.id === billId);
+      const took = result.amountPaise ? 'Paid ' + money(result.amountPaise) + '. ' : result.receiptNumber ? 'Paid. ' : '';
+      // The rest where it was chosen to go (owner, 20 November): kept pending, on the account, or moved now.
+      if (restChosen === 'move' && after && after.totalPaise > after.paidPaise) {
+        const turfOwner = data.tab ? turfBookingForTab(data.tab.id) : null, turfPlayer = turfOwner ? (state.TurfPlayers || []).find(x => x.tabId === data.tab.id) || null : null;
+        if (turfOwner) turfMoveSheet(turfOwner, turfPlayer);
+        else pendingMoveSheet([billId], customer, after.totalPaise - after.paidPaise, () => { closeSheet(); if (back) back(); });
+        return { text: took + 'Choose where the other ' + money(restChosenPaise) + ' goes; until then it stays pending.' };
+      }
+      if (restChosen === 'pending') { closeSheet(); if (back) back(); return { text: took + money(restChosenPaise) + ' still pending' + (customer ? ' · ' + customer : '') + '.' }; }
+      if (restChosen === 'credit') { closeSheet(); if (back) back(); return { text: took + money(restChosenPaise) + ' moved to credit.' }; }
       if (!after || after.totalPaise > after.paidPaise) return receiptSheet(billId, back);
       closeSheet();
       if (back) back(); else returnToSplit(data.tab ? data.tab.id : '');
@@ -18212,20 +18374,35 @@ function reportLock(target) {
 // report already shown): every save anywhere made a new reading, so on a busy evening several went at once and a slow one gave up. A
 // reading asked while one for the same dates is on its way waits for it; the next one follows if the data changed meanwhile. A reading
 // that gives up while these dates are already on the screen says nothing; the figures stay and the next reading follows.
-let reportLoading = '';
+let reportLoading = '', reportSeq = 0, reportStartedAt = 0;
+// A reading started while the connection was down is still waiting when the server answers again: a fresh one, at once (owner, 20
+// November).
+// One that failed while it was down ("could not be loaded · Try again") is read again by itself the same way.
+function reportAgainIfHeld() {
+  if (page !== 'settings' || settingsMode !== 'reports') return;
+  if (reportLoading ? Date.now() - reportStartedAt > 20000 : reportCache.failed && reportDates(reportCache.key) === reportDates(reportKey())) loadReport(reportKey(), true);
+}
 const reportDates = key => key.slice(key.indexOf('|') + 1);
 async function loadReport(key, asked = false) {
   const dates = reportDates(key);
-  if (reportLoading === dates) return;
+  // Update report or Try again pressed always starts a fresh reading, never ignored behind one that is held (owner, 20 November: the
+  // Wi-Fi went off as Update report was pressed; Try again did nothing until the app was closed). Only the newest reading counts.
+  if (reportLoading === dates && !asked) return;
+  const mine = ++reportSeq;
   reportLoading = dates;
+  reportStartedAt = Date.now();
   try {
     // Asked again at 15 and 30 seconds when Google holds the request, the first answer used (owner, 17 November: "Updating…" stood
-    // and stood — one held request was waited on for 90 seconds). Saves still on their way go first, as before.
-    if (typeof outbox !== 'undefined' && outbox.length) await outboxDrained();
+    // and stood — one held request was waited on for 90 seconds). Saves still on their way go first, for at most 15 seconds: one
+    // held by a lost connection never holds the report.
+    if (typeof outbox !== 'undefined' && outbox.length) await Promise.race([outboxDrained(), new Promise(resolve => setTimeout(resolve, 15000))]);
+    if (mine !== reportSeq) return;
     const r = reportRange(), data = await lookOnce('rpcReport', [token, r.fromMs, r.toMs, reportPass], 90000, [0, 15000, 30000]);
+    if (mine !== reportSeq) return;
     reportLocked = '';
     if (dates === reportDates(reportKey())) reportCache = { key, data, at: Date.now() };
   } catch (e) {
+    if (mine !== reportSeq) return;
     if (PIN_REFUSED.test(e.message)) {
       reportCache = { key, data: null };
       // A missing or expired pass locks Reports; a remembered one that no longer works is forgotten.
@@ -18246,9 +18423,9 @@ async function loadReport(key, asked = false) {
       return;
     }
   } finally {
-    if (reportLoading === dates) reportLoading = '';
+    if (mine === reportSeq && reportLoading === dates) reportLoading = '';
   }
-  if (page === 'settings' && settingsMode === 'reports') render();
+  if (mine === reportSeq && page === 'settings' && settingsMode === 'reports') render();
 }
 const reportKey = () => version + '|' + reportFrom + '|' + reportTo;
 // The Stock report's own dates (owner, 1 November): Today at first, Yesterday, or any two dates; read from the server only
@@ -18376,7 +18553,7 @@ const reportsPage = {
       // The report is worked out again only when this is pressed (owner, 17 November: "keep a button over there and only when i click it
       // let the report update"), or the dates change; never by itself after saves. It says when the figures shown are from.
       h('div', 'rep-update',
-        btn([icon('refresh'), reportLoading ? 'Updating…' : 'Update report'], () => { loadReport(reportKey(), true); render(); }, 'outline', { data: { action: 'report-update' }, disabled: !!reportLoading }),
+        btn([icon('refresh'), reportLoading ? 'Updating…' : 'Update report'], () => { loadReport(reportKey(), true); render(); }, 'outline', { data: { action: 'report-update' } }),
         ...[reportCache.at ? h('span', { class: 'small muted', data: { field: 'report-as-of' }, text: 'As of ' + clock(reportCache.at) }) : null].filter(Boolean)),
       btn([icon('lock'), 'Lock'], () => { lockReports(); render(); }, 'quiet', { data: { action: 'report-lock' } })].filter(Boolean));
   },
@@ -18510,13 +18687,13 @@ const ratesPage = {
       })))));
     // GTA 6 on a PS5 (owner, 20 November): its half hour and its hour, charged in half hours.
     const gtaNow = ArenaCore.gtaRates(state), gtaInput = (key, label) => h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(gtaNow[key] / 100), 'aria-label': 'GTA 6 ' + label, data: { rate: 'gta6-' + key } });
-    const gtaHalf = gtaInput('halfPaise', 'half hour'), gtaHour = gtaInput('hourPaise', 'hour');
-    const gtaRow = h('div', { class: 'gta-rates', data: { field: 'gta6-rates' } }, h('span', 'gta-name', icon('PS5'), 'GTA 6'), field('Half hour', gtaHalf), field('1 hour', gtaHour));
+    const gtaHalf = gtaInput('halfPaise', 'half hour'), gtaFortyFive = gtaInput('fortyFivePaise', '45 minutes'), gtaHour = gtaInput('hourPaise', 'hour');
+    const gtaRow = h('div', { class: 'gta-rates', data: { field: 'gta6-rates' } }, h('span', 'gta-name', icon('PS5'), 'GTA 6'), field('30 min', gtaHalf), field('45 min', gtaFortyFive), field('1 hour', gtaHour));
     const saveRates = () => {
       const commands = [];
-      const half = toPaise(gtaHalf.value), hour = toPaise(gtaHour.value);
-      if (!(half > 0 && hour > 0)) { notify('error', 'Every rate must be more than zero.'); return; }
-      if (half !== gtaNow.halfPaise || hour !== gtaNow.hourPaise) commands.push({ type: 'RATE_EXTRAS', gta6: { halfPaise: half, hourPaise: hour } });
+      const half = toPaise(gtaHalf.value), fortyFive = toPaise(gtaFortyFive.value), hour = toPaise(gtaHour.value);
+      if (!(half > 0 && fortyFive > 0 && hour > 0)) { notify('error', 'Every rate must be more than zero.'); return; }
+      if (half !== gtaNow.halfPaise || fortyFive !== gtaNow.fortyFivePaise || hour !== gtaNow.hourPaise) commands.push({ type: 'RATE_EXTRAS', gta6: { halfPaise: half, fortyFivePaise: fortyFive, hourPaise: hour } });
       for (const c of TIMED_KINDS) {
         const rates = inputs[c].map(i => toPaise(i.value)), before = saved(c);
         if (rates.some(r => !(r > 0))) { notify('error', 'Every rate must be more than zero.'); return; }
@@ -21649,6 +21826,16 @@ function trySaveHere(command) {
   return { result: out.result, command };
 }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+// The connection came back (owner, 20 November: the Wi-Fi went off at the counter, and once it was back the screen stayed on "Not saved
+// yet · retrying" and Reports would not load until the app was closed): a save waiting out its pause, or still waiting on a request
+// that will never be answered, is sent again at once, with the same request ID, so it is never entered twice.
+let outboxKick = null, outboxSentAt = 0;
+// A save whose request has gone unanswered for more than 8 seconds while the server answers other requests was lost on the way.
+const outboxHeld = () => outboxBusy && outboxSentAt > 0 && Date.now() - outboxSentAt > 8000;
+function kickOutbox() {
+  if (outboxKick) { const kick = outboxKick; outboxKick = null; kick(); return; }
+  if (outbox.length && !outboxBusy) pumpOutbox();
+}
 async function pumpOutbox() {
   if (outboxBusy || !token) return;
   outboxBusy = true;
@@ -21668,8 +21855,12 @@ async function pumpOutbox() {
       }
       let reply;
       // With the moment it was made, so a save that arrives late keeps its times.
-      try { reply = await rpc('rpcCommand', token, { id: item.id, command: item.command, at: item.at }); }
+      const kicked = new Promise((resolve, reject) => { outboxKick = () => reject(Object.assign(new Error('Sending it again now.'), { kicked: true })); });
+      outboxSentAt = Date.now();
+      try { reply = await Promise.race([rpc('rpcCommand', token, { id: item.id, command: item.command, at: item.at }), kicked]); }
       catch (e) {
+        outboxSentAt = 0;
+        if (e.kicked) { wait = 2000; continue; }
         if (e.notSaved) {
           // Refused for good: off the screen, with the reason.
           outbox.shift();
@@ -21693,10 +21884,13 @@ async function pumpOutbox() {
         outboxTrouble = /sign in|expired|Access denied/i.test(e.message) ? 'Sign in again to finish saving.' : 'Not saved yet · retrying';
         showSync(true, lastGood);
         if (outboxTrouble.startsWith('Sign in')) break;
-        await pause(wait);
+        await Promise.race([pause(wait), new Promise(resolve => { outboxKick = resolve; })]);
+        outboxKick = null;
         wait = Math.min(wait * 2, 30000);
         continue;
       }
+      outboxKick = null;
+      outboxSentAt = 0;
       wait = 2000;
       outboxTrouble = '';
       outboxReason = '';
@@ -21712,6 +21906,7 @@ async function pumpOutbox() {
     }
   } finally {
     outboxBusy = false;
+    outboxKick = null;
     showSync(true, lastGood);
     if (!outbox.length) {
       const waiting = outboxWaiters;
@@ -21935,7 +22130,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "327c4117fce8";
+const APP_BUILD = "6755b7ecb79a";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -21979,8 +22174,9 @@ function applySnapshot(data) {
   $('testCopy').hidden = !data.testCopy;
   const first = !state;
   if (!data.unchanged && setConfirmed(data.state, data.version)) keepLast(data);
-  // Saves left on their way (a reload, a lost connection) carry on.
-  if (outbox.length && !outboxBusy) pumpOutbox();
+  // Saves left on their way (a reload, a lost connection) carry on; the server just answered, so one waiting to try again goes now.
+  if (outbox.length && (outboxTrouble || outboxHeld() || !outboxBusy)) kickOutbox();
+  reportAgainIfHeld();
   showApp(data.user);
   showSync(true, data.serverMs);
   // Before drawing: an older page that cannot draw must still be able to get the new one (owner, 10 November).
@@ -22160,12 +22356,13 @@ const comeBack = () => {
   if (awayTooLong()) return signOutAfterAway();
   markAlive();
   if (nowMs() - lastGood > 60000) reconnect();
+  if (outboxTrouble) kickOutbox();
   // Behind for a while: it says it is checking until the answer comes, never Up to date from before.
   if (nowMs() - lastGood > 20000 && !outbox.length) $('syncText').textContent = 'Checking…';
   refresh();
 };
 // The internet came back: a fresh connection and the latest records at once.
-window.addEventListener('online', () => { if (!token) return; reconnect(); refresh(true); });
+window.addEventListener('online', () => { if (!token) return; reconnect(); kickOutbox(); refresh(true); });
 window.addEventListener('focus', comeBack);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') comeBack(); });
 setInterval(() => { if (token && !awayTooLong()) markAlive(); }, 60000);
