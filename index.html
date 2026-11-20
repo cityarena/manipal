@@ -3721,7 +3721,9 @@ var ARENA_BRANCH = (function () {
     // GTA 6 on any PS5 (owner, 20 November: "the prices for gta 6 is 120 for an hour and 80 for half … only 1 player … keep only 30 minutes
     // and 1 hour only"): one controller, charged in half hours; Settings → Rates may change the two prices (gta6Rates).
     // 45 minutes ₹100 too (owner, 20 November: "gta 6, 45 minutes is needed, 100 rupees").
-    gta6: { halfPaise: 8000, fortyFivePaise: 10000, hourPaise: 12000 },
+    // In 15-minute steps as every other system (owner, 20 November: "keep all time rates like usual, like other systems · 15 minutes, 40
+    // rupees · 30 minutes, 80 · 45 minutes, 100 · 1 hour, 120 · keep continuing"): 5 minutes over not counted.
+    gta6: { quarterPaise: 4000, halfPaise: 8000, fortyFivePaise: 10000, hourPaise: 12000 },
     // The Reservations page's tabs, in the owner's order (only kinds switched on are shown).
     reservationKinds: ['Bowling', 'Snooker', 'Pool', 'PS5'],
     // Minutes, each one a setting: remind before a booking; ask "No-show?" after; a lane chosen by the app is kept from this
@@ -3950,9 +3952,9 @@ var ArenaCore = (function () {
   function pricesFor(state,category){return rateSetting(state,category).rates.slice();}
   // GTA 6's two prices (Branch.gs gta6, or Settings gta6Rates once changed), saved with the game it starts, as every price is.
   function gtaRates(state){
-    var base=ARENA_BRANCH.gta6||{halfPaise:8000,fortyFivePaise:10000,hourPaise:12000},row=state?(state.Settings||[]).find(function(r){return r.id==='gta6Rates';}):null,saved=null;
+    var base=ARENA_BRANCH.gta6||{quarterPaise:4000,halfPaise:8000,fortyFivePaise:10000,hourPaise:12000},row=state?(state.Settings||[]).find(function(r){return r.id==='gta6Rates';}):null,saved=null;
     try{saved=row?JSON.parse(row.value):null;}catch(e){saved=null;}
-    return {game:'GTA 6',halfPaise:Number(saved&&saved.halfPaise)||base.halfPaise,fortyFivePaise:Number(saved&&saved.fortyFivePaise)||base.fortyFivePaise,hourPaise:Number(saved&&saved.hourPaise)||base.hourPaise};
+    return {game:'GTA 6',quarterPaise:Number(saved&&saved.quarterPaise)||base.quarterPaise,halfPaise:Number(saved&&saved.halfPaise)||base.halfPaise,fortyFivePaise:Number(saved&&saved.fortyFivePaise)||base.fortyFivePaise,hourPaise:Number(saved&&saved.hourPaise)||base.hourPaise};
   }
   // A bowling game's saved price: per person per game, with the players and games it was started for.
   function bowlingRates(players, games, state) {
@@ -3977,7 +3979,11 @@ var ArenaCore = (function () {
       check(Number.isSafeInteger(flat) && flat >= 0, 'Invalid saved rates.');
       return { actualMilliseconds: duration, billableMinutes: Math.ceil(duration / 60000), totalPaise: flat };
     }
-    // GTA 6: half an hour or an hour, nothing in between (owner, 20 November), 5 minutes over not counted: up to 35 minutes is half an
+    // GTA 6 in 15-minute steps, as every other system (owner, 20 November: "keep all time rates like usual, like other systems … 15
+    // minutes, 40 rupees · 30 minutes, 80 · 45 minutes, 100 · 1 hour, 120 · keep continuing"): its four prices charged as a system's are
+    // below — 5 minutes over not counted, then 15 minutes, 30, 45 or the hour, the same again after each whole hour.
+    if (prices && !Array.isArray(prices) && prices.quarterPaise != null && prices.halfPaise != null) prices = [prices.quarterPaise, prices.halfPaise, prices.fortyFivePaise, prices.hourPaise];
+    // A GTA 6 game started before that: half an hour or an hour, nothing in between (owner, 20 November), 5 minutes over not counted: up to 35 minutes is half an
     // hour, up to 1 hour 5 minutes an hour, then the hour's price for each whole hour and the half hour's for a half.
     if (prices && !Array.isArray(prices) && prices.halfPaise != null && prices.fortyFivePaise != null) {
       // With 45 minutes too (owner, 20 November): after the whole hours, 5 minutes over not counted, then half an hour, 45 minutes, or
@@ -7708,11 +7714,11 @@ var ArenaTurf = (function () {
         if (row) row.value = value; else state.Settings.push({ id: key, value: value });
       };
       if (cmd.bowlingPaise != null) setRate('bowlingRate', cmd.bowlingPaise);
-      // GTA 6's half hour and hour (owner, 20 November); a game already started keeps its price.
+      // GTA 6's four prices (owner, 20 November); a game already started keeps its price.
       if (cmd.gta6) {
-        var half = cmd.gta6.halfPaise, hour = cmd.gta6.hourPaise, fortyFive = cmd.gta6.fortyFivePaise;
-        [half, fortyFive, hour].forEach(function (v) { check(Number.isSafeInteger(v) && v > 0 && v <= 100000000, 'Every rate must be more than zero and at most ₹10,00,000.'); });
-        var gtaRow = state.Settings.find(function (r) { return r.id === 'gta6Rates'; }), gtaValue = JSON.stringify({ halfPaise: half, fortyFivePaise: fortyFive, hourPaise: hour });
+        var quarter = cmd.gta6.quarterPaise != null ? cmd.gta6.quarterPaise : ArenaCore.gtaRates(state).quarterPaise, half = cmd.gta6.halfPaise, hour = cmd.gta6.hourPaise, fortyFive = cmd.gta6.fortyFivePaise;
+        [quarter, half, fortyFive, hour].forEach(function (v) { check(Number.isSafeInteger(v) && v > 0 && v <= 100000000, 'Every rate must be more than zero and at most ₹10,00,000.'); });
+        var gtaRow = state.Settings.find(function (r) { return r.id === 'gta6Rates'; }), gtaValue = JSON.stringify({ quarterPaise: quarter, halfPaise: half, fortyFivePaise: fortyFive, hourPaise: hour });
         if (gtaRow) gtaRow.value = gtaValue; else state.Settings.push({ id: 'gta6Rates', value: gtaValue });
       }
       VENUES.forEach(function (v) {
@@ -18677,23 +18683,24 @@ const ratesPage = {
     // The 10-minute price (the fifth rate) is charged after each full hour, 7 to 10 minutes over (owner, 13 November).
     const durations = [[10, 4], [15, 0], [30, 1], [45, 2], [60, 3]], inputs = {};
     const saved = category => ArenaCore.rateSetting(state, category);
+    // GTA 6 on a PS5 (owner, 20 November: "keep all time rates like usual, like other systems"): a column of its own beside them, its 15
+    // minutes, half hour, 45 minutes and hour, charged as every system is (no 10-minute price).
+    const gtaNow = ArenaCore.gtaRates(state), gtaInput = (key, label) => h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(gtaNow[key] / 100), 'aria-label': 'GTA 6 ' + label, data: { rate: 'gta6-' + key } });
+    const gtaQuarter = gtaInput('quarterPaise', '15 minutes'), gtaHalf = gtaInput('halfPaise', 'half hour'), gtaFortyFive = gtaInput('fortyFivePaise', '45 minutes'), gtaHour = gtaInput('hourPaise', 'hour');
+    const gtaCell = [gtaQuarter, gtaHalf, gtaFortyFive, gtaHour];
     const grid = h('table', 'rates',
-      h('thead', null, h('tr', null, h('th'), TIMED_KINDS.map(c => h('th', null, h('span', null, icon(c), catName(c)))))),
+      h('thead', null, h('tr', null, h('th'), TIMED_KINDS.map(c => h('th', null, h('span', null, icon(c), catName(c)))), h('th', { data: { field: 'gta6-rates' } }, h('span', null, icon('PS5'), 'GTA 6')))),
       h('tbody', null, durations.filter(([, i]) => TIMED_KINDS.some(c => saved(c).rates[i] != null)).map(([d, i]) => h('tr', null, h('th', { text: d === 10 ? '10 min after an hour' : d + ' min' }), TIMED_KINDS.map(c => {
         if (saved(c).rates[i] == null) return h('td');
         const input = h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(saved(c).rates[i] / 100), 'aria-label': c + ' ' + d + ' minutes', data: { rate: c + '-' + i } });
         (inputs[c] = inputs[c] || [])[i] = input;
         return h('td', null, input);
-      })))));
-    // GTA 6 on a PS5 (owner, 20 November): its half hour and its hour, charged in half hours.
-    const gtaNow = ArenaCore.gtaRates(state), gtaInput = (key, label) => h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', value: String(gtaNow[key] / 100), 'aria-label': 'GTA 6 ' + label, data: { rate: 'gta6-' + key } });
-    const gtaHalf = gtaInput('halfPaise', 'half hour'), gtaFortyFive = gtaInput('fortyFivePaise', '45 minutes'), gtaHour = gtaInput('hourPaise', 'hour');
-    const gtaRow = h('div', { class: 'gta-rates', data: { field: 'gta6-rates' } }, h('span', 'gta-name', icon('PS5'), 'GTA 6'), field('30 min', gtaHalf), field('45 min', gtaFortyFive), field('1 hour', gtaHour));
+      }), h('td', null, gtaCell[i] || null)))));
     const saveRates = () => {
       const commands = [];
-      const half = toPaise(gtaHalf.value), fortyFive = toPaise(gtaFortyFive.value), hour = toPaise(gtaHour.value);
-      if (!(half > 0 && fortyFive > 0 && hour > 0)) { notify('error', 'Every rate must be more than zero.'); return; }
-      if (half !== gtaNow.halfPaise || fortyFive !== gtaNow.fortyFivePaise || hour !== gtaNow.hourPaise) commands.push({ type: 'RATE_EXTRAS', gta6: { halfPaise: half, fortyFivePaise: fortyFive, hourPaise: hour } });
+      const quarter = toPaise(gtaQuarter.value), half = toPaise(gtaHalf.value), fortyFive = toPaise(gtaFortyFive.value), hour = toPaise(gtaHour.value);
+      if (!(quarter > 0 && half > 0 && fortyFive > 0 && hour > 0)) { notify('error', 'Every rate must be more than zero.'); return; }
+      if (quarter !== gtaNow.quarterPaise || half !== gtaNow.halfPaise || fortyFive !== gtaNow.fortyFivePaise || hour !== gtaNow.hourPaise) commands.push({ type: 'RATE_EXTRAS', gta6: { quarterPaise: quarter, halfPaise: half, fortyFivePaise: fortyFive, hourPaise: hour } });
       for (const c of TIMED_KINDS) {
         const rates = inputs[c].map(i => toPaise(i.value)), before = saved(c);
         if (rates.some(r => !(r > 0))) { notify('error', 'Every rate must be more than zero.'); return; }
@@ -18713,7 +18720,7 @@ const ratesPage = {
     };
     const head = settingsHead;
     page.append(
-      h('section', 'panel', head('cash', 'Gaming rates (₹)', 'gold'), grid, gtaRow, h('div', { style: 'margin-top:16px' }, btn('Save rates', saveRates, 'primary', { data: { action: 'save-rates' } }))),
+      h('section', 'panel', head('cash', 'Gaming rates (₹)', 'gold'), grid, h('div', { style: 'margin-top:16px' }, btn('Save rates', saveRates, 'primary', { data: { action: 'save-rates' } }))),
       h('div', 'panel-grid',
         h('section', 'panel', head('turf', 'Court rate per hour (₹)', 'gold'), RATE_COURTS.map((court, i) => field(venueOf(courtInfo(court).venue).name + ' · ' + courtLabel(court), turfRates[i])),
           btn('Save', saveTurfRates, '', { data: { action: 'save-turf-rates' } })),
@@ -22130,7 +22137,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "6755b7ecb79a";
+const APP_BUILD = "58781c4a6b14";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
