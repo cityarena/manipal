@@ -12844,7 +12844,13 @@ function controllerTiles(unit, players, paint) {
 // The games already closed on a pool or snooker table (Close & Open), and what is still to collect for them. Only the table's
 // own: time moved onto its bill from another system (a PS5's controllers) is paid with a game or at End Session, never listed
 // as a game of its own (owner, 3 November: "why is it showing ps5?").
-const closedGames = (tabId, unitId) => state.Segments.filter(g => g.tabId === tabId && g.unitId === unitId && g.status === 'ended');
+// Nor the time another bill brought when it was moved onto this one, even on this table (owner, 21 November: "after 8:51, next game
+// started at 9:12??"): it is that bill's, in its own box (the app's MOVED_FROM note says which).
+const movedInTimers = tabId => new Set((state.Notes || []).filter(n => n.kind === 'MOVED_FROM' && String(n.refsJson || '').includes(tabId)).flatMap(n => { try { return JSON.parse(n.text).segments || []; } catch (e) { return []; } }));
+const closedGames = (tabId, unitId) => {
+  const moved = movedInTimers(tabId);
+  return state.Segments.filter(g => g.tabId === tabId && g.unitId === unitId && g.status === 'ended' && !moved.has(g.id));
+};
 // One closed game: its time, the items bought during it (the same rule as the server), and what is still owed on it after
 // what was paid towards it with the rest kept on the table.
 function gameOwed(tabId, game) {
@@ -22137,7 +22143,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "58781c4a6b14";
+const APP_BUILD = "1de60e377e57";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
