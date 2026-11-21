@@ -590,6 +590,16 @@ input[type=checkbox]:checked::before { transform: scale(1); }
 /* A test copy's strip across the top (Script Property TEST_COPY). */
 .test-copy { flex: none; padding: 6px 16px; background: var(--danger); color: #ffffff; font-size: var(--text-sm); font-weight: 600; text-align: center; letter-spacing: 0.02em; }
 .test-copy[hidden] { display: none; }
+/* Nothing opens without the server (owner, 21 November): the whole screen, nothing behind it to tap. */
+.offline { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+.offline[hidden] { display: none; }
+.offline-card { max-width: 460px; width: 100%; display: grid; justify-items: center; gap: 12px; padding: 30px 24px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow); }
+.offline-mark { width: 64px; height: auto; }
+.offline h1 { margin: 0; font-size: var(--text-xl); color: var(--ink); }
+.offline p { margin: 0; font-size: var(--text-base); color: var(--ink-2); }
+.offline .offline-waiting { color: var(--danger); font-weight: 600; }
+.offline .offline-waiting[hidden] { display: none; }
+.offline.connecting .btn { display: none; }
 .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--side) minmax(0, 1fr); }
 /* The menu: a cream column, flush with the window edge (the owner's picture). */
 .side { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 22px 12px 12px; border-right: 1px solid rgb(var(--w-e0dacd)); background: var(--side-bg); }
@@ -3581,6 +3591,14 @@ td.num:has(.owed-open) { white-space: nowrap; }
 
 /* A booking's discount on its bill line (owner, 17 November). */
 .line-main .turf-off { display: block; margin-top: 1px; color: var(--accent); font-weight: 600; }
+
+/* A bill left open on another screen, on its system's card, with Settle here (owner, 21 November). */
+.bills-left { display: grid; gap: 8px; margin: 8px 0; }
+.bill-left { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 8px 10px; padding: 8px 10px; border: 1px solid var(--warn-line); border-radius: var(--r-sm); background: var(--warn-soft); color: var(--ink); }
+.bill-left > svg { flex: none; width: 20px; height: 20px; color: var(--warn); }
+.bill-left-text { display: grid; gap: 2px; min-width: 0; font-size: var(--text-sm); }
+.bill-left-text .small { color: var(--ink-2); }
+.bill-left .btn { grid-column: 1 / -1; width: 100%; }
 </style>
 </head>
 <body>
@@ -3629,6 +3647,17 @@ td.num:has(.owed-open) { white-space: nowrap; }
 
 <!-- A test copy (Script Property TEST_COPY) says so on every screen, so it is never taken for the real records. -->
 <div id="testCopy" class="test-copy" hidden>TEST COPY · not the real records</div>
+<!-- Nothing opens without the server (owner, 21 November: "do not fucking let the page only open"): until it answers, and whenever it
+     has not answered for a minute, this covers the whole screen. -->
+<div id="offline" class="offline" hidden role="alertdialog" aria-live="assertive">
+  <div class="offline-card">
+    <img class="offline-mark" src="data:image/webp;base64,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" alt="" width="335" height="322">
+    <h1 id="offlineTitle"></h1>
+    <p id="offlineText"></p>
+    <p id="offlineWaiting" class="offline-waiting" hidden></p>
+    <button id="offlineRetry" type="button" class="btn primary"></button>
+  </div>
+</div>
 <div id="app" class="app" hidden>
   <aside class="side">
     <div class="brand">
@@ -4304,7 +4333,7 @@ var ArenaApp=(function(){
 
 /* Post-session settlement and physical-table parties. Called inside the existing locked atomic command. */
 var ArenaLifecycle=(function(){
- var types=['END_SELECTION','SPLIT_REVIEW','KEEP_SHARED','MOVE_REVIEW','JOIN_TABLE','SETTLE_REVIEW','TRANSFER_CREDIT_INLINE','COMBINE_TABS','ATTACH_TO_GROUP','COUNTER_SALE','CREDIT_SALE','GROUP_TABS','TABLE_ROUND','TABLE_COLLECT','TABLE_ITEMS_PAY','REOPEN_END'];
+ var types=['END_SELECTION','SPLIT_REVIEW','KEEP_SHARED','MOVE_REVIEW','JOIN_TABLE','SETTLE_REVIEW','TRANSFER_CREDIT_INLINE','COMBINE_TABS','ATTACH_TO_GROUP','COUNTER_SALE','CREDIT_SALE','GROUP_TABS','TABLE_ROUND','TABLE_COLLECT','TABLE_ITEMS_PAY','REOPEN_END','FLOOR_PENDING_DUE'];
  function check(v,m){ArenaCore.check(v,m);}
  function row(rows,id){var r=(rows||[]).find(function(x){return x.id===id;});check(!!r,'Record not found.');return r;}
  function tab(s,id){var t=row(s.Tabs,id);check(t.status==='open','This tab is already finalized or moved.');return t;}
@@ -4313,6 +4342,25 @@ var ArenaLifecycle=(function(){
  function time(t,now){t=t==null?now:t;check(Number.isSafeInteger(t)&&t>0&&t<=now,'Invalid timestamp.');return t;}
  function running(s,t){return s.Segments.some(function(g){return g.tabId===t&&g.status==='active';});}
  function newTab(s,id,name,phone,now,kind){var t={id:id,customer:name,phone:phone||'',status:'open',createdMs:now,kind:kind||'individual'};s.Tabs.push(t);return t;}
+ // A bill left open on a screen that lost its Wi-Fi (owner, 21 November: "the screenshot, if i click x mark, it goes back to the screen
+ // and the time continous right, that should be there. only under these circumstances where the bill is opened and wifi goes off, then
+ // put it to pending so can clear on other screens" — every other screen showed the system free and the bill nowhere): nothing playing
+ // on it, no screen saying it has it open (held: said in the last 2 minutes), and 2 minutes after the last thing on it (its
+ // last game ended, its last item added, or it was opened). A turf bill has its own rule. Money paid in advance is taken
+ // off and the rest is pending, unless more was paid than the bill comes to (handed back by someone, so it stays to be settled).
+ // Two minutes: from 20 seconds the bill shows on its system's card on the other screens with Settle here; Pending is for when
+ // nobody does.
+ var FLOOR_PENDING_AFTER_MS=120000;
+ function floorPendingDue(s,now,held){
+  var mine={};(Array.isArray(held)?held.slice(0,200):[]).forEach(function(id){mine[id]=true;});
+  var turf={},held={},playing={},last={},any={},total={};
+  (s.TurfBookings||[]).forEach(function(b){if(b.tabId)turf[b.tabId]=true;});
+  (s.TurfPlayers||[]).forEach(function(p){if(p.tabId)turf[p.tabId]=true;});
+  (s.Advances||[]).forEach(function(a){if(a.status==='held')held[a.tabId]=(held[a.tabId]||0)+a.amountPaise;});
+  (s.Segments||[]).forEach(function(g){if(g.status==='void')return;any[g.tabId]=true;total[g.tabId]=(total[g.tabId]||0)+(Number(g.totalPaise)||0);if(g.status==='active')playing[g.tabId]=true;last[g.tabId]=Math.max(last[g.tabId]||0,Number(g.endMs)||0,Number(g.startMs)||0);});
+  (s.Orders||[]).forEach(function(o){if(o.status!=='active')return;any[o.tabId]=true;total[o.tabId]=(total[o.tabId]||0)+(Number(o.totalPaise)||0);last[o.tabId]=Math.max(last[o.tabId]||0,Number(o.createdMs)||0);});
+  return (s.Tabs||[]).filter(function(t){return t.status==='open'&&!mine[t.id]&&any[t.id]&&!playing[t.id]&&!turf[t.id]&&(held[t.id]||0)<=(total[t.id]||0)&&Math.max(last[t.id]||0,Number(t.createdMs)||0)+FLOOR_PENDING_AFTER_MS<=now;});
+ }
  function lines(s,id){return s.Segments.concat(s.Orders||[]).filter(function(g){return g.tabId===id;});}
  // The rest of a bill when some players stop (owner, 21 October): ended time and items owned by nobody still playing (a bill
  // moved onto it, items for everyone). Time left for the others to pay (End · Others Will Pay) stays out of it.
@@ -4510,6 +4558,17 @@ var ArenaLifecycle=(function(){
     bill.status='merged';
    }
    return {tabId:home,segmentIds:c.segmentIds,message:'Back: they are playing again.'};
+  }
+  if(c.type==='FLOOR_PENDING_DUE'){
+   // Every bill left open on a screen cut off goes to Pending by itself (floorPendingDue), under its name or the next Customer letter, kept for the
+   // day it was played. Any open screen asks; nothing is kept pending twice, and nothing to do is not an error.
+   var kept=0,keptPaise=0,due=floorPendingDue(s,now,c.held);
+   due.forEach(function(t,n){
+    var r=execute(s,{type:'SETTLE_REVIEW',tabId:t.id,settlement:'pay',pending:{name:'',phone:''},discountType:'none',discountValue:0,amountPaise:0,method:'cash'},actor,now,id+'-'+n);
+    var b=row(s.Bills,r.billId);
+    if(b.totalPaise>b.paidPaise){kept++;keptPaise+=b.totalPaise-b.paidPaise;}
+   });
+   return {posted:kept,closed:due.length,amountPaise:keptPaise,noop:!due.length,message:kept?'Pending '+(keptPaise/100)+' from bills nobody settled.':'Nothing is due to pending.'};
   }
   if(c.type==='GROUP_TABS'){
    // Consoles already playing become one group on one bill (owner, 20 October): every charge, payment and reminder moves
@@ -4772,7 +4831,7 @@ var ArenaLifecycle=(function(){
   for(var i=0;i<702;i++){var k=i<26?String.fromCharCode(65+i):String.fromCharCode(64+Math.floor(i/26))+String.fromCharCode(65+i%26);if(!used['customer '+k.toLowerCase()])return 'Customer '+k;}
   return 'Customer';
  }
- return {handles:function(t){return types.indexOf(t)>=0;},execute:execute,party:party,isTable:table,gameOrders:gameOrders};
+ return {handles:function(t){return types.indexOf(t)>=0;},execute:execute,party:party,isTable:table,gameOrders:gameOrders,floorPendingDue:floorPendingDue,FLOOR_PENDING_AFTER_MS:FLOOR_PENDING_AFTER_MS};
 })();
 
 
@@ -12893,12 +12952,54 @@ function sessionMenu(segment, extra = []) {
 // A photograph card (owner, 20 October): the photograph fills the card, the name on its top. A free card has Start Session on
 // its foot; a card in use has who, how long and its buttons on a light panel at the foot, so every card keeps the original
 // card's length. An opened console or PC (its + pressed) lists its controllers instead and keeps a photograph band.
+// Bills with nothing playing that this screen does not have open, on the card of each system they were played on, at once (owner,
+// 21 November: "Build Settle here"): another screen may have it open and have lost its Wi-Fi. Settle here opens the bill here; it goes to
+// Pending by itself if nobody does.
+// Only once the screen that has it has been silent for 20 seconds (owner, 21 November: "this only happens during the network issue
+// right" — in normal running nobody sees it while another screen collects): no screen has said it for 20 seconds, and nothing has
+// happened on it for 20 seconds.
+const SETTLE_HERE_AFTER_MS = 20000;
+const lastOnTab = t => Math.max(Number(t.createdMs) || 0, ...state.Segments.filter(g => g.tabId === t.id && g.status !== 'void').map(g => Math.max(Number(g.endMs) || 0, Number(g.startMs) || 0)), ...state.Orders.filter(o => o.tabId === t.id && o.status === 'active').map(o => Number(o.createdMs) || 0));
+const saidFor = tabId => (tabId in (settlingSeen.map || {}) ? settlingSeen.at - Number(settlingSeen.map[tabId]) : Infinity);
+function billsLeftOn(unitId) {
+  const mine = new Set(heldTabs()), now = nowMs();
+  return state.Tabs.filter(t => t.status === 'open' && !mine.has(t.id) && !stillPlaying(t.id) && !turfBookingForTab(t.id) && state.Segments.some(g => g.tabId === t.id && g.unitId === unitId && g.status === 'ended') &&
+    saidFor(t.id) >= SETTLE_HERE_AFTER_MS && lastOnTab(t) + SETTLE_HERE_AFTER_MS <= now);
+}
+// Shown again as a bill's 20 seconds pass, with no new data from the server.
+let billsLeftShown = '';
+function watchBillsLeft() {
+  if (page !== 'floor' || !floorCategory || !state || $('sheet').open) return;
+  const now = floorUnits().map(u => u.id + ':' + billsLeftOn(u.id).map(t => t.id).join(',')).join('|');
+  if (now !== billsLeftShown) { billsLeftShown = now; render(); }
+}
+const openElsewhere = tabId => saidFor(tabId) < 10 * 60000;
+// Settle here opens the bill on this screen at once: the card's own line already says it is open on another screen (owner, 21
+// November: a question as well was "confusing").
+function settleHere(tabId) {
+  settlingHere.add(tabId);
+  settleSheet(tabId, 'pay');
+}
+function billsLeftStrip(unit) {
+  const tabs = billsLeftOn(unit.id);
+  if (!tabs.length) return null;
+  return h('div', { class: 'bills-left', data: { billsLeft: String(tabs.length) } }, tabs.map(t => {
+    const ended = Math.max(...state.Segments.filter(g => g.tabId === t.id && g.status === 'ended').map(g => Number(g.endMs) || 0));
+    return h('div', { class: 'bill-left', data: { billLeft: t.id } }, icon('wallet'),
+      h('span', 'bill-left-text', h('b', { text: openElsewhere(t.id) ? 'Bill open on another screen' : 'Bill not settled' }),
+        h('span', { class: 'small', text: [t.customer, 'ended ' + clock(ended), money(Math.max(0, tabTotal(t.id) - heldFor([t.id])))].join(' · ') })),
+      btn('Settle here', e => { e.stopPropagation(); settleHere(t.id); }, 'tonal', { data: { action: 'settle-here' } }));
+  }));
+}
 function stationCard(unit) {
-  const card = stationCardBody(unit), opened = card.classList.contains('live') && canCollapse(unit) && !card.classList.contains('mini');
+  const card = stationCardBody(unit), left = billsLeftStrip(unit);
+  if (left) { const at = card.querySelector(':scope > .station-actions, :scope > [data-action=start]'); if (at) card.insertBefore(left, at); else card.append(left); }
+  const opened = card.classList.contains('live') && canCollapse(unit) && !card.classList.contains('mini');
   if (opened || legacyOn(unit.id)) return card;
   card.classList.add('photo');
   const art = card.querySelector('.station-art');
-  if (!card.classList.contains('live') || !art) return card;
+  // A free card with a bill left on it shows the bill and Start Session on the light panel, as a card in use does.
+  if ((!card.classList.contains('live') && !left) || !art) return card;
   const panel = h('div', 'station-panel');
   while (art.nextSibling) panel.append(art.nextSibling);
   card.append(panel);
@@ -13049,6 +13150,27 @@ function stationCardBody(unit) {
   return card;
 }
 
+// A bill left open on a screen that lost its Wi-Fi goes to Pending by itself (owner, 21 November: "only under these circumstances where
+// the bill is opened and wifi goes off, then put it to pending so can clear on other screens"; ✕ on the bill still takes the End back).
+// A screen says which bills it has open to settle (heldTabs) every 10 seconds, even in the background; a bill nobody has said for 20
+// seconds shows on its system's card with Settle here, and one nobody has said for 2 minutes is sent to Pending by any open screen (owner: "obviously immediatley i need to settle it right on
+// other screen"), the server keeping each one pending once.
+// A bill opened here with Settle here is this screen's while its sheet is open.
+const settlingHere = new Set();
+const heldTabs = () => !state ? [] : [...new Set([...endsOpen.keys(), ...(splitQueue ? splitQueue.tabIds : []), ...($('sheet').open ? settlingHere : [])])].filter(id => { const t = tabOf(id); return t && t.status === 'open'; });
+let floorPendingTried = 0, settlingSeen = { map: {}, at: 0 };
+function heldEverywhere() {
+  const fresh = Object.keys(settlingSeen.map || {}).filter(id => settlingSeen.at - Number(settlingSeen.map[id]) < ArenaLifecycle.FLOOR_PENDING_AFTER_MS);
+  return [...new Set([...heldTabs(), ...fresh])];
+}
+function postFloorPendingDue() {
+  if (!state || outbox.length || flow.saving() || $('sheet').open || nowMs() - floorPendingTried < 10000) return;
+  const held = heldEverywhere();
+  if (!ArenaLifecycle.floorPendingDue(state, nowMs(), held).length) return;
+  floorPendingTried = nowMs();
+  const here = trySaveHere({ type: 'FLOOR_PENDING_DUE', held });
+  if (here && !here.refused) render();
+}
 function addItemsFor(unit) {
   const tabs = [...new Set(activeOn(unit.id).map(g => g.tabId))].map(tabOf).filter(Boolean);
   addItemsSheet(billOn(unit), { tabs, unit });
@@ -21886,7 +22008,9 @@ async function pumpOutbox() {
           outbox.shift();
           keepOutbox();
           outboxTrouble = '';
-          notify('error', e.message + ' That change was taken back; nothing was saved.');
+          // A bill another screen settled first (owner, 21 November: a screen cut off on the bill while the other settled it): said in
+          // the owner's words, "This bill was already settled on another screen" is enough.
+          notify('error', /already finalized or moved/i.test(e.message) ? 'This bill was already settled on another screen.' : e.message + ' That change was taken back; nothing was saved.');
           await refresh(true);
           continue;
         }
@@ -21919,6 +22043,8 @@ async function pumpOutbox() {
       if (reply.snapshot) {
         clockOffset = reply.snapshot.serverMs - Date.now();
         lastGood = reply.snapshot.serverMs;
+        lookingSince = 0;
+        showOffline();
         const before = JSON.stringify(state);
         setConfirmed(reply.snapshot.state, reply.snapshot.version);
         if (JSON.stringify(state) !== before) render();
@@ -22071,6 +22197,8 @@ function signedOut(message) {
   $('app').hidden = true;
   $('login').hidden = false;
   $('loginError').textContent = message || '';
+  serverAnswered = false;
+  showOffline();
 }
 async function signOut() {
   if (flow.saving()) return;
@@ -22100,9 +22228,6 @@ const LAST_KEY = 'arenaLast';
 function keepLast(data) {
   try { if (storage && token) storage.setItem(LAST_KEY, JSON.stringify({ state: confirmed, serverMs: data.serverMs, user: session.user })); } catch (e) { /* only a convenience */ }
 }
-function lastSeen() {
-  try { const last = JSON.parse(storage.getItem(LAST_KEY) || 'null'); return last && last.state && last.user ? last : null; } catch (e) { return null; }
-}
 function forgetLast() {
   try { if (storage) storage.removeItem(LAST_KEY); } catch (e) { /* nothing kept */ }
 }
@@ -22112,14 +22237,37 @@ function showApp(user) {
   $('identity').textContent = user.username;
   $('avatar').textContent = (user.username[0] || '?').toUpperCase();
 }
-function openOnLast(last) {
-  session = { user: last.user, lastBackup: null, backupError: null };
-  lastGood = last.serverMs;
-  // Kept without its version, so whatever the server answers next replaces it.
-  setConfirmed(last.state, '');
-  showApp(last.user);
-  showSync(false, last.serverMs);
-  render();
+// Nothing opens without the server (owner, 21 November: a counter's screen worked for six hours on data that never reached the server,
+// 220 changes waiting, "do not fucking let the page only open"): until the server has answered once, and whenever it has not answered
+// for a minute, the whole screen says so and nothing behind it can be tapped. Within seconds, not hours (owner, 21 November: "build
+// it"): at once when the device has no internet, and when a look has gone 15 seconds unanswered or a change made here 15 seconds
+// unconfirmed. Taps stay instant; changes already made stay on the device and go first once it is back.
+const SERVER_LOST_MS = 60000, NO_ANSWER_MS = 15000;
+let serverAnswered = false, offlineAsked = 0, lookingSince = 0, wasLost = false;
+const deviceOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+function serverLost() {
+  if (!token) return false;
+  if (!serverAnswered || deviceOffline()) return true;
+  const waiting = typeof outbox !== 'undefined' && outbox.length && !String(outboxTrouble).startsWith('Sign in') ? outbox[0].at : 0;
+  return nowMs() - lastGood > SERVER_LOST_MS || (!!lookingSince && Date.now() - lookingSince > NO_ANSWER_MS) || (!!waiting && nowMs() - waiting > NO_ANSWER_MS);
+}
+function showOffline() {
+  const lost = serverLost(), cover = $('offline');
+  // Just covered: it says it is connecting for 15 seconds first.
+  if (lost && !wasLost && serverAnswered) offlineAsked = Date.now();
+  wasLost = lost;
+  cover.hidden = !lost;
+  $('app').inert = lost;
+  if (!lost) return;
+  // No internet on the device: said plainly. Asking now (opening, just covered, coming back, Try again): Connecting…; asked and no
+  // answer in 15 seconds: Can't reach, with Try again.
+  const none = deviceOffline(), asking = !none && Date.now() - offlineAsked < 15000;
+  cover.classList.toggle('connecting', asking);
+  $('offlineTitle').textContent = none ? 'No internet connection' : asking ? 'Connecting to City Arena…' : 'Can’t reach the City Arena server';
+  $('offlineText').textContent = none ? 'Nothing can be done on this screen until the internet is back.' : asking ? 'One moment.' : 'Nothing can be done on this screen until it connects. Check the internet on this device, then press Try again.' + (serverAnswered ? ' Last reached at ' + clock(lastGood) + '.' : '');
+  const waiting = typeof outbox !== 'undefined' ? outbox.length : 0;
+  $('offlineWaiting').hidden = !waiting;
+  $('offlineWaiting').textContent = waiting ? waiting + (waiting === 1 ? ' change made here is' : ' changes made here are') + ' kept and will be saved once it connects.' : '';
 }
 // The server's data on screen: from a refresh, or straight from the sign-in.
 // ---------- New bookings made on another screen (owner, 20 October) ----------
@@ -22150,7 +22298,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "82cad3f89f8b";
+const APP_BUILD = "59a496dc682f";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -22190,6 +22338,10 @@ async function reloadIfOld(build) {
 function applySnapshot(data) {
   clockOffset = data.serverMs - Date.now();
   lastGood = data.serverMs;
+  serverAnswered = true;
+  lookingSince = 0;
+  showOffline();
+  if (data.settling) settlingSeen = { map: data.settling, at: data.serverMs };
   session = { user: data.user, lastBackup: data.lastBackup, backupError: data.backupError };
   $('testCopy').hidden = !data.testCopy;
   const first = !state;
@@ -22205,6 +22357,7 @@ function applySnapshot(data) {
   watchArrivals();
   postAcademyDue();
   postPendingDue();
+  postFloorPendingDue();
   extendSeries();
   postFloorUnits(data.build);
   // A save left unconfirmed: the notice with Check again. Never retried by itself (owner, 25 October: the retry every minute
@@ -22216,6 +22369,8 @@ function applySaved(snapshot) {
   if (!snapshot || !state) return false;
   clockOffset = snapshot.serverMs - Date.now();
   lastGood = snapshot.serverMs;
+  lookingSince = 0;
+  showOffline();
   if (setConfirmed(snapshot.state, snapshot.version)) keepLast(snapshot);
   showSync(true, snapshot.serverMs);
   render();
@@ -22229,10 +22384,12 @@ function refresh(force) {
   // own look every 15 seconds waits for one already on its way.
   if (refreshing && !force) return refreshing;
   refreshStarted = nowMs();
+  if (!lookingSince) lookingSince = Date.now();
+  const settling = heldTabs();
   $('refresh').classList.add('busy');
   const mine = (async () => {
     try {
-      applySnapshot(await lookOnce('rpcSnapshot', [token, force ? '' : version], 15000));
+      applySnapshot(await lookOnce('rpcSnapshot', [token, force ? '' : version, settling], 15000));
     } catch (e) {
       if (/sign in|expired|Access denied/i.test(e.message)) signedOut(/expired/i.test(e.message) ? 'Signed out after 30 days. Sign in again.' : '');
       else {
@@ -22265,6 +22422,8 @@ $('refresh').onclick = () => {
   refresh(true);
 };
 $('logout').onclick = signOut;
+$('offlineRetry').textContent = 'Try again';
+$('offlineRetry').onclick = () => { offlineAsked = Date.now(); showOffline(); reconnect(); kickOutbox(); refresh(true); };
 $('sheetClose').onclick = () => { if (!flow.saving()) dismissSheet(); };
 $('sheet').addEventListener('cancel', e => { e.preventDefault(); if (!flow.saving()) dismissSheet(); });
 $('sheetBody').addEventListener('input', () => { if ($('sheetStatus').classList.contains('error')) sheetStatus('', ''); });
@@ -22375,6 +22534,7 @@ const comeBack = () => {
   if (!token) return;
   if (awayTooLong()) return signOutAfterAway();
   markAlive();
+  if (nowMs() - lastGood > SERVER_LOST_MS) offlineAsked = Date.now();
   if (nowMs() - lastGood > 60000) reconnect();
   if (outboxTrouble) kickOutbox();
   // Behind for a while: it says it is checking until the answer comes, never Up to date from before.
@@ -22382,18 +22542,24 @@ const comeBack = () => {
   refresh();
 };
 // The internet came back: a fresh connection and the latest records at once.
-window.addEventListener('online', () => { if (!token) return; reconnect(); kickOutbox(); refresh(true); });
+window.addEventListener('online', () => { if (!token) return; showOffline(); reconnect(); kickOutbox(); refresh(true); });
+window.addEventListener('offline', showOffline);
 window.addEventListener('focus', comeBack);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') comeBack(); });
 setInterval(() => { if (token && !awayTooLong()) markAlive(); }, 60000);
 // Every 15 seconds. The connection is rebuilt only when it has answered nothing for two minutes, never just because the screen is
 // behind: a working connection torn down every 15 seconds meant a new one each time, and from the counter some never get through.
+// A bill open to settle is said every 10 seconds, even while the screen is in the background (WhatsApp opened to send the QR), so no
+// other screen puts it in Pending while it is being settled here.
+setInterval(() => { if (token && heldTabs().length) refresh(); }, 10000);
 setInterval(() => {
   if (document.visibilityState !== 'visible') return;
   if (token && nowMs() - lastGood > 120000 && Date.now() - bridgeHeard > 120000) reconnect();
   refresh();
 }, 15000);
 setInterval(tick, 1000);
+setInterval(showOffline, 1000);
+setInterval(watchBillsLeft, 2000);
 // Up to date turns to Not updated since … once the last answer is 45 seconds old, whatever the reason.
 setInterval(() => { if (token && $('syncText').textContent === 'Up to date' && nowMs() - lastGood > SYNC_STALE_MS) showSync(true, lastGood); }, 1000);
 
@@ -22407,9 +22573,10 @@ else {
   if (token && awayTooLong()) signOutAfterAway();
   else if (token) {
     markAlive();
-    const last = lastSeen();
-    if (last) openOnLast(last);
-    refresh(true).then(() => { if (!state) $('login').hidden = false; });
+    // The last data kept on the device is never shown without the server (owner, 21 November): it opens on the server's answer.
+    offlineAsked = Date.now();
+    showOffline();
+    refresh(true);
   }
   else $('login').hidden = false;
 }
