@@ -12173,7 +12173,7 @@ function lookOnce(name, args, ms, tries = [0, 4000, 8000]) {
       const call = which === 1 && typeof google === 'undefined' ? directCall(name, args) : callServer(name, args);
       call.then(reply => {
         if (reply && reply.ok) finish(resolve, reply.data);
-        else finish(reject, Object.assign(new Error(reply && reply.error || 'Request failed.'), { notSaved: !!(reply && reply.notSaved) }));
+        else finish(reject, Object.assign(new Error(reply && reply.error || 'Request failed.'), { notSaved: !!(reply && reply.notSaved), alreadySaved: !!(reply && reply.alreadySaved) }));
       }, () => { failures++; if (failures === tries.length) finish(reject, new Error('Connection interrupted.')); else send(sent); });
     };
     tries.forEach((at, which) => timers.push(setTimeout(() => send(which), at)));
@@ -12182,6 +12182,13 @@ function lookOnce(name, args, ms, tries = [0, 4000, 8000]) {
       finish(reject, new Error('The server has not confirmed the outcome yet.'));
     }, ms));
   });
+}
+// A save goes the two ways a look goes (owner, 21 November: from the counter the hidden connection had stopped carrying anything to
+// Google while the direct way still brought the data, and every save waited on the hidden one for hours, "Not saved yet · retrying",
+// the other screens without them). Sent at once; with no answer in five seconds sent the direct way, and the first way again at twenty;
+// the first answer is used. Every copy carries the same request ID, so the server makes the save once and gives a copy its result.
+function saveCall(request) {
+  return lookOnce('rpcCommand', [token, request], 45000, [0, 5000, 20000]);
 }
 // A look at the data gives up sooner than a save, so a lost answer never holds the screen for long.
 function rpcWithin(ms, name, ...args) {
@@ -12315,7 +12322,7 @@ function openSheet(config) {
   }
 }
 
-const flow = createSaveFlow(storage || { getItem: () => null, setItem: () => { throw new Error('blocked'); }, removeItem: () => {} }, request => rpc('rpcCommand', token, request), flowNotice, () => nowMs());
+const flow = createSaveFlow(storage || { getItem: () => null, setItem: () => { throw new Error('blocked'); }, removeItem: () => {} }, request => saveCall(request), flowNotice, () => nowMs());
 
 function setBusy(on) {
   document.body.classList.toggle('busy', on);
@@ -21870,7 +21877,7 @@ async function pumpOutbox() {
       // With the moment it was made, so a save that arrives late keeps its times.
       const kicked = new Promise((resolve, reject) => { outboxKick = () => reject(Object.assign(new Error('Sending it again now.'), { kicked: true })); });
       outboxSentAt = Date.now();
-      try { reply = await Promise.race([rpc('rpcCommand', token, { id: item.id, command: item.command, at: item.at }), kicked]); }
+      try { reply = await Promise.race([saveCall({ id: item.id, command: item.command, at: item.at }), kicked]); }
       catch (e) {
         outboxSentAt = 0;
         if (e.kicked) { wait = 2000; continue; }
@@ -22143,7 +22150,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "1de60e377e57";
+const APP_BUILD = "a405fbe19e63";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
