@@ -22341,16 +22341,18 @@ function showApp(user) {
 // Nothing opens without the server (owner, 21 November: a counter's screen worked for six hours on data that never reached the server,
 // 220 changes waiting, "do not fucking let the page only open"): until the server has answered once, and whenever it has not answered
 // for a minute, the whole screen says so and nothing behind it can be tapped. Within seconds, not hours (owner, 21 November: "build
-// it"): at once when the device has no internet, and when a look has gone 15 seconds unanswered or a change made here 15 seconds
+// it"): at once when the device has no internet, and when a look has gone 15 seconds unanswered or a change made here 30 seconds
 // unconfirmed. Taps stay instant; changes already made stay on the device and go first once it is back.
-const SERVER_LOST_MS = 60000, NO_ANSWER_MS = 15000;
+// A change waits 30 seconds before the screen is covered (owner, 22 November: changes took 5 to 13 seconds to reach the server, near
+// the 15 that covered it): a slow Google never covers a working screen; no internet still covers it at once.
+const SERVER_LOST_MS = 60000, NO_ANSWER_MS = 15000, SAVE_WAIT_MS = 30000;
 let serverAnswered = false, offlineAsked = 0, lookingSince = 0, wasLost = false;
 const deviceOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
 function serverLost() {
   if (!token) return false;
   if (!serverAnswered || deviceOffline()) return true;
   const waiting = typeof outbox !== 'undefined' && outbox.length && !String(outboxTrouble).startsWith('Sign in') ? outbox[0].at : 0;
-  return nowMs() - lastGood > SERVER_LOST_MS || (!!lookingSince && Date.now() - lookingSince > NO_ANSWER_MS) || (!!waiting && nowMs() - waiting > NO_ANSWER_MS);
+  return nowMs() - lastGood > SERVER_LOST_MS || (!!lookingSince && Date.now() - lookingSince > NO_ANSWER_MS) || (!!waiting && nowMs() - waiting > SAVE_WAIT_MS);
 }
 function showOffline() {
   const lost = serverLost(), cover = $('offline');
@@ -22399,7 +22401,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "e9b94fa77dea";
+const APP_BUILD = "7e1e69060522";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
