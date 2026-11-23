@@ -11866,9 +11866,9 @@ function notesBlock(ids) {
     h('div', 'note-main', h('span', { class: 'note-text', text: n.text }), h('span', { class: 'small muted', text: [NOTE_KIND[n.kind] || 'Comment', when(n.createdMs)].join(' · ') })))));
 }
 
-// Cash or UPI: the same selector wherever money is taken.
+// UPI or Cash: the same selector wherever money is taken, UPI first (owner, 23 November: "keep upi first cash second and split third").
 function methodChoice(initial, onchange) {
-  const choice = segmented([['cash', 'Cash', 'cash'], ['upi', 'UPI', 'upi']], String(initial).startsWith('upi') ? 'upi' : initial, onchange);
+  const choice = segmented([['upi', 'UPI', 'upi'], ['cash', 'Cash', 'cash']], String(initial).startsWith('upi') ? 'upi' : initial, onchange);
   choice.node.classList.add('method');
   return choice;
 }
@@ -11894,7 +11894,7 @@ function upiAccountChoice(value, onpick, fieldName = 'upi-account', list = UPI_A
 // Cash or one UPI account in one choice, where a payment is put right (a correction).
 function wayChoice(initial, onchange) {
   if (!UPI_ACCOUNTS) return methodChoice(initial, onchange);
-  const choice = segmented([['cash', 'Cash', 'cash'], ...UPI_ACCOUNTS.map(a => ['upi:' + a.id, a.name, 'upi'])], initial, onchange);
+  const choice = segmented([...UPI_ACCOUNTS.map(a => ['upi:' + a.id, a.name, 'upi']), ['cash', 'Cash', 'cash']], initial, onchange);
   choice.node.classList.add('method', 'way-accounts');
   return choice;
 }
@@ -11929,7 +11929,7 @@ function payChoice(store, onchange = () => {}, options = {}) {
       Object.assign(store, { cash: '', upi: '', cashTyped: false, upiTyped: false });
       draw();
       onchange();
-      if (store.split) node.querySelector('[data-field=pay-cash]').focus();
+      if (store.split) node.querySelector('[data-field=pay-upi]').focus();
     }, 'quiet', { 'aria-pressed': String(!!store.split), data: { action: 'split-pay' } }) : null;
     if (!store.split) node.replaceChildren(...[h('div', 'pay-row', method.node, store.method === 'upi' ? ca : null, split), accounts].filter(Boolean));
     else {
@@ -11937,7 +11937,7 @@ function payChoice(store, onchange = () => {}, options = {}) {
       const upi = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: store.upi, 'aria-label': 'UPI received', data: { field: 'pay-upi' } });
       cash.oninput = () => { store.cash = cash.value; store.cashTyped = true; if (!store.upiTyped) upi.value = store.upi = rest(cash.value); onchange(); };
       upi.oninput = () => { store.upi = upi.value; store.upiTyped = true; if (!store.cashTyped) cash.value = store.cash = rest(upi.value); onchange(); };
-      node.replaceChildren(...[h('div', 'pay-row split-boxes', field('Cash (₹)', cash), field('UPI (₹)', upi), ca, split), accounts].filter(Boolean));
+      node.replaceChildren(...[h('div', 'pay-row split-boxes', field('UPI (₹)', upi), field('Cash (₹)', cash), ca, split), accounts].filter(Boolean));
     }
     const box = options.amount ? options.amount.closest('.field') : null;
     if (box) box.hidden = !!store.split;
@@ -19447,7 +19447,7 @@ function turfHoldReceived(b) {
     const accounts = UPI_ACCOUNTS ? upiAccountChoice(way.acct, v => { way.acct = v; }) : segmented([['ours', 'Scanner'], ['ca', 'CA']], way.ca ? 'ca' : 'ours', v => { way.ca = v === 'ca'; });
     scanner.replaceChildren(...(way.method === 'upi' ? [accounts.node] : []));
   };
-  const how = segmented([['cash', 'Cash', 'cash'], ['upi', 'UPI', 'upi']], way.method, v => {
+  const how = segmented([['upi', 'UPI', 'upi'], ['cash', 'Cash', 'cash']], way.method, v => {
     way.method = v;
     paintScanner();
   });
@@ -20000,11 +20000,11 @@ function turfPayChoice(amountPaise, key, pick, options = {}) {
   const way = turfWay, splittable = options.splittable !== false;
   const choose = patch => { Object.assign(way, patch); current.ui.redraw(); };
   const buttons = h('div', { class: 'turf-pay', data: { pay: key } },
-    btn([icon('cash'), 'Cash'], () => choose({ method: 'cash', split: false }), 'collect', { 'aria-pressed': String(!way.split && way.method === 'cash'), data: { action: key + '-cash' } }),
     btn([icon('upi'), 'UPI'], () => choose({ method: 'upi', split: false }), 'collect', { 'aria-pressed': String(!way.split && way.method === 'upi'), data: { action: key + '-upi' } }),
+    btn([icon('cash'), 'Cash'], () => choose({ method: 'cash', split: false }), 'collect', { 'aria-pressed': String(!way.split && way.method === 'cash'), data: { action: key + '-cash' } }),
     splittable ? btn([icon('split'), 'Cash + UPI'], () => {
       choose({ method: '', split: true, cash: '', upi: '', cashTyped: false, upiTyped: false });
-      const box = $('sheet').querySelector('[data-field="' + key + '-cash"]');
+      const box = $('sheet').querySelector('[data-field="' + key + '-upi"]');
       if (box) box.focus();
     }, 'collect', { 'aria-pressed': String(way.split), data: { action: key + '-split' } }) : null,
     options.close ? iconButton('close', 'Not now', () => { turfWay = { key: '' }; options.close(); }) : null);
@@ -20020,7 +20020,7 @@ function turfPayChoice(amountPaise, key, pick, options = {}) {
     const upi = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: way.upi, 'aria-label': 'UPI received', data: { field: key + '-upi' } });
     cash.oninput = () => { way.cash = cash.value; way.cashTyped = true; if (!way.upiTyped) upi.value = way.upi = rest(cash.value); paint(); };
     upi.oninput = () => { way.upi = upi.value; way.upiTyped = true; if (!way.cashTyped) cash.value = way.cash = rest(upi.value); paint(); };
-    boxes = h('div', 'pay-row split-boxes', field('Cash (₹)', cash), field('UPI (₹)', upi));
+    boxes = h('div', 'pay-row split-boxes', field('UPI (₹)', upi), field('Cash (₹)', cash));
   }
   const upiWay = UPI_ACCOUNTS ? way.acct : way.ca ? 'upi:ca' : 'upi';
   const got = () => toPaise(way.cash || 0) + toPaise(way.upi || 0);
@@ -20371,9 +20371,9 @@ function turfDetailSheet(id) {
       if (!split && !onAccount && mainOpen && collect > 0 && turfPaying !== 'all' && turfPaying !== 'split') ui.foot.prepend(h('div', { class: 'turf-collect', data: { collect: '1' } },
         h('div', 'turf-collect-top', h('span', { class: 'turf-collect-label', text: 'Collect ' + money(collect) }), h('span', { class: 'badge ' + stateTone, data: { turfState: status.state }, text: stateText })),
         h('div', 'turf-pay',
-          btn([icon('cash'), 'Cash'], () => { turfPick = { key: oneKey, method: 'cash' }; ui.redraw(); }, 'collect', { 'aria-pressed': String(oneHow === 'cash'), data: { action: 'turf-collect-cash' } }),
           btn([icon('upi'), 'UPI'], () => { turfPick = { key: oneKey, method: 'upi' }; ui.redraw(); }, 'collect', { 'aria-pressed': String(isUpi(oneHow)), data: { action: 'turf-collect-upi' } }),
-          btn([icon('split'), 'Cash + UPI'], () => { turfPaying = 'split'; turfPick = { key: '', method: '' }; turfSplitStore = {}; ui.redraw(); const box = $('sheetFoot').querySelector('[data-field=pay-cash]'); if (box) box.focus(); }, 'collect', { data: { action: 'turf-collect-split' } })),
+          btn([icon('cash'), 'Cash'], () => { turfPick = { key: oneKey, method: 'cash' }; ui.redraw(); }, 'collect', { 'aria-pressed': String(oneHow === 'cash'), data: { action: 'turf-collect-cash' } }),
+          btn([icon('split'), 'Cash + UPI'], () => { turfPaying = 'split'; turfPick = { key: '', method: '' }; turfSplitStore = {}; ui.redraw(); const box = $('sheetFoot').querySelector('[data-field=pay-upi]'); if (box) box.focus(); }, 'collect', { data: { action: 'turf-collect-split' } })),
         // UPI asks which scanner (owner, 23 October), instead of a CA button of its own.
         // With Manipal's three UPI accounts, UPI asks which account (owner, 14 November), none chosen until tapped.
         isUpi(oneHow) ? h('div', { class: 'turf-scanner', data: { field: 'turf-collect-scanner' } },
@@ -22330,7 +22330,31 @@ function keepLast(data) {
   try { if (storage && token) storage.setItem(LAST_KEY, JSON.stringify({ state: confirmed, serverMs: data.serverMs, user: session.user })); } catch (e) { /* only a convenience */ }
 }
 function forgetLast() {
-  try { if (storage) storage.removeItem(LAST_KEY); } catch (e) { /* nothing kept */ }
+  try { if (storage) { storage.removeItem(LAST_KEY); storage.removeItem(LAST_KEY + 'At'); } } catch (e) { /* nothing kept */ }
+}
+// When the server last answered, kept on every answer (an unchanged one too) without writing the data again.
+function keepHeard(serverMs) {
+  try { if (storage && token) storage.setItem(LAST_KEY + 'At', String(serverMs)); } catch (e) { /* only a convenience */ }
+}
+// A page refreshed (or reloaded for a new release) opens at once on what the server said in the last ten minutes, with no cover,
+// while it asks again (owner, 23 November: "every time refreshing … that cover screen comes and it wastes some time … keep that
+// only if internet is not responding"). Older than that, or nothing kept, it waits for the server as since 21 November.
+const KEPT_OPEN_MS = 10 * 60000;
+function lastSeen() {
+  try {
+    const last = JSON.parse(storage.getItem(LAST_KEY) || 'null');
+    const heard = Math.max(last ? last.serverMs : 0, Number(storage.getItem(LAST_KEY + 'At')) || 0);
+    return last && last.state && last.user && Date.now() - heard < KEPT_OPEN_MS ? last : null;
+  } catch (e) { return null; }
+}
+function openOnLast(last) {
+  session = { user: last.user, lastBackup: null, backupError: null };
+  lastGood = last.serverMs;
+  // Kept without its version, so whatever the server answers next replaces it.
+  setConfirmed(last.state, '');
+  showApp(last.user);
+  showSync(false, last.serverMs);
+  render();
 }
 function showApp(user) {
   $('login').hidden = true;
@@ -22345,14 +22369,16 @@ function showApp(user) {
 // unconfirmed. Taps stay instant; changes already made stay on the device and go first once it is back.
 // A change waits 30 seconds before the screen is covered (owner, 22 November: changes took 5 to 13 seconds to reach the server, near
 // the 15 that covered it): a slow Google never covers a working screen; no internet still covers it at once.
+// Coming back to the screen (another tab, another window) never covers it by itself, however long since the last answer: it asks
+// again and is covered only if that goes unanswered 15 seconds (owner, 23 November: "keep that only if internet is not responding").
 const SERVER_LOST_MS = 60000, NO_ANSWER_MS = 15000, SAVE_WAIT_MS = 30000;
 let serverAnswered = false, offlineAsked = 0, lookingSince = 0, wasLost = false;
 const deviceOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
 function serverLost() {
   if (!token) return false;
-  if (!serverAnswered || deviceOffline()) return true;
+  if (deviceOffline() || (!serverAnswered && !state)) return true;
   const waiting = typeof outbox !== 'undefined' && outbox.length && !String(outboxTrouble).startsWith('Sign in') ? outbox[0].at : 0;
-  return nowMs() - lastGood > SERVER_LOST_MS || (!!lookingSince && Date.now() - lookingSince > NO_ANSWER_MS) || (!!waiting && nowMs() - waiting > SAVE_WAIT_MS);
+  return (!!lookingSince && Date.now() - lookingSince > NO_ANSWER_MS) || (!!waiting && nowMs() - waiting > SAVE_WAIT_MS);
 }
 function showOffline() {
   const lost = serverLost(), cover = $('offline');
@@ -22401,7 +22427,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "c5b7a46908f0";
+const APP_BUILD = "bba4abba4848";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -22444,6 +22470,7 @@ function applySnapshot(data) {
   serverAnswered = true;
   lookingSince = 0;
   showOffline();
+  keepHeard(data.serverMs);
   if (data.settling) settlingSeen = { map: data.settling, at: data.serverMs };
   session = { user: data.user, lastBackup: data.lastBackup, backupError: data.backupError };
   $('testCopy').hidden = !data.testCopy;
@@ -22638,6 +22665,8 @@ const comeBack = () => {
   if (awayTooLong()) return signOutAfterAway();
   markAlive();
   if (nowMs() - lastGood > SERVER_LOST_MS) offlineAsked = Date.now();
+  // A look left waiting while the screen was in the background (the browser holds its timers) has its 15 seconds from now.
+  if (lookingSince) lookingSince = Date.now();
   if (nowMs() - lastGood > 60000) reconnect();
   if (outboxTrouble) kickOutbox();
   // Behind for a while: it says it is checking until the answer comes, never Up to date from before.
@@ -22676,7 +22705,10 @@ else {
   if (token && awayTooLong()) signOutAfterAway();
   else if (token) {
     markAlive();
-    // The last data kept on the device is never shown without the server (owner, 21 November): it opens on the server's answer.
+    // What the server said in the last ten minutes opens at once (owner, 23 November); older, it opens on the server's answer
+    // (owner, 21 November).
+    const last = lastSeen();
+    if (last) openOnLast(last);
     offlineAsked = Date.now();
     showOffline();
     refresh(true);
