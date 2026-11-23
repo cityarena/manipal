@@ -11911,7 +11911,8 @@ const isUpi = method => String(method || '').startsWith('upi');
 // With UPI accounts (Manipal) the CA button is three account buttons under the choice, none chosen until tapped (store.acct).
 function payChoice(store, onchange = () => {}, options = {}) {
   const node = h('div', 'pay-choice'), splittable = options.splittable !== false, due = options.due || (() => 0);
-  if (!store.method) store.method = 'cash';
+  // UPI is the way chosen at first (owner, 23 November: "let upi only be selected"); Cash is one tap.
+  if (!store.method) store.method = 'upi';
   if (upiAccountOf(store.method)) { if (UPI_ACCOUNTS) store.acct = store.method; else store.ca = true; store.method = 'upi'; }
   const rest = typed => String(Math.max(0, due() - toPaise(typed || 0)) / 100);
   const accountName = () => (store.acct ? upiAccountName(store.acct) : '');
@@ -14974,7 +14975,7 @@ const payableTimers = tab => { const playing = new Set(unitsOfTab(tab.id)); retu
 // The way paid said after a Pay Items save: from the saves that follow, or cash.
 const method0 = saves => ((saves || []).find(x => x.method) || { method: 'cash' }).method;
 function payItemsSheet(tab, back) {
-  const picks = new Map(), pay = { method: 'cash' };
+  const picks = new Map(), pay = { method: 'upi' };
   let rows = [], timeRows = [], how = null, ticked = false, whole = null;
   const carry = carryTickState(() => current.ui.redraw(), carriedOn(tab).map(o => o.id));
   const carryTaken = () => carriedOn(tab).reduce((n, o) => n + carry.taken(o), 0);
@@ -15527,7 +15528,7 @@ async function receiptSheet(billId, back, opts = {}) {
   const [stateIcon, stateTone] = BILL_STATE[data.status] || ['clock', 'warn'];
   // For a bill that went on credit: what was paid at the counter. Later repayments belong to the account, not to this bill.
   const paidHere = data.transfer ? data.payments.reduce((sum, p) => sum + p.amountPaise, 0) : bill.paidPaise;
-  const payStore = { method: 'cash' };
+  const payStore = { method: 'upi' };
   let amount, how, collectOff = 0, offBox = null;
   // A part payment always asks where the rest goes (owner, 20 November: "when i put part payment, ask pending or rest of the amount what to
   // do … anywhere and everywhere whenever part payment is done"): Keep pending, Move to Credit or Move, chosen before Collect.
@@ -17147,7 +17148,7 @@ function reservationCard(r, plan) {
 }
 
 // ---------- Snacks & beverages over the counter, and the menu ----------
-let salePicker = null, saleProducts = '', saleCustomer = null, salePay = { method: 'cash' }, salePaint = () => {};
+let salePicker = null, saleProducts = '', saleCustomer = null, salePay = { method: 'upi' }, salePaint = () => {};
 // Who a counter sale is for (owner, 14 November): the main business, or badminton or pickleball, which have their own owner.
 let saleVenue = 'main';
 // New items one after another: name, Enter, price, Enter, and the next. The kind stays chosen and the items just added
@@ -17620,7 +17621,7 @@ function accountSheet(accountId) {
   const account = state.CreditAccounts.find(a => a.id === accountId);
   if (!account) { closeSheet(); return; }
   const summary = creditSummary(account.id), due = summary.outstandingPaise, phone = creditPhone(account.id);
-  const payStore = { method: 'cash' };
+  const payStore = { method: 'upi' };
   let amount, how, showEarlier = false;
   // The days opened out to show their bills, kept while the sheet is redrawn.
   const openDays = new Set();
@@ -18104,7 +18105,7 @@ function pendingPersonSheet(group, startOff = 0) {
 // Collect all of one person's pending bills at once: how they paid (Cash, UPI, or both), each bill paid in full, oldest first.
 function pendingCollectAll(group, back, startOff = 0) {
   const bills = group.rows.flatMap(r => (r.booking ? r.parts.map(x => ({ billId: x.billId, owed: x.owed })) : [{ billId: r.bill.id, owed: r.owed }])).reverse();
-  const store = { method: 'cash' };
+  const store = { method: 'upi' };
   let how, off = startOff, offBox, after = [];
   // A discount as on any bill (owner, 20 November: "treat it like regular with discount and all"), typed straight in: taken off the
   // newest bills first, each bill's own discount; the rest collected in full, oldest first.
@@ -18355,7 +18356,7 @@ function owedBreakdown(account) {
 }
 // Take a payment from an account, any amount up to what it owes (owner, 16 November).
 function creditPaySheet(account) {
-  const due = creditSummary(account.id).outstandingPaise, phone = creditPhone(account.id), payStore = { method: 'cash' };
+  const due = creditSummary(account.id).outstandingPaise, phone = creditPhone(account.id), payStore = { method: 'upi' };
   let amount, how;
   openSheet({
     title: 'Pay · ' + account.name,
@@ -19440,7 +19441,7 @@ const turfHoldAnchor = b => document.querySelector('.turf-block[data-booking="' 
 function turfHoldReceived(b) {
   const anchor = turfHoldAnchor(b);
   const amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: turfHoldOf(b) ? String(turfHoldOf(b) / 100) : '', placeholder: '0', 'aria-label': 'Advance received', data: { field: 'hold-received' } });
-  const way = { method: 'cash', ca: false, acct: '' };
+  const way = { method: 'upi', ca: false, acct: '' };
   const scanner = h('div', { class: 'turf-scanner', data: { field: 'hold-scanner' } });
   const paintScanner = () => {
     scanner.hidden = way.method !== 'upi';
@@ -19477,7 +19478,7 @@ function turfHoldSheet(b) {
 // The advance came in: record it (or confirm without one) and the hold becomes a confirmed booking.
 function turfConfirmSheet(b) {
   const amount = h('input', { type: 'number', min: '0', step: '1', inputmode: 'decimal', value: turfHoldOf(b) ? String(turfHoldOf(b) / 100) : '', placeholder: '0', 'aria-label': 'Advance received', data: { field: 'received' } });
-  const pay = { method: 'cash' };
+  const pay = { method: 'upi' };
   let how;
   openSheet({
     title: 'Confirm booking', sub: b.customer + ' · ' + turfRange(b), icon: 'checkCircle', tone: 'jade',
@@ -19501,7 +19502,7 @@ function turfConfirmSheet(b) {
 // Paid in advance on a booking, at any time before it is paid (owner, 20 October).
 function turfAdvanceSheet(b) {
   const amount = h('input', { type: 'number', min: '1', step: '1', inputmode: 'decimal', 'aria-label': 'Paid in advance', data: { field: 'advance' } });
-  const pay = { method: 'cash' };
+  const pay = { method: 'upi' };
   let how;
   openSheet({
     title: 'Paid in advance', sub: b.customer + ' · ' + turfRange(b), icon: 'wallet', tone: 'jade',
@@ -20325,7 +20326,7 @@ function turfDetailSheet(id) {
       if (onAccount && counting.length) ui.foot.prepend(turfCounterItems(b, null, counting, ui));
       counterBox();
       if (!split && !onAccount && mainOpen && collect > 0 && turfPaying === 'split') {
-        if (turfSplitStore.id !== b.id) turfSplitStore = { id: b.id, split: true, method: 'cash' };
+        if (turfSplitStore.id !== b.id) turfSplitStore = { id: b.id, split: true, method: 'upi' };
         const store = turfSplitStore;
         // What the two boxes come to, as they are typed (owner, 21 October: Cash 30 + UPI 300 of 500): the whole; less, and
         // where the rest goes — kept pending under the booking's name, to a credit account, or to their next booking (the
@@ -22427,7 +22428,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "bba4abba4848";
+const APP_BUILD = "6896ad503e92";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
