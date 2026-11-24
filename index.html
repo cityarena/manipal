@@ -5574,12 +5574,24 @@ var ArenaCorrections = (function () {
       segment.billableMinutes = 0;
       (state.Endings || []).forEach(function (e) { if (e.segmentId === segment.id && e.status === 'review') e.status = 'void'; });
     });
-    items.forEach(function (o, i) {
-      ArenaSales.execute(state, { type: 'UPDATE_ORDER', id: o.id, revision: o.revision, quantity: 0, reason: why }, actor, now, id + '-o' + i);
-    });
+    voidItems(state, items, why, actor, now, id);
     tab.status = 'void';
     if (typeof ArenaReservations !== 'undefined') ArenaReservations.complete(state);
     return { tabId: tab.id, closed: true, message: 'Bill voided. Nothing is charged.' };
+  }
+  // A bill's items taken off as it is cancelled: each back in stock. An earlier bill carried onto it (a pending bill moved onto this game,
+  // a turf booking's balance) is not cancelled with it, since that money is still owed: its line is let go and that bill is pending again,
+  // as Back to pending does (CARRY_UNDO; owner, 24 November: a paid bill voided in one step was refused when it carried one).
+  function voidItems(state, items, why, actor, now, id) {
+    items.forEach(function (o, i) {
+      var carried = o.category === 'Carried' && (state.Carries || []).some(function (c) { return c.orderId === o.id; });
+      if (carried) {
+        o.status = 'void';
+        o.revision = Number(o.revision || 1) + 1;
+        return;
+      }
+      ArenaSales.execute(state, { type: 'UPDATE_ORDER', id: o.id, revision: o.revision, quantity: 0, reason: why }, actor, now, id + '-o' + i);
+    });
   }
   function voidBill(state, cmd, actor, now, id) {
     var bill = row(state.Bills, cmd.billId), why = reason(cmd.reason);
@@ -5603,9 +5615,7 @@ var ArenaCorrections = (function () {
         segment.totalPaise = 0;
         segment.billableMinutes = 0;
       });
-      (state.Orders || []).filter(function (o) { return o.tabId === tab.id && o.status === 'active'; }).forEach(function (o, i) {
-        ArenaSales.execute(state, { type: 'UPDATE_ORDER', id: o.id, revision: o.revision, quantity: 0, reason: why }, actor, now, id + '-o' + i);
-      });
+      voidItems(state, (state.Orders || []).filter(function (o) { return o.tabId === tab.id && o.status === 'active'; }), why, actor, now, id);
       tab.status = 'void';
       return { voidedBillId: bill.id, tabId: '', message: 'Bill voided. Nothing is charged.' };
     }
@@ -5680,9 +5690,13 @@ var ArenaCorrections = (function () {
   // matching reversal and the reason); money paid in advance or left by another player stays, because it was really received.
   // action 'payment': record what was actually received, and leave the rest unpaid or move it to a credit account.
   // action 'charges': the bill is voided and its visit opens again, to change items, time or discount and settle afresh.
+  // action 'void': a paid bill cancelled completely in one save (owner, 24 November: voiding a paid bill took Correct charges, then Void
+  // bill, two reasons and two saves, "its confusing, and it takes very long"): every payment taken at the counter taken back, then every
+  // timer and item voided, items back in stock, the visit closed, nothing charged. Not for money paid in advance or left by another
+  // player (really received), nor a turf booking's bill (changed or cancelled on the turf).
   function correctBill(state, cmd, actor, now, id) {
     var bill = row(state.Bills, cmd.billId), why = reason(cmd.reason);
-    check(cmd.action === 'payment' || cmd.action === 'charges', 'Choose what to correct.');
+    check(cmd.action === 'payment' || cmd.action === 'charges' || cmd.action === 'void', 'Choose what to correct.');
     check(!ArenaCore.isVoidedBill(state, bill.id), 'This bill was already voided.');
     check(!(state.CreditTransfers || []).some(function (t) { return t.billId === bill.id; }), 'This bill is on a credit account. Correct it with an account adjustment.');
     check(!ArenaCore.carryOf(state, bill.id), 'This bill’s balance was moved to a later booking. Correct it there.');
@@ -5691,7 +5705,17 @@ var ArenaCorrections = (function () {
     var counter = state.Payments.filter(function (p) {
       return p.billId === bill.id && p.amountPaise > 0 && !reversed[p.id] && !advances.some(function (a) { return p.id === a.id || p.id.indexOf(a.id + '-used-') === 0; });
     });
+    if (cmd.action === 'void') {
+      var voidDetail = (state.BillDetails || []).find(function (d) { return d.id === bill.id; });
+      check(!!voidDetail && !(state.Orders || []).some(function (o) { return o.tabId === voidDetail.tabId && o.status === 'active' && o.category === 'Turf'; }), 'This is a turf booking’s bill. Change or cancel the booking on the turf.');
+    }
     counter.forEach(function (p, i) { reversePayment(state, { paymentId: p.id, reason: why }, actor, now, id + '-back-' + i); });
+    if (cmd.action === 'void') {
+      check(bill.paidPaise === 0, 'Part of this bill was paid in advance or by another player, so it cannot be voided here. Use Correct payment.');
+      var gone = voidBill(state, { billId: bill.id, reason: why, whole: true }, actor, now, id + '-void');
+      gone.message = counter.length ? 'Payment taken back. Bill voided. Nothing is charged.' : gone.message;
+      return gone;
+    }
     if (cmd.action === 'charges') {
       check(bill.paidPaise === 0, 'Part of this bill was paid in advance, so it cannot be opened again. Use Correct payment.');
       var opened = voidBill(state, { billId: bill.id, reason: why }, actor, now, id + '-void');
@@ -15568,7 +15592,10 @@ async function receiptSheet(billId, back, opts = {}) {
           ['Print receipt', () => printReceipt(data), false, 'printer'],
           ...(phone ? [['WhatsApp confirmation', () => whatsapp(phone, 'City Arena: bill ' + data.number + ' for ' + money(bill.totalPaise) + '. Received ' + money(paidHere) + (data.transfer ? '. On credit ' + money(data.transfer.amountPaise) : due ? '. Balance ' + money(due) : '') + '. Thank you.' + '\n\n' + MESSAGE_SIGN.join('\n')), false, 'message']] : []),
           ...(data.archived ? [['Bring back to correct', () => restoreBill(billId), false, 'undo']] : []),
-          ...(!data.archived && correctable(data) && data.payments.length ? [['Correct payment', () => correctBillPaymentSheet(data, back), false, 'pencil'], ['Correct charges', () => correctChargesSheet(data, back), false, 'bills']] : []),
+          // One correction (owner, 24 November: "keep one, do not keep both correct charges and correct something"), and a paid bill
+          // voided in one step beside it.
+          ...(!data.archived && correctable(data) && data.payments.length ? [['Correct bill', () => correctBillSheet(data, back), false, 'pencil']] : []),
+          ...(!data.archived && paidVoidable(data) ? [['Void bill', () => voidPaidSheet(data), true, 'ban']] : []),
           // Nothing paid on it: Void bill cancels it completely, its sessions and items too, nothing charged and the sheet closes
           // (owner, 2 November: "even after clicking void, it still opens this"); Correct charges opens it again to be fixed and
           // settled. A turf booking's bill: Void bill opens its booking again (owner, 1 November), where the slot is changed or
@@ -15579,8 +15606,8 @@ async function receiptSheet(billId, back, opts = {}) {
               if (booking) { closeSheet(); render(); return turfDetailSheet(booking.id); }
               return result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet();
             } }), true, 'ban']]
-            // Correct charges here only when the menu has not got it already (a bill with payments has it above).
-            : [...(correctable(data) && data.payments.length ? [] : [['Correct charges', () => reasonSheet({ title: 'Correct charges · Bill ' + data.number, sub: 'The visit opens again to be corrected and settled.', action: 'Open to correct', icon: 'pencil', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => (result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet()) }), false, 'pencil']]),
+            // Correct bill here only when the menu has not got it already (a bill with payments has it above).
+            : [...(correctable(data) && data.payments.length ? [] : [['Correct bill', () => reasonSheet({ title: 'Correct bill · Bill ' + data.number, sub: 'The visit opens again to be corrected and settled.', action: 'Open to correct', icon: 'pencil', command: reason => ({ type: 'VOID_BILL', billId, reason }), then: result => (result.tabId && tabOf(result.tabId) ? settleSheet(result.tabId) : closeSheet()) }), false, 'pencil']]),
               ['Void bill', () => reasonSheet({ title: 'Void bill ' + data.number, sub: 'Cancelled completely: nothing is charged.', action: 'Void bill', icon: 'ban', tone: 'bad', command: reason => ({ type: 'VOID_BILL', billId, reason, whole: true }), then: result => { closeSheet(); render(); return { text: result.message }; } }), true, 'ban']]) : [])
         ], 'Bill actions');
       if (!payable) ui.body.append(h('div', 'bill-head', glyph(stateIcon, stateTone, 'lg'),
@@ -15891,7 +15918,7 @@ function correctBillPaymentSheet(data, back) {
   const reason = textInput({ 'aria-label': 'Reason', data: { field: 'reason' } });
   let rest = 'unpaid', picker = null;
   openSheet({
-    title: 'Correct payment · Bill ' + data.number,
+    title: 'Correct bill · Bill ' + data.number,
     sub: customer,
     icon: 'pencil',
     tone: 'warn',
@@ -15929,7 +15956,7 @@ function correctBillPaymentSheet(data, back) {
 }
 function correctChargesSheet(data, back) {
   reasonSheet({
-    title: 'Correct charges · Bill ' + data.number,
+    title: 'Correct bill · Bill ' + data.number,
     sub: 'Takes the payment back and opens the bill again for items, time or discount.',
     action: 'Open Bill Again',
     icon: 'pencil',
@@ -15950,12 +15977,41 @@ async function restoreBill(billId) {
     notify('success', r.message);
   } catch (e) { notify('error', e.message); }
 }
-// From the closed bills list: fetch the bill, then open the chosen correction.
+// One correction for a bill (owner, 24 November: "keep one"): opened again to fix items, time, discount or the payment and settle it
+// afresh; where money was paid in advance or left by another player (really received, so the bill cannot be opened again), what was
+// actually received is put right instead.
+const reopenable = data => !data.payments.some(p => p.amountPaise > 0 && (p.advance || p.games || p.paidBy));
+function correctBillSheet(data, back) {
+  if (reopenable(data)) correctChargesSheet(data, back);
+  else correctBillPaymentSheet(data, back);
+}
+// A paid bill voided in one step (owner, 24 November: Correct charges then Void bill, two reasons and two saves, was "confusing, and it
+// takes very long"): the payment taken back and the bill cancelled completely in one save. Not where money was paid in advance or left
+// by another player, nor a turf booking's bill (changed or cancelled on the turf).
+const paidVoidable = data => correctable(data) && data.bill.paidPaise > 0 && !data.orders.some(o => o.category === 'Turf') && reopenable(data);
+function voidPaidSheet(data) {
+  reasonSheet({
+    title: 'Void bill ' + data.number,
+    sub: 'The payment is taken back and the bill cancelled completely: nothing is charged, the items go back in stock.',
+    action: 'Void bill',
+    icon: 'ban',
+    tone: 'bad',
+    command: reason => ({ type: 'CORRECT_BILL', action: 'void', billId: data.bill.id, reason }),
+    then: result => {
+      closeSheet();
+      render();
+      return { text: result.message };
+    }
+  });
+}
+// From the closed bills list: fetch the bill, then open its correction, or void it.
 async function correctBill(billId, kind) {
   let data;
   try { data = await rpc('rpcBill', token, billId); }
   catch (e) { notify('error', e.message); return; }
-  if (kind === 'charges') correctChargesSheet(data); else correctBillPaymentSheet(data);
+  if (kind !== 'void') correctBillSheet(data);
+  else if (paidVoidable(data)) voidPaidSheet(data);
+  else notify('error', 'This bill cannot be voided here: money on it was paid in advance or by another player, or it is a turf booking’s bill. Use Correct bill.');
 }
 // The two corrections apply to a bill that is not void and not on a credit account.
 const correctable = data => data.status !== 'void' && !data.transfer && !data.carry;
@@ -16505,8 +16561,8 @@ const billsPage = {
         h('td', { class: 'r', onclick: e => e.stopPropagation() }, b.archived ? menu([
           ['Bring back to correct', () => restoreBill(b.id), false, 'undo']
         ], 'Bill ' + b.number + ' is in the archive') : (b.status === 'paid' || b.status === 'part') && !b.account ? menu([
-          ['Correct payment', () => correctBill(b.id, 'payment'), false, 'pencil'],
-          ['Correct charges', () => correctBill(b.id, 'charges'), false, 'bills']
+          ['Correct bill', () => correctBill(b.id, 'correct'), false, 'pencil'],
+          ['Void bill', () => correctBill(b.id, 'void'), true, 'ban']
         ], 'Correct bill ' + b.number) : null))), 'No bills match.', 'search'));
     if (billCache.matched > rows.length) page.append(h('p', { class: 'small muted', style: 'margin-top:8px', text: 'Showing the newest ' + rows.length + ' of ' + billCache.matched + '. Narrow the search or export for the rest.' }));
   }
@@ -22429,7 +22485,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "3f21f1bf41cc";
+const APP_BUILD = "6d453c94a2a0";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
