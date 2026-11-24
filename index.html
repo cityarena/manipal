@@ -20086,7 +20086,8 @@ function turfDetailSheet(id) {
       // Slots booked with this one, on the same bill: listed in the Turf card; paying them each on its own is in the ⋮.
       const together = turfLinkedOf(b);
       // Slots of the same customer that day paid apart, which can go back on one bill (Manipal, 22 October).
-      const joinable = turfBookingsOn(b.dateKey).filter(x => x.id !== b.id && x.status === 'booked' && x.phone === b.phone && x.split !== 'yes' && !(b.tabId && x.tabId === b.tabId) && turfStatusOf(x.id).state === 'open' && !turfStatusOf(x.id).locked && !turfHoldOf(x) && !turfAccountOf(x.id));
+      // An older day's list is only on the screen while that day is shown (a save elsewhere starts it again): none, nothing to join.
+      const joinable = (turfBookingsOn(b.dateKey) || []).filter(x => x.id !== b.id && x.status === 'booked' && x.phone === b.phone && x.split !== 'yes' && !(b.tabId && x.tabId === b.tabId) && turfStatusOf(x.id).state === 'open' && !turfStatusOf(x.id).locked && !turfHoldOf(x) && !turfAccountOf(x.id));
       const actions = [
         ...(!ended && !status.locked ? [['Change booking', () => turfBookingSheet(b), false, 'pencil']] : []),
         ...(!together.length && joinable.length && !split && !status.locked && status.state === 'open' && !turfHoldOf(b) && !turfAccountOf(b.id) ? [['Pay with ' + joinable.map(x => courtLabel(x.court) + ' ' + hourLabel(Number(x.startHour))).join(', '), () => runCommand({ type: 'TURF_LINK', id: b.id, revision: b.revision, ids: joinable.map(x => x.id) }, () => {
@@ -20140,7 +20141,7 @@ function turfDetailSheet(id) {
       else turfOnePayerBody(ui, b, status, main, mainOpen, mainPart);
       // Brought from an earlier booking of this customer, to be paid with this one.
       const brought = main && main.status === 'open' ? ordersOf(main.id).filter(turfCarried) : [];
-      if (brought.length) ui.body.append(h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', 'lines', brought.map(carriedLine)));
+      if (brought.length) ui.body.append(h('div', 'group-title', icon('history'), 'Carried from earlier'), h('div', 'lines', brought.map(o => carriedLine(o))));
       const notes = notesBlock([b.id, b.tabId, ...turfPlayersOf(b).map(x => x.tabId)]);
       if (notes) ui.body.append(notes);
       // Play brought from the gaming floor (a group that played before the turf), at its saved price.
@@ -22428,7 +22429,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "6896ad503e92";
+const APP_BUILD = "3f21f1bf41cc";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
