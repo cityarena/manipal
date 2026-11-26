@@ -22485,7 +22485,7 @@ function watchArrivals() {
 // A release while this page is open (owner, 1 November: a counter screen open since before 29 October ran the old app, its
 // saves stuck behind one another until it was refreshed): the page reloads itself into the new one, once nothing is waiting
 // to be saved and no sheet is open, and once for each release (a page and a server released a minute apart never loop).
-const APP_BUILD = "6d453c94a2a0";
+const APP_BUILD = "537992debd65";
 let reloadFetching = false, reloadAskedAt = 0;
 // A system added to the branch (Branch.gs units) joins the floor once (owner, 11 November: PS5 9). Sent only to a server of this
 // page's own build, so a page published a few minutes before its server never asks for what that server cannot do yet.
@@ -22500,11 +22500,12 @@ function postFloorUnits(build) {
 }
 // The new page, fetched whole and kept (owner, 10 November: on a slow connection the old copy kept coming back). True only when
 // what came back really is that release: the server can be ahead of the site for a few minutes during a release.
+// Asked as the browser asks on a reload, "has it changed?", and kept by the browser (owner, 26 November: the page, 5.5 MB, was
+// downloaded twice a release on each screen, and once a minute while the site and the server were on different releases): unchanged
+// it costs nothing, changed it is downloaded once and the reload after it reuses it.
 async function newPageReady(build) {
-  const fresh = await fetch('/', { cache: 'no-store', credentials: 'same-origin' });
-  if (!fresh.ok || !(await fresh.clone().text()).includes(build)) return false;
-  if (window.caches && navigator.serviceWorker && navigator.serviceWorker.controller) await (await caches.open('city-arena-page')).put('./', fresh);
-  return true;
+  const fresh = await fetch('/', { cache: 'no-cache', credentials: 'same-origin' });
+  return fresh.ok && (await fresh.text()).includes(build);
 }
 const reloadWaits = () => outbox.length || flow.saving() || $('sheet').open;
 async function reloadIfOld(build) {
